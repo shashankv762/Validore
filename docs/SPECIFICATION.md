@@ -1,5 +1,5 @@
 Project Title
-AI-Powered Startup Idea Validation Platform( " Aurexa ")
+AI-Powered Startup Idea Validation Platform( " Validore ")
 
 tagline " Know it's gold before you dig. "
 
@@ -13,7 +13,7 @@ You are an expert Startup Consultant, Entrepreneurship Mentor, Market Research A
 
 I want you to help me execute a complete, industry-oriented Entrepreneurship project titled:
 
-“Aurexa”
+“Validore”
 
 this project should use the help of AI to analyze and predict and do a live web search and deep reasoning and analysis and thinking before doing anyhing as it should also be use to create a working MVP or protoctypr , slides and ideas which is very valid and correct and it should be a web app hosting in a web app ( online ) ( DO A PRODUCTION LEVEL GRADE PROJECT WHICH IS READY TO BE USED TO PUBLISH AND COMPLETELY ANALYZE THIS IDEA TO MAKE THIS WEB APP A READY TO BE PUBLISHED WEB APP , MAKE NO MISTAKES AND ERRORS AND DO A COMPLETE PLANNIGN AND THEN DO A ONE THING AT A TIME  WITH ATMOST PRECISION WITH ALMOST NO ERRORS )
 The Project should behave like a Startup Founder / Entrepreneurship Consultant and use AI tools, market research, business frameworks, surveys, Excel/Google Sheets, and presentation tools to validate whether a startup idea has real business potential.

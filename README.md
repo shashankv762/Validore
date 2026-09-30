@@ -1,8 +1,8 @@
-# Aurexa ✦
+# Validore ✦
 
 > **"Know it's gold before you dig."**
 
-Aurexa is an enterprise-grade, AI-powered startup idea validation and venture intelligence platform. It provides founders and digital entrepreneurs with comprehensive market validation, competitor analysis, unit economics, dynamic pricing simulation, crowdfunding predictability, and investor-ready pitch decks before risking time or capital.
+Validore is an enterprise-grade, AI-powered startup idea validation and venture intelligence platform. It provides founders and digital entrepreneurs with comprehensive market validation, competitor analysis, unit economics, dynamic pricing simulation, crowdfunding predictability, and investor-ready pitch decks before risking time or capital.
 
 ---
 
@@ -41,7 +41,7 @@ Aurexa is an enterprise-grade, AI-powered startup idea validation and venture in
 
 - **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack, React 19)
 - **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) with Aurexa Design Tokens (Faceted Angular Geometry, Gold Accents, Dark Navy)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) with Validore Design Tokens (Faceted Angular Geometry, Gold Accents, Dark Navy)
 - **Database & ORM**: PostgreSQL via [Supabase](https://supabase.com/) & [Drizzle ORM](https://orm.drizzle.team/)
 - **Visualizations**: [Recharts](https://recharts.org/) for financial and sensitivity models
 - **AI Orchestration**: [Vercel AI SDK](https://sdk.vercel.ai/) with multi-provider fallback:
@@ -65,8 +65,8 @@ Aurexa is an enterprise-grade, AI-powered startup idea validation and venture in
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone https://github.com/shashankv762/Aurexa.git
-cd Aurexa
+git clone https://github.com/shashankv762/Validore.git
+cd Validore
 npm install --legacy-peer-deps
 ```
 
@@ -150,7 +150,7 @@ npm run build
 
 ## ⚖️ Legal & Compliance
 
-Aurexa is architected with privacy and regulatory compliance at its core:
+Validore is architected with privacy and regulatory compliance at its core:
 - **Privacy Policy**: `/legal/privacy` (GDPR, CCPA, and India DPDPA 2023 compliant)
 - **Terms of Service**: `/legal/terms` (Includes educational decision-support AI disclaimers)
 - **Cookie Policy**: `/legal/cookies` (Cookieless privacy-first analytics)

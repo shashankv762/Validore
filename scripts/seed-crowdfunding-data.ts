@@ -1,5 +1,5 @@
 /**
- * Aurexa — Synthetic Crowdfunding Dataset Seed Script
+ * Validore — Synthetic Crowdfunding Dataset Seed Script
  * Generates exactly 300 synthetic campaigns for benchmark analysis.
  * ALL records are labeled SYNTHETIC DATA — not real platform data.
  * Idempotent: skips if ≥300 records already exist.
@@ -167,7 +167,7 @@ function validateCampaign(c: ReturnType<typeof generateCampaign>): boolean {
 }
 
 async function seed() {
-  console.log('🌱 Aurexa Synthetic Campaign Seed Script')
+  console.log('🌱 Validore Synthetic Campaign Seed Script')
   console.log('⚠️  ALL DATA IS SYNTHETIC — NOT REAL PLATFORM DATA\n')
 
   // Check idempotency
