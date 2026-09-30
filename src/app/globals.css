@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+:root {
+  --gold: #C8A860;
+  --gold-light: #D4AF37;
+  --gold-dark: #B8963E;
+  --navy: #0A1628;
+  --charcoal: #1C1C1C;
+  --cream: #F5F0E8;
+  --ivory: #FAFAF7;
+  --border-subtle: #E8E0D0;
+  --gold-gradient: linear-gradient(135deg, #D4AF37, #C8A860, #B8963E);
+}
+
+.dark {
+  --background: #0A1628;
+  --foreground: #F5F0E8;
+}
+
+body {
+  background-color: var(--cream);
+  color: var(--charcoal);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Angular card corners — logo motif */
+.card-angular {
+  border-radius: 2px 12px 2px 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--ivory);
+}
+
+/* Gold score gauge ring */
+.gauge-gold {
+  stroke: var(--gold);
+  stroke-linecap: round;
+  fill: none;
+  filter: drop-shadow(0 0 6px rgba(200, 168, 96, 0.4));
+}

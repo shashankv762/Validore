@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" fill="none">
+  <defs>
+    <linearGradient id="goldGradL" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#D4AF37"/>
+      <stop offset="50%" style="stop-color:#C8A860"/>
+      <stop offset="100%" style="stop-color:#B8963E"/>
+    </linearGradient>
+  </defs>
+  <polygon points="30,8 46,52 14,52" fill="url(#goldGradL)"/>
+  <polygon points="30,14 24,34 36,34" fill="#F5F0E8"/>
+  <polygon points="30,36 34,44 30,48 26,44" fill="url(#goldGradL)"/>
+  <text x="62" y="40" font-family="system-ui, sans-serif" font-size="28" font-weight="300" letter-spacing="2" fill="#1C1C1C">aurexa</text>
+  <line x1="62" y1="46" x2="92" y2="46" stroke="#C8A860" stroke-width="2"/>
+</svg>
