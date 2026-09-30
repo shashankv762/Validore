@@ -2,8 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Privacy Policy | Aurexa',
-  description: 'Privacy Policy for Aurexa - AI-powered startup validation.',
+  title: 'Privacy Policy | Validore',
+  description: 'Privacy Policy for Validore - AI-powered startup validation.',
 }
 
 export default function LegalPage() {
@@ -11,8 +11,8 @@ export default function LegalPage() {
     <div className="min-h-screen bg-[#F5F0E8] flex flex-col">
       <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
         <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
+          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
         </Link>
         <div className="flex items-center gap-6">
           <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#96792b] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
@@ -29,7 +29,7 @@ export default function LegalPage() {
 
 <div className="prose prose-sm max-w-none text-[#1C1C1C]">
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">1. Data Controller</h2>
-  <p className="mb-4">Aurexa is operated as a sole proprietorship by [Your Name].<br/>Address: [Your Address], New Delhi, India<br/>Contact Email: legal@aurexa.app</p>
+  <p className="mb-4">Validore is operated as a sole proprietorship by [Your Name].<br/>Address: [Your Address], New Delhi, India<br/>Contact Email: legal@validore.app</p>
   
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">2. What data we collect</h2>
   <p className="mb-2">We collect only the minimum data necessary to provide our service:</p>
@@ -52,7 +52,7 @@ export default function LegalPage() {
     <li><strong>Consent:</strong> Marketing emails (if applicable).</li>
   </ul>
 
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">5. Data sharing & Sub-processors</h2>
+  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">5. Data sharing &amp; Sub-processors</h2>
   <p className="mb-4">We share data only with essential sub-processors:</p>
   <ul className="list-disc pl-5 mb-4 space-y-2">
     <li><strong>Supabase (US):</strong> Authentication and database hosting.</li>
@@ -62,7 +62,7 @@ export default function LegalPage() {
   </ul>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">6. AI Data Processing Disclosure</h2>
-  <p className="mb-4">Your startup idea data is sent to AI providers to generate the validation reports. <strong>We do not train our own AI models on your data</strong>. The respective AI providers' data policies apply regarding their use of API data (which generally exclude API data from model training).</p>
+  <p className="mb-4">Your startup idea data is sent to AI providers to generate the validation reports. <strong>We do not train our own AI models on your data</strong>. The respective AI providers&apos; data policies apply regarding their use of API data (which generally exclude API data from model training).</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">7. Data retention</h2>
   <ul className="list-disc pl-5 mb-4 space-y-2">
@@ -80,9 +80,9 @@ export default function LegalPage() {
   </ul>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">9. Data Protection Officer / Grievance Officer</h2>
-  <p className="mb-4">Name: [Your Name]<br/>Email: legal@aurexa.app</p>
+  <p className="mb-4">Name: [Your Name]<br/>Email: legal@validore.app</p>
 
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">10. Children's Privacy</h2>
+  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">10. Children&apos;s Privacy</h2>
   <p className="mb-4">Our service is not intended for users under the age of 18.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">11. International transfers</h2>
@@ -98,8 +98,8 @@ export default function LegalPage() {
       <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
         <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
            <div className="flex items-center gap-2">
-             <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
+             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
            </div>
            <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
               <Link href="/legal/privacy" className="hover:text-[#96792b]">Privacy Policy</Link>
@@ -109,8 +109,8 @@ export default function LegalPage() {
            </div>
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Aurexa. All rights reserved.</p>
-           <p>Aurexa is operated by [Your Name], New Delhi, India. Contact: support@aurexa.app</p>
+           <p>© 2026 Validore. All rights reserved.</p>
+           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </div>

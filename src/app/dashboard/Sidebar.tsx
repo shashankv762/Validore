@@ -20,7 +20,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1628] text-[#F5F0E8]">
         <Link href="/" className="block">
           <span className="text-lg font-light tracking-widest text-[#C8A860]" style={{ letterSpacing: '0.15em' }}>
-            aurexa
+            validore
           </span>
         </Link>
         <button 
@@ -50,7 +50,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
               className="text-lg font-light tracking-widest"
               style={{ color: '#C8A860', letterSpacing: '0.15em' }}
             >
-              aurexa
+              validore
             </span>
             <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
               Know it's gold before you dig.

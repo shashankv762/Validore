@@ -16,15 +16,15 @@ export async function generateMetadata({ params }: { params: Promise<{ shareToke
     .limit(1);
 
   const report = reports[0];
-  const title = report ? `${report.ideaName} - Validation Report` : 'Aurexa Validation Report';
+  const title = report ? `${report.ideaName} - Validation Report` : 'Validore Validation Report';
 
   return {
     title,
-    description: 'View this shared AI-powered startup validation report from Aurexa.',
+    description: 'View this shared AI-powered startup validation report from Validore.',
     openGraph: {
       title,
-      description: 'View this shared AI-powered startup validation report from Aurexa.',
-      siteName: 'Aurexa',
+      description: 'View this shared AI-powered startup validation report from Validore.',
+      siteName: 'Validore',
       images: ['/og-image.png'],
     },
     twitter: {

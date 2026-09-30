@@ -89,7 +89,7 @@ export default function IdeaWizard() {
                 onChange={e => updateForm('name', e.target.value)} 
                 onKeyDown={handleKeyDown}
                 autoFocus
-                placeholder="e.g. Aurexa"
+                placeholder="e.g. Validore"
               />
             </div>
           )}

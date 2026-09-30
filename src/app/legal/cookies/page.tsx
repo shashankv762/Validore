@@ -2,8 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Cookie Policy | Aurexa',
-  description: 'Cookie Policy for Aurexa - AI-powered startup validation.',
+  title: 'Cookie Policy | Validore',
+  description: 'Cookie Policy for Validore - AI-powered startup validation.',
 }
 
 export default function LegalPage() {
@@ -11,8 +11,8 @@ export default function LegalPage() {
     <div className="min-h-screen bg-[#F5F0E8] flex flex-col">
       <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
         <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
+          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
         </Link>
         <div className="flex items-center gap-6">
           <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#96792b] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
@@ -31,7 +31,7 @@ export default function LegalPage() {
   <p className="mb-6 text-lg">We value your privacy and aim to be completely transparent about our use of cookies.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Strictly Necessary Cookies Only</h2>
-  <p className="mb-4">We use <strong>strictly necessary cookies only</strong> for authentication and session management (powered by Supabase auth). Without these cookies, you would not be able to log in to your Aurexa workspace.</p>
+  <p className="mb-4">We use <strong>strictly necessary cookies only</strong> for authentication and session management (powered by Supabase auth). Without these cookies, you would not be able to log in to your Validore workspace.</p>
   
   <p className="mb-4">We do <strong>NOT</strong> use tracking cookies, advertising cookies, or third-party analytics cookies that store data on your device.</p>
 
@@ -74,8 +74,8 @@ export default function LegalPage() {
       <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
         <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
            <div className="flex items-center gap-2">
-             <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
+             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
            </div>
            <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
               <Link href="/legal/privacy" className="hover:text-[#96792b]">Privacy Policy</Link>
@@ -85,8 +85,8 @@ export default function LegalPage() {
            </div>
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Aurexa. All rights reserved.</p>
-           <p>Aurexa is operated by [Your Name], New Delhi, India. Contact: support@aurexa.app</p>
+           <p>© 2026 Validore. All rights reserved.</p>
+           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </div>

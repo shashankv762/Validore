@@ -2,8 +2,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Sign Up | Aurexa',
-  description: 'Create your free Aurexa account.',
+  title: 'Sign Up | Validore',
+  description: 'Create your free Validore account.',
 }
 
 export default function SignUpPage() {
@@ -13,8 +13,8 @@ export default function SignUpPage() {
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12" style={{ background: 'var(--navy)' }}>
         <div>
           <Link href="/" className="inline-flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">aurexa</span>
+            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">validore</span>
           </Link>
         </div>
         <div>
@@ -46,8 +46,8 @@ export default function SignUpPage() {
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8">
             <Link href="/" className="inline-flex items-center gap-3">
-              <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+              <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
             </Link>
           </div>
           

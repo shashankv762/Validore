@@ -52,8 +52,8 @@ export default function ReportView({ report, isSharePage = false }: { report: an
       {isSharePage && (
         <div className="mb-12 flex items-center justify-between border-b border-[#E8E0D0] pb-6">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={36} height={36} />
-            <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
+            <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
           </Link>
           <Link href="/auth/signup" className="px-5 py-2 text-sm font-medium text-[#0A1628] rounded focus:ring-2 focus:ring-[#0A1628] outline-none" style={{ background: 'var(--gold-gradient)' }}>
             Start Free
@@ -189,7 +189,7 @@ export default function ReportView({ report, isSharePage = false }: { report: an
           <h2 className="text-2xl font-light text-[#0A1628] mb-4">Want your own validation report?</h2>
           <p className="text-[#1C1C1C] opacity-70 mb-8">Get AI-powered insights, competitor analysis, and financial models for your idea.</p>
           <Link href="/auth/signup" className="px-8 py-4 text-base font-medium text-[#0A1628] rounded transition-all hover:opacity-90 focus:ring-2 focus:ring-[#0A1628] outline-none inline-block" style={{ background: 'var(--gold-gradient)' }}>
-            Start free on Aurexa
+            Start free on Validore
           </Link>
         </div>
       )}

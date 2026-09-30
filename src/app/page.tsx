@@ -3,19 +3,19 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata: Metadata = {
-  title: 'Aurexa — Know it\'s gold before you dig.',
+  title: 'Validore — Know it\'s gold before you dig.',
   description: 'AI-powered startup idea validation. Validate your startup with market research, competitor analysis, financial modelling, and a GO/NO-GO score — before you invest a single rupee.',
   openGraph: {
-    title: 'Aurexa — Know it\'s gold before you dig.',
+    title: 'Validore — Know it\'s gold before you dig.',
     description: 'AI-powered startup idea validation platform. Get your Validation Score /100 in minutes.',
     url: process.env.NEXT_PUBLIC_APP_URL,
-    siteName: 'Aurexa',
+    siteName: 'Validore',
     type: 'website',
     images: [{ url: `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Aurexa — Know it\'s gold before you dig.',
+    title: 'Validore — Know it\'s gold before you dig.',
     description: 'AI-powered startup idea validation. Get your GO/NO-GO score in minutes.',
   },
 }
@@ -26,8 +26,8 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
         <div className="flex items-center gap-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
+          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
         </div>
         <div className="flex items-center gap-6">
           <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#C8A860] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
@@ -233,8 +233,8 @@ export default function LandingPage() {
       <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
         <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
            <div className="flex items-center gap-2">
-             <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
+             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
            </div>
            <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
               <Link href="/legal/privacy" className="hover:text-[#C8A860]">Privacy Policy</Link>
@@ -244,8 +244,8 @@ export default function LandingPage() {
            </div>
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Aurexa. All rights reserved.</p>
-           <p>Aurexa is operated by [Your Name], New Delhi, India. Contact: support@aurexa.app</p>
+           <p>© 2026 Validore. All rights reserved.</p>
+           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </main>
