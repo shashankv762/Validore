@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Validation', icon: '✦', tier: 'free' },
@@ -18,7 +19,8 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col md:flex-row w-full" style={{ background: 'var(--cream, #F5F0E8)' }}>
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1628] text-[#F5F0E8]">
-        <Link href="/" className="block">
+        <Link href="/" className="inline-flex items-center gap-2">
+          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={28} height={28} />
           <span className="text-lg font-light tracking-widest text-[#C8A860]" style={{ letterSpacing: '0.15em' }}>
             validore
           </span>
@@ -45,15 +47,18 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="hidden md:block px-6 py-6 border-b border-white/10">
-          <Link href="/" className="block">
-            <span
-              className="text-lg font-light tracking-widest"
-              style={{ color: '#C8A860', letterSpacing: '0.15em' }}
-            >
-              validore
-            </span>
-            <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
-              Know it's gold before you dig.
+          <Link href="/" className="inline-flex items-center gap-3 hover:opacity-90 transition-opacity">
+            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+            <div>
+              <span
+                className="text-lg font-light tracking-widest block"
+                style={{ color: '#C8A860', letterSpacing: '0.15em' }}
+              >
+                validore
+              </span>
+              <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
+                Know it's gold before you dig.
+              </div>
             </div>
           </Link>
         </div>

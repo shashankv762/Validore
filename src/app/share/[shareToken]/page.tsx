@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: { params: Promise<{ shareToke
       title,
       description: 'View this shared AI-powered startup validation report from Validore.',
       siteName: 'Validore',
-      images: ['/og-image.png'],
+      images: ['/og-image.svg'],
     },
     twitter: {
       card: 'summary_large_image',
