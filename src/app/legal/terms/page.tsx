@@ -73,7 +73,7 @@ export default function LegalPage() {
   <p className="mb-4">We reserve the right to terminate your access for breach of these terms. You may delete your account at any time.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">15. Governing Law</h2>
-  <p className="mb-4">These Terms are governed by the laws of the Republic of India. Any disputes will be resolved in the courts of New Delhi.</p>
+  <p className="mb-4">These Terms are governed by the laws of the Republic of India. Any disputes will be resolved in the courts of Bengaluru, Karnataka, India.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">16. Severability &amp; Entire Agreement</h2>
   <p className="mb-4">If any provision is found unenforceable, the rest remains in effect. These Terms constitute the entire agreement between you and Validore.</p>
@@ -97,7 +97,7 @@ export default function LegalPage() {
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
            <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
+           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </div>

@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function IdeaWizard() {
   const router = useRouter();
@@ -9,18 +10,34 @@ export default function IdeaWizard() {
   const [loadingMsg, setLoadingMsg] = useState("");
   const [formData, setFormData] = useState({
     name: "", industry: "", product: "", targetCustomer: "",
-    location: "", businessModel: "", coreProblem: "", proposedSolution: ""
+    location: "", businessModel: "", coreProblem: "", proposedSolution: "", website: ""
   });
 
   const nextStep = () => setStep(s => Math.min(s + 1, 9));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
   const updateForm = (key: string, val: string) => setFormData(p => ({ ...p, [key]: val }));
 
+  const STAGE_MESSAGES = [
+    "Scanning the market landscape...",
+    "Interviewing your target customers...",
+    "Benchmarking the competition...",
+    "Modelling the financials...",
+    "Weighing the risks...",
+    "Synthesising the verdict...",
+  ];
+
   const handleSubmit = async () => {
     setLoading(true);
-    setLoadingMsg("Analysing market...");
-    setTimeout(() => setLoadingMsg("Researching competitors..."), 3000);
-    setTimeout(() => setLoadingMsg("Modelling financials..."), 6000);
+    setLoadingMsg(STAGE_MESSAGES[0]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    // Slow stage message rotation while the real progress comes from polling
+    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[1]), 4000));
+    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[2]), 8000));
+    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[3]), 12000));
+    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[4]), 16000));
+    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[5]), 20000));
+
+    const cleanup = () => timers.forEach(clearTimeout);
 
     try {
       const ideaRes = await fetch("/api/ideas", {
@@ -28,23 +45,93 @@ export default function IdeaWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData)
       });
-      const { idea } = await ideaRes.json();
+      const ideaData = await ideaRes.json().catch(() => ({}));
 
-      if (idea?.id) {
-        const valRes = await fetch("/api/validate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ideaId: idea.id })
-        });
-        const { reportId } = await valRes.json();
-        if (reportId) {
-          router.push(`/dashboard/report/${reportId}`);
+      if (!ideaRes.ok || !ideaData.idea?.id) {
+        cleanup();
+        toast.error(ideaData.error || "Failed to save startup idea. Please try again.");
+        setLoading(false);
+        return;
+      }
+
+      const ideaId = ideaData.idea.id;
+      const valRes = await fetch("/api/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaId })
+      });
+      const valData = await valRes.json().catch(() => ({}));
+
+      if (!valRes.ok) {
+        cleanup();
+        toast.error(valData.error || "Failed to start validation.");
+        setLoading(false);
+        return;
+      }
+
+      // /api/validate returns 202 + jobId — poll until the report is ready.
+      const jobId = valData.jobId;
+      if (!jobId) {
+        // Legacy immediate-report flow (reportId in the 202 body)
+        if (valData.reportId) {
+          cleanup();
+          toast.success("Analysis complete! Redirecting to report...");
+          router.push(`/dashboard/report/${valData.reportId}`);
+          return;
+        }
+        cleanup();
+        toast.error("Validation started but no job reference returned.");
+        setLoading(false);
+        return;
+      }
+
+      const MAX_WAIT_MS = 180000; // 3 minutes
+      const POLL_INTERVAL_MS = 2000;
+      const startedAt = Date.now();
+
+      for (;;) {
+        if (Date.now() - startedAt > MAX_WAIT_MS) {
+          cleanup();
+          toast.error("Validation is taking longer than expected. Check your reports page shortly.");
+          setLoading(false);
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+
+        let statusData: any;
+        try {
+          const statusRes = await fetch(`/api/reports/status?jobId=${jobId}`);
+          statusData = await statusRes.json().catch(() => ({}));
+        } catch {
+          continue; // transient network error — keep polling
+        }
+
+        // Reflect real agent progress in the loading message
+        if (typeof statusData.completedSections === "number" && statusData.completedSections > 0) {
+          setLoadingMsg(STAGE_MESSAGES[Math.min(statusData.completedSections - 1, STAGE_MESSAGES.length - 1)]);
+        }
+
+        if (statusData.reportId) {
+          cleanup();
+          toast.success("Analysis complete! Redirecting to report...");
+          router.push(`/dashboard/report/${statusData.reportId}`);
+          return;
+        }
+
+        if (statusData.status === "failed") {
+          cleanup();
+          toast.error(statusData.errorMessage || "Validation failed. Please try again.");
+          setLoading(false);
           return;
         }
       }
     } catch (e) {
       console.error(e);
+      cleanup();
+      toast.error("An unexpected network error occurred. Please try again.");
     }
+    cleanup();
     setLoading(false);
   };
 
@@ -73,10 +160,14 @@ export default function IdeaWizard() {
       {loading ? (
         <div className="card-angular p-16 flex flex-col items-center justify-center bg-[#FAFAF7] shadow-sm">
           <div className="w-12 h-12 border-4 border-[#E8E0D0] border-t-[#C8A860] rounded-full animate-spin mb-6" />
-          <div className="text-xl font-light text-[#0A1628]">{loadingMsg}</div>
+          <div className="text-xl font-light text-shimmer">{loadingMsg}</div>
+          <div className="mt-4 w-40 h-1 bg-[#E8E0D0] rounded-full overflow-hidden">
+            <div className="h-full w-1/2 bg-[#C8A860] rounded-full animate-pulse" />
+          </div>
         </div>
       ) : (
         <div className="card-angular p-8 md:p-12 bg-[#FAFAF7] shadow-sm">
+          <div key={step} className="animate-step-in">
           {step === 1 && (
             <div>
               <h1 className="text-2xl font-light text-[#0A1628] mb-2">Startup Name</h1>
@@ -90,6 +181,14 @@ export default function IdeaWizard() {
                 onKeyDown={handleKeyDown}
                 autoFocus
                 placeholder="e.g. Validore"
+              />
+              <input 
+                name="website" 
+                style={{display:'none'}} 
+                tabIndex={-1} 
+                autoComplete="off"
+                value={formData.website}
+                onChange={e => updateForm('website', e.target.value)}
               />
             </div>
           )}
@@ -221,7 +320,8 @@ export default function IdeaWizard() {
               </p>
             </div>
           )}
-          
+          </div>
+
           <div className="mt-10 flex justify-between items-center border-t border-[#E8E0D0] pt-6">
             <button 
               onClick={prevStep} 

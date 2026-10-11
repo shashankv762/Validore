@@ -13,7 +13,7 @@ export const STARTUP_WEIGHTS = {
 } as const
 
 export function calculateStartupValidationScore(
-  scores: typeof STARTUP_WEIGHTS
+  scores: Record<keyof typeof STARTUP_WEIGHTS, number>
 ): number {
   return Object.values(scores).reduce((a, b) => a + b, 0)
 }

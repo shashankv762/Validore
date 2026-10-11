@@ -70,7 +70,7 @@ export default function LegalPage() {
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
            <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
+           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </div>

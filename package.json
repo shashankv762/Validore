@@ -7,7 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "lint:ci": "eslint --max-warnings 0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:ci": "cross-env CI=true VITE_CONFIG_NATIVE_IGNORE_WARNING=true vitest run --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml",
+    "test:watch": "vitest",
+    "ci": "npm run lint:ci && npm run typecheck && npm run test:ci",
+    "db:push": "drizzle-kit push",
+    "db:seed": "tsx scripts/seed-tiers-and-counter.ts && tsx scripts/seed-crowdfunding-data.ts",
+    "db:verify": "tsx scripts/verify-db-setup.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.68",
@@ -23,6 +31,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
+    "disposable-email-domains": "^1.0.62",
     "dotenv": "^18.0.4",
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.3",
@@ -48,6 +57,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "cross-env": "^10.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.7",
     "tailwindcss": "^4",

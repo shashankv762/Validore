@@ -29,7 +29,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1628] text-[#C8A860]">
          <a href="/" className="block">
-            <span className="text-lg font-light tracking-widest" style={{ letterSpacing: '0.15em' }}>aurexa</span>
+            <span className="text-lg font-light tracking-widest" style={{ letterSpacing: '0.15em' }}>validore</span>
          </a>
          <MobileNav navItems={NAV_ITEMS} />
       </div>
@@ -46,7 +46,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               className="text-lg font-light tracking-widest"
               style={{ color: '#C8A860', letterSpacing: '0.15em' }}
             >
-              aurexa
+              validore
             </span>
             <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
               Know it&apos;s gold before you dig.
@@ -203,11 +203,11 @@ import { db } from '@/db/schema'
 
 export async function generateMetadata({ params }: { params: { shareToken: string } }) {
   return {
-    title: 'Aurexa Validation Report',
-    description: 'View this startup validation report powered by Aurexa.',
+    title: 'Validore Validation Report',
+    description: 'View this startup validation report powered by Validore.',
     openGraph: {
-      title: 'Aurexa Validation Report',
-      description: 'View this startup validation report powered by Aurexa.',
+      title: 'Validore Validation Report',
+      description: 'View this startup validation report powered by Validore.',
       images: ['/og-image.png'],
     },
   }
@@ -227,8 +227,8 @@ export default async function SharePage({ params }: { params: { shareToken: stri
     <div className="min-h-screen bg-[#0A1628] text-[#F5F0E8] font-sans">
        <nav className="flex items-center justify-between px-8 py-5 border-b border-white/10">
         <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#F5F0E8]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
+          <span className="text-xl font-light tracking-widest text-[#F5F0E8]">validore</span>
         </Link>
         <Link href="/auth/signup" className="px-5 py-2 text-sm font-medium text-[#0A1628] transition-all hover:opacity-90" style={{ background: 'var(--gold-gradient)', borderRadius: '2px 10px 2px 10px' }}>
           Start Free
@@ -240,7 +240,7 @@ export default async function SharePage({ params }: { params: { shareToken: stri
             SHARED REPORT
          </div>
          <h1 className="text-4xl font-light mb-4">Startup Validation Report</h1>
-         <p className="text-lg opacity-70 mb-12">This is a view-only version of an Aurexa validation report.</p>
+         <p className="text-lg opacity-70 mb-12">This is a view-only version of a Validore validation report.</p>
          
          <div className="card-angular bg-[#FAFAF7] text-[#1C1C1C] p-10 text-left mb-12">
             <h2 className="text-2xl font-medium mb-6">Overview</h2>
@@ -266,7 +266,7 @@ export default async function SharePage({ params }: { params: { shareToken: stri
             <h3 className="text-xl font-light mb-4">Want your own validation report?</h3>
             <p className="opacity-70 mb-6 text-sm">Join thousands of entrepreneurs using AI to validate ideas, project financials, and build pitch decks.</p>
             <Link href="/auth/signup" className="inline-block px-8 py-3 text-sm font-medium text-[#0A1628] transition-all hover:opacity-90" style={{ background: 'var(--gold-gradient)', borderRadius: '2px 10px 2px 10px' }}>
-              Start free on Aurexa
+              Start free on Validore
             </Link>
          </div>
       </main>

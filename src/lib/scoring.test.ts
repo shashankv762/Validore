@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
   STARTUP_WEIGHTS, BM_WEIGHTS, CAMPAIGN_WEIGHTS, PITCH_WEIGHTS, PRICING_WEIGHTS,
-  validateWeightTable, clampScore, getCampaignClassificationBand
+  validateWeightTable, clampScore, getCampaignClassificationBand,
+  calculateStartupValidationScore
 } from './scoring'
 
 describe('Weight tables sum to 100', () => {
@@ -45,3 +46,34 @@ describe('getCampaignClassificationBand', () => {
     expect(getCampaignClassificationBand(80).disclaimer).toContain('educational decision-support')
   })
 })
+
+describe('calculateStartupValidationScore', () => {
+  it('sums individual component scores up to 100', () => {
+    const score = calculateStartupValidationScore({
+      problemValidation: 20,
+      customerValidation: 20,
+      marketOpportunity: 15,
+      competitiveDifferentiation: 10,
+      willingnessToPay: 15,
+      businessModel: 10,
+      financialFeasibility: 5,
+      executionFeasibility: 5,
+    })
+    expect(score).toBe(100)
+  })
+
+  it('calculates partial scores accurately', () => {
+    const score = calculateStartupValidationScore({
+      problemValidation: 12,
+      customerValidation: 10,
+      marketOpportunity: 8,
+      competitiveDifferentiation: 6,
+      willingnessToPay: 9,
+      businessModel: 7,
+      financialFeasibility: 3,
+      executionFeasibility: 4,
+    })
+    expect(score).toBe(59)
+  })
+})
+

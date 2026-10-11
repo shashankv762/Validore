@@ -97,7 +97,7 @@ export default function IdeaWizard() {
             {step === 1 && (
               <div>
                  <label htmlFor="name" className="sr-only">Startup Name</label>
-                 <input id="name" className="w-full border border-[#E8E0D0] p-4 rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]" placeholder="e.g. Aurexa" value={formData.name} onChange={e => updateForm('name', e.target.value)} autoFocus />
+                 <input id="name" className="w-full border border-[#E8E0D0] p-4 rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]" placeholder="e.g. Validore" value={formData.name} onChange={e => updateForm('name', e.target.value)} autoFocus />
               </div>
             )}
             {step === 2 && (

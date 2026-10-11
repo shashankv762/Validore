@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { users, creditPurchases } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2023-10-16' as any });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
 export async function POST(req: Request) {
   const body = await req.text();
@@ -18,8 +18,9 @@ export async function POST(req: Request) {
       signature!,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (err: any) {
-    return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return new NextResponse(`Webhook Error: ${message}`, { status: 400 });
   }
 
   try {
@@ -47,6 +48,14 @@ export async function POST(req: Request) {
               await db.update(users).set({ crowdfundingCredits: userRecord.crowdfundingCredits + quantity }).where(eq(users.id, userId));
             } else if (creditType === 'pitch_deck') {
               await db.update(users).set({ pitchDeckCredits: userRecord.pitchDeckCredits + quantity }).where(eq(users.id, userId));
+            } else if (creditType === 'credit_topup') {
+              const { addPurchasedCredits } = await import('@/lib/credits');
+              await addPurchasedCredits(userId, 2000 * quantity);
+            } else if (creditType === 'bundle') {
+              await db.update(users).set({
+                crowdfundingCredits: userRecord.crowdfundingCredits + quantity,
+                pitchDeckCredits: userRecord.pitchDeckCredits + quantity,
+              }).where(eq(users.id, userId));
             }
           }
         }
@@ -66,8 +75,18 @@ export async function POST(req: Request) {
           subscriptionId: subscription.id,
           subscriptionStatus: subscription.status,
           cancelAtPeriodEnd: subscription.cancel_at_period_end,
-          currentPeriodEnd: new Date((subscription as any).current_period_end * 1000),
+          currentPeriodEnd: new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000),
         }).where(eq(users.stripeCustomerId, subscription.customer as string));
+
+        if (tier !== 'free') {
+          const { topUpMonthlyCredits } = await import('@/lib/credits')
+          const subUser = await db.query.users.findFirst({
+            where: eq(users.stripeCustomerId, subscription.customer as string),
+          })
+          if (subUser) {
+            await topUpMonthlyCredits(subUser.id, tier)
+          }
+        }
         break;
       }
       case 'customer.subscription.deleted': {

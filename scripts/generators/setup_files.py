@@ -685,7 +685,7 @@ describe('getCampaignClassificationBand', () => {
   })
 })
 """,
-    "public/logo/aurexa-logo-dark.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" fill="none">
+    "public/logo/validore-logo-dark.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" fill="none">
   <defs>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#D4AF37"/>
@@ -700,12 +700,12 @@ describe('getCampaignClassificationBand', () => {
   <!-- Diamond motif -->
   <polygon points="30,36 34,44 30,48 26,44" fill="url(#goldGrad)"/>
   <!-- Wordmark -->
-  <text x="62" y="40" font-family="system-ui, sans-serif" font-size="28" font-weight="300" letter-spacing="2" fill="#F5F0E8">aurexa</text>
+  <text x="62" y="40" font-family="system-ui, sans-serif" font-size="28" font-weight="300" letter-spacing="2" fill="#F5F0E8">validore</text
   <!-- Gold accent underline on x -->
   <line x1="62" y1="46" x2="92" y2="46" stroke="#C8A860" stroke-width="2"/>
 </svg>
 """,
-    "public/logo/aurexa-logo-light.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" fill="none">
+    "public/logo/validore-logo-light.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 60" fill="none">
   <defs>
     <linearGradient id="goldGradL" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#D4AF37"/>
@@ -716,11 +716,11 @@ describe('getCampaignClassificationBand', () => {
   <polygon points="30,8 46,52 14,52" fill="url(#goldGradL)"/>
   <polygon points="30,14 24,34 36,34" fill="#F5F0E8"/>
   <polygon points="30,36 34,44 30,48 26,44" fill="url(#goldGradL)"/>
-  <text x="62" y="40" font-family="system-ui, sans-serif" font-size="28" font-weight="300" letter-spacing="2" fill="#1C1C1C">aurexa</text>
+  <text x="62" y="40" font-family="system-ui, sans-serif" font-size="28" font-weight="300" letter-spacing="2" fill="#1C1C1C">validore</text
   <line x1="62" y1="46" x2="92" y2="46" stroke="#C8A860" stroke-width="2"/>
 </svg>
 """,
-    "public/logo/aurexa-icon.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+    "public/logo/validore-icon.svg": """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
   <rect width="48" height="48" rx="8" fill="#0A1628"/>
   <defs>
     <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -738,19 +738,19 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata: Metadata = {
-  title: 'Aurexa — Know it\\'s gold before you dig.',
+  title: 'Validore — Know it\\'s gold before you dig.',
   description: 'AI-powered startup idea validation. Validate your startup with market research, competitor analysis, financial modelling, and a GO/NO-GO score — before you invest a single rupee.',
   openGraph: {
-    title: 'Aurexa — Know it\\'s gold before you dig.',
+    title: 'Validore — Know it\\'s gold before you dig.',
     description: 'AI-powered startup idea validation platform. Get your Validation Score /100 in minutes.',
     url: process.env.NEXT_PUBLIC_APP_URL,
-    siteName: 'Aurexa',
+    siteName: 'Validore',
     type: 'website',
     images: [{ url: `${process.env.NEXT_PUBLIC_APP_URL}/og-image.png`, width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Aurexa — Know it\\'s gold before you dig.',
+    title: 'Validore — Know it\\'s gold before you dig.',
     description: 'AI-powered startup idea validation. Get your GO/NO-GO score in minutes.',
   },
 }
@@ -761,8 +761,8 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
         <div className="flex items-center gap-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore" width={36} height={36} />
+          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
         </div>
         <div className="flex items-center gap-6">
           <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#C8A860] transition-colors">
@@ -902,10 +902,10 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-[#E8E0D0] py-10 text-center">
         <div className="flex items-center justify-center gap-2 mb-3">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa" width={24} height={24} />
-          <span className="text-sm font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+          <Image src="/logo/validore-icon.svg" alt="Validore" width={24} height={24} />
+          <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
         </div>
-        <p className="text-xs text-[#1C1C1C] opacity-40">© 2026 Aurexa. Know it&apos;s gold before you dig.</p>
+        <p className="text-xs text-[#1C1C1C] opacity-40">© 2026 Validore. Know it&apos;s gold before you dig.</p>
       </footer>
     </main>
   )
@@ -919,9 +919,9 @@ const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
 const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: { default: 'Aurexa', template: '%s | Aurexa' },
+  title: { default: 'Validore', template: '%s | Validore' },
   description: 'AI-powered startup idea validation. Know it\\'s gold before you dig.',
-  icons: { icon: '/logo/aurexa-favicon.svg' },
+  icons: { icon: '/logo/validore-favicon.svg' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -969,9 +969,9 @@ export default function SignInPage() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--cream)' }}>
       <div className="card-angular p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa" width={48} height={48} className="mx-auto mb-4" />
+          <Image src="/logo/validore-icon.svg" alt="Validore" width={48} height={48} className="mx-auto mb-4" />
           <h1 className="text-2xl font-light text-[#0A1628]">Welcome back</h1>
-          <p className="text-sm text-[#1C1C1C] opacity-60 mt-1">Sign in to your Aurexa account</p>
+          <p className="text-sm text-[#1C1C1C] opacity-60 mt-1">Sign in to your Validore account</p>
         </div>
         <form onSubmit={handleSignIn} className="space-y-4">
           <input
@@ -1049,7 +1049,7 @@ export default function SignUpPage() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--cream)' }}>
       <div className="card-angular p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <Image src="/logo/aurexa-icon.svg" alt="Aurexa" width={48} height={48} className="mx-auto mb-4" />
+          <Image src="/logo/validore-icon.svg" alt="Validore" width={48} height={48} className="mx-auto mb-4" />
           <h1 className="text-2xl font-light text-[#0A1628]">Create an account</h1>
           <p className="text-sm text-[#1C1C1C] opacity-60 mt-1">Sign up to validate your startup ideas</p>
         </div>
@@ -1138,8 +1138,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <aside className="fixed left-0 top-0 h-full w-60 bg-[#0A1628] flex flex-col">
         <div className="p-6 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <img src="/logo/aurexa-icon.svg" alt="Aurexa" className="w-8 h-8" />
-            <span className="text-lg font-light tracking-widest text-[#F5F0E8]">aurexa</span>
+            <img src="/logo/validore-icon.svg" alt="Validore" className="w-8 h-8" />
+            <span className="text-lg font-light tracking-widest text-[#F5F0E8]">validore</span>
           </div>
         </div>
         <nav className="flex-1 p-4 space-y-1">

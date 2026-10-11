@@ -37,3 +37,68 @@ body {
   fill: none;
   filter: drop-shadow(0 0 6px rgba(200, 168, 96, 0.4));
 }
+
+/* ── Subtle motion (restrained — no loops, no parallax) ─────────────────── */
+
+/* Card entrance: fade + 8px rise, once. Applied to report sections. */
+@keyframes fade-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-rise {
+  animation: fade-rise 0.5s ease-out both;
+}
+
+/* Stagger children of a grid so report cards cascade in. */
+@keyframes fade-rise-stagger {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.stagger-children > * {
+  animation: fade-rise-stagger 0.4s ease-out both;
+}
+.stagger-children > *:nth-child(1) { animation-delay: 0s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.06s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.18s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.24s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.36s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.42s; }
+
+/* Wizard step transitions — smooth slide between steps. */
+@keyframes step-in {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-step-in {
+  animation: step-in 0.3s ease-out;
+}
+
+/* Shimmer for the loading phase — replaces the plain spinner label. */
+@keyframes gold-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.text-shimmer {
+  background: linear-gradient(90deg, #1C1C1C 25%, #C8A860 50%, #1C1C1C 75%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gold-shimmer 2.5s linear infinite;
+}
+
+/* Respect users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-rise,
+  .animate-step-in,
+  .stagger-children > *,
+  .text-shimmer {
+    animation: none;
+  }
+  .text-shimmer {
+    background: none;
+    color: #0A1628;
+  }
+}

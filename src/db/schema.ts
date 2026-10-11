@@ -23,6 +23,12 @@ export const users = pgTable('users', {
   pitchDeckCredits: integer('pitch_deck_credits').notNull().default(0),
   validationsThisMonth: integer('validations_this_month').notNull().default(0),
   validationResetAt: timestamp('validation_reset_at'),
+  creditBalance: integer('credit_balance').notNull().default(0),
+  purchasedCredits: integer('purchased_credits').notNull().default(0),
+  creditsUsedThisCycle: integer('credits_used_this_cycle').notNull().default(0),
+  creditResetAt: timestamp('credit_reset_at'),
+  preferredAiProvider: text('preferred_ai_provider').default('openai'),
+  encryptedOpenrouterKey: text('encrypted_openrouter_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 })
@@ -108,6 +114,7 @@ export const validationReports = pgTable('validation_reports', {
   actionPlan: jsonb('action_plan'),
   reportData: jsonb('report_data'),
   isLite: boolean('is_lite').notNull().default(false),
+  status: text('status').default('complete'),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
@@ -129,6 +136,7 @@ export const leanCanvases = pgTable('lean_canvases', {
   validationScore: integer('validation_score'),
   changeReason: text('change_reason'),
   evidenceSummary: text('evidence_summary'),
+  analysisData: jsonb('analysis_data'),
   createdAt: timestamp('created_at').defaultNow(),
 })
 
@@ -229,5 +237,23 @@ export const syntheticCampaigns = pgTable('synthetic_campaigns', {
   repeatBackerIndicator: boolean('repeat_backer_indicator').notNull(),
   campaignStatus: text('campaign_status').notNull(), // 'Successful' | 'Unsuccessful'
   dataLabel: text('data_label').notNull().default('SYNTHETIC DATA'),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+export const creditLedger = pgTable('credit_ledger', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  amount: integer('amount').notNull(),
+  transactionType: text('transaction_type').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at').defaultNow(),
+})
+
+export const userDevices = pgTable('user_devices', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  deviceFingerprint: text('device_fingerprint').notNull(),
+  userAgent: text('user_agent'),
+  ipAddress: text('ip_address'),
+  lastActive: timestamp('last_active').defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),
 })

@@ -26,7 +26,7 @@ export async function GET() {
 
   const userIdeas = await db.query.ideas.findMany({
     where: and(eq(ideas.userId, dbUser.id), eq(ideas.isActive, true)),
-    orderBy: (ideas, { desc }: any) => [desc(ideas.createdAt)],
+    orderBy: (ideas, { desc }) => [desc(ideas.createdAt)],
   })
   return NextResponse.json({ ideas: userIdeas })
 }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const tierCfg = await db.query.tierConfig.findFirst({ where: (tc: any, { eq }: any) => eq(tc.tier, dbUser.tier) })
+  const tierCfg = await db.query.tierConfig.findFirst({ where: (tc, { eq }) => eq(tc.tier, dbUser.tier) })
   const activeIdeas = await db.query.ideas.findMany({
     where: and(eq(ideas.userId, dbUser.id), eq(ideas.isActive, true), eq(ideas.isReadOnly, false)),
   })
@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json()
+  if (body.website) return NextResponse.json({}, { status: 400 })
   const parsed = CreateIdeaSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 

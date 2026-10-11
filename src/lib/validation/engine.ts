@@ -6,54 +6,14 @@ import * as fin from '../financial'
 import { db } from '@/db'
 import { validationJobs } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { runMultiAgentValidation, type MultiAgentResult } from './agents/orchestrator'
 
-// ─── Shared schemas ────────────────────────────────────────────────────────────
+// ─── Shared schemas (single source of truth: ./schemas) ──────────────────────
 
-export const EvidenceItemSchema = z.object({
-  claim: z.string(),
-  source: z.string().optional(),
-  publication: z.string().optional(),
-  year: z.string().optional(),
-  link: z.string().optional(),
-  geography: z.string().optional(),
-  fetchedAt: z.string().optional(),
-  strength: z.enum(['WEAK', 'MODERATE', 'STRONGER']),
-  label: z
-    .enum([
-      'ASSUMPTION',
-      'PROJECTION',
-      'PROPOSED_STRATEGY',
-      'AI_ESTIMATE_UNVERIFIED',
-      'VERIFIED',
-    ])
-    .optional(),
-})
+export { EvidenceItemSchema, type EvidenceItem, CategoryScoreSchema, type IdeaInput, FullReportSchema, type FullReport } from './schemas'
+import { EvidenceItemSchema, FullReportSchema, type IdeaInput, type FullReport } from './schemas'
 
-export type EvidenceItem = z.infer<typeof EvidenceItemSchema>
-
-export const CategoryScoreSchema = z.object({
-  score: z.number(),
-  maxScore: z.number(),
-  rationale: z.string(),
-  evidence: z.array(EvidenceItemSchema),
-  risks: z.array(z.string()),
-  confidenceLevel: z.enum(['low', 'medium', 'high']),
-})
-
-// ─── Idea input ────────────────────────────────────────────────────────────────
-
-export type IdeaInput = {
-  name: string
-  industry: string
-  product: string
-  targetCustomer: string
-  location: string
-  businessModel: string
-  coreProblem: string
-  proposedSolution: string
-}
-
-// ─── Lite validation (Free tier) ───────────────────────────────────────────────
+// ─── Lite validation (Free tier) ──────────────────────────────────────────────
 
 const LiteReportSchema = z.object({
   problemScore: z.number().min(0).max(STARTUP_WEIGHTS.problemValidation),
@@ -153,8 +113,14 @@ CRITICAL INTEGRITY RULES (NEVER violate):
 The integrityNote field must summarise what is verified vs assumed in this report.`
 }
 
+type EngineOptions = {
+  customOpenRouterKey?: string | null
+  preferredAiProvider?: string | null
+}
+
 export async function runLiteValidation(
-  idea: IdeaInput
+  idea: IdeaInput,
+  opts?: EngineOptions
 ): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number }> {
   const searchResp = await webSearch(
     `${idea.industry} market size ${idea.location} startups 2024 2025`,
@@ -165,6 +131,8 @@ export async function runLiteValidation(
     prompt: buildLitePrompt(idea, searchResp.results, searchResp.degraded),
     schema: LiteReportSchema,
     temperature: 0,
+    customOpenRouterKey: opts?.customOpenRouterKey,
+    preferredAiProvider: opts?.preferredAiProvider,
   })
 
   const d = result.data
@@ -196,107 +164,101 @@ export async function runLiteValidation(
   }
 }
 
-// ─── Full validation (Premium tier) ────────────────────────────────────────────
+// ─── Full validation (Premium tier) ───────────────────────────────────────────
+// Primary path: the multi-agent pipeline (6 specialised agents + deterministic
+// math). Fallback: the original monolithic prompt — used automatically if the
+// agent pipeline throws, so the job still completes for the user.
 
-const FullPersonaSchema = z.object({
-  name: z.string(),
-  ageRange: z.string(),
-  occupation: z.string(),
-  incomeRange: z.string(),
-  location: z.string(),
-  goals: z.array(z.string()),
-  problems: z.array(z.string()),
-  frustrations: z.array(z.string()),
-  buyingBehaviour: z.string(),
-  preferredChannels: z.array(z.string()),
-  decisionFactors: z.array(z.string()),
-  priceSensitivity: z.enum(['low', 'medium', 'high']),
-  jobToBeDone: z.string(),
-})
+export type FullReportWithComputed = FullReport & {
+  overallScore: number
+  provider: string
+  tokensUsed: number
+  computedUnitEconomics: Record<string, number | string>
+  financialProjection: Array<{ month: number; customers: number; revenue: number; costs: number; profitLoss: number; label: string }>
+}
 
-const CompetitorSchema = z.object({
-  name: z.string(),
-  targetCustomer: z.string(),
-  product: z.string(),
-  pricing: z.string(),
-  pricingModel: z.string(),
-  strengths: z.array(z.string()),
-  weaknesses: z.array(z.string()),
-  marketGap: z.string(),
-  dateChecked: z.string(),
-})
+export async function runFullValidation(
+  idea: IdeaInput,
+  jobId: string,
+  opts?: EngineOptions
+): Promise<FullReportWithComputed | null> {
+  let totalTokens = 0
+  let provider = 'unknown'
 
-const FullReportSchema = z.object({
-  // Scores
-  problemScore: z.number(),
-  customerScore: z.number(),
-  marketScore: z.number(),
-  competitiveScore: z.number(),
-  wtpScore: z.number(),
-  businessModelScore: z.number(),
-  financialScore: z.number(),
-  executionScore: z.number(),
-  // Decision
-  decision: z.enum(['GO', 'MODIFY', 'TEST_FURTHER', 'NO_GO']),
-  decisionReasons: z.array(z.string()),
-  keyEvidence: z.array(EvidenceItemSchema),
-  keyRisks: z.array(z.string()),
-  actionPlan: z.array(
-    z.object({ week: z.string(), action: z.string(), owner: z.string(), kpi: z.string() })
-  ),
-  // Detailed sections
-  personas: z.array(FullPersonaSchema).min(1).max(3),
-  tamSamSom: z.object({
-    tam: z.object({ value: z.string(), method: z.string(), source: z.string(), label: z.literal('PROJECTION') }),
-    sam: z.object({ value: z.string(), method: z.string(), label: z.literal('PROJECTION') }),
-    som: z.object({ value: z.string(), method: z.string(), label: z.literal('PROJECTION') }),
-  }),
-  competitors: z.array(CompetitorSchema).min(3).max(10),
-  uvpOptions: z.array(z.string()).length(3),
-  selectedUvp: z.string(),
-  moscowFeatures: z.object({
-    mustHave: z.array(z.string()),
-    shouldHave: z.array(z.string()),
-    couldHave: z.array(z.string()),
-    wontHave: z.array(z.string()),
-  }),
-  mvpDescription: z.string(),
-  unitEconomicsAssumptions: z.object({
-    estimatedSellingPrice: z.number(),
-    estimatedVariableCost: z.number(),
-    estimatedFixedCostMonthly: z.number(),
-    estimatedCACMonthly: z.number(),
-    estimatedMonthlyCustomers: z.number(),
-    estimatedChurnRate: z.number(),
-    assumptionLabel: z.literal('ASSUMPTION'),
-  }),
-  swot: z.object({
-    strengths: z.array(z.string()),
-    weaknesses: z.array(z.string()),
-    opportunities: z.array(z.string()),
-    threats: z.array(z.string()),
-  }),
-  riskRegister: z.array(
-    z.object({
-      risk: z.string(),
-      probability: z.enum(['low', 'medium', 'high']),
-      impact: z.enum(['low', 'medium', 'high']),
-      riskLevel: z.enum(['low', 'medium', 'high', 'critical']),
-      mitigation: z.string(),
+  try {
+    // Update job: started
+    await db
+      .update(validationJobs)
+      .set({ status: 'running', totalSections: 6, completedSections: 0 })
+      .where(eq(validationJobs.id, jobId))
+
+    // ─── Primary path: multi-agent pipeline ──────────────────────────────────
+    let agentReport: MultiAgentResult | null = await runMultiAgentValidation(idea, {
+      ...opts,
+      onProgress: async (completed: number, _total: number, _label?: string) => {
+        await db
+          .update(validationJobs)
+          .set({ completedSections: completed })
+          .where(eq(validationJobs.id, jobId))
+          .catch(() => {})
+      },
     })
-  ),
-  integrityNote: z.string(),
-  nextStepRecommendation: z.enum([
-    'MORE_VALIDATION',
-    'BUILD_MVP',
-    'GET_FIRST_CUSTOMERS',
-    'SCALE_GROWTH',
-    'FUNDRAISING',
-  ]),
-  nextStepRationale: z.string(),
-})
 
-export type FullReport = z.infer<typeof FullReportSchema>
+    // Critical fallback: if the whole agent pipeline failed, use the monolith.
+    if (!agentReport) {
+      console.warn('[ENGINE] Multi-agent pipeline returned null — falling back to monolithic generation')
+      agentReport = await runMonolithicFull(idea, jobId, opts)
+      if (!agentReport) {
+        await db
+          .update(validationJobs)
+          .set({
+            status: 'failed',
+            errorMessage: 'All validation paths failed',
+            aiProvider: provider,
+          })
+          .where(eq(validationJobs.id, jobId))
+        return null
+      }
+    }
+
+    totalTokens = agentReport.tokensUsed
+    provider = agentReport.provider
+
+    const anyFailed = Object.values(agentReport.agentTrail.agents).some((s) => s === 'failed')
+    const finalStatus = anyFailed ? 'partial' : 'complete'
+
+    await db
+      .update(validationJobs)
+      .set({
+        status: finalStatus,
+        completedSections: 6,
+        tokensUsed: totalTokens,
+        aiProvider: provider,
+      })
+      .where(eq(validationJobs.id, jobId))
+
+    return {
+      ...agentReport.report,
+      overallScore: agentReport.report.overallScore,
+      provider: agentReport.provider,
+      tokensUsed: agentReport.tokensUsed,
+      computedUnitEconomics: agentReport.report.computedUnitEconomics,
+      financialProjection: agentReport.report.financialProjection,
+    }
+  } catch (err) {
+    await db
+      .update(validationJobs)
+      .set({
+        status: 'failed',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+        aiProvider: provider,
+      })
+      .where(eq(validationJobs.id, jobId))
+    return null
+  }
+}
+
+// ─── Monolithic fallback (original full-report generation) ───────────────────
 
 function buildFullPrompt(
   idea: IdeaInput,
@@ -350,60 +312,73 @@ INTEGRITY RULES (NEVER violate):
 8. TAM/SAM/SOM = PROJECTION label, not verified
 9. unitEconomicsAssumptions.assumptionLabel must be 'ASSUMPTION'
 10. tamSamSom entries must have label:'PROJECTION'
-11. The integrityNote must clearly list what is verified vs assumed`
+11. The integrityNote must clearly list what is verified vs assumed
+12. Generate the new Phase 1 fields: oneLineConcept, founderAssumptions, problemValidation5Factor, customerJPG, interviewQuestions, competitorPositioning, landingPageCopy, wtpSurveyQuestions, pestleAnalysis, portersFiveForces`
 }
 
-export async function runFullValidation(
+async function runMonolithicFull(
   idea: IdeaInput,
-  jobId: string
-): Promise<(FullReport & { overallScore: number; provider: string; tokensUsed: number }) | null> {
-  let totalTokens = 0
-  let provider = 'unknown'
+  jobId: string,
+  opts?: EngineOptions
+): Promise<MultiAgentResult | null> {
+  const partialFailures: string[] = []
 
+  // Step 1: Web search for market context
+  let allResults: SearchResult[] = []
+  let degraded = true
   try {
-    // Update job: started
-    await db
-      .update(validationJobs)
-      .set({ status: 'running', totalSections: 8, completedSections: 0 })
-      .where(eq(validationJobs.id, jobId))
-
-    // Step 1: Web search for market context
     const [marketSearch, competitorSearch] = await Promise.all([
       webSearch(`${idea.industry} market size ${idea.location} 2024 2025`, 5),
       webSearch(`${idea.name} competitors alternatives ${idea.industry} pricing`, 5),
     ])
+    allResults = [...marketSearch.results, ...competitorSearch.results]
+    degraded = marketSearch.degraded && competitorSearch.degraded
+  } catch (err) {
+    console.error('[ENGINE] Web search failed, proceeding degraded:', err)
+    partialFailures.push('web_search')
+  }
 
-    const allResults = [...marketSearch.results, ...competitorSearch.results]
-    const degraded = marketSearch.degraded && competitorSearch.degraded
+  await db
+    .update(validationJobs)
+    .set({ completedSections: 1 })
+    .where(eq(validationJobs.id, jobId))
 
-    await db
-      .update(validationJobs)
-      .set({ completedSections: 1 })
-      .where(eq(validationJobs.id, jobId))
-
-    // Step 2: Generate full report
-    const result = await generateWithFallback({
+  // Step 2: Generate full report
+  let result
+  try {
+    result = await generateWithFallback({
       prompt: buildFullPrompt(idea, allResults, degraded),
       schema: FullReportSchema,
       temperature: 0,
+      customOpenRouterKey: opts?.customOpenRouterKey,
+      preferredAiProvider: opts?.preferredAiProvider,
     })
+  } catch (err) {
+    console.error('[ENGINE] Full report generation failed:', err)
+    partialFailures.push('full_report_generation')
+    return null
+  }
 
-    totalTokens += result.tokensUsed
-    provider = result.provider
-    const d = result.data
+  const totalTokens = result.tokensUsed
+  const provider = result.provider
+  const d = result.data
 
-    // Clamp all scores
-    const ps = clampScore(d.problemScore, STARTUP_WEIGHTS.problemValidation)
-    const cs = clampScore(d.customerScore, STARTUP_WEIGHTS.customerValidation)
-    const ms = clampScore(d.marketScore, STARTUP_WEIGHTS.marketOpportunity)
-    const cds = clampScore(d.competitiveScore, STARTUP_WEIGHTS.competitiveDifferentiation)
-    const ws = clampScore(d.wtpScore, STARTUP_WEIGHTS.willingnessToPay)
-    const bs = clampScore(d.businessModelScore, STARTUP_WEIGHTS.businessModel)
-    const fs = clampScore(d.financialScore, STARTUP_WEIGHTS.financialFeasibility)
-    const es = clampScore(d.executionScore, STARTUP_WEIGHTS.executionFeasibility)
-    const overallScore = ps + cs + ms + cds + ws + bs + fs + es
+  // Clamp all scores
+  const ps = clampScore(d.problemScore, STARTUP_WEIGHTS.problemValidation)
+  const cs = clampScore(d.customerScore, STARTUP_WEIGHTS.customerValidation)
+  const ms = clampScore(d.marketScore, STARTUP_WEIGHTS.marketOpportunity)
+  const cds = clampScore(d.competitiveScore, STARTUP_WEIGHTS.competitiveDifferentiation)
+  const ws = clampScore(d.wtpScore, STARTUP_WEIGHTS.willingnessToPay)
+  const bs = clampScore(d.businessModelScore, STARTUP_WEIGHTS.businessModel)
+  const fs = clampScore(d.financialScore, STARTUP_WEIGHTS.financialFeasibility)
+  const es = clampScore(d.executionScore, STARTUP_WEIGHTS.executionFeasibility)
+  const overallScore = ps + cs + ms + cds + ws + bs + fs + es
 
-    // Compute unit economics from assumptions using verified formulas
+  // Compute unit economics from assumptions using verified formulas
+  let computedUnitEconomics: Record<string, number | string> = { label: 'ASSUMPTION' }
+  let financialProjection: Array<{ month: number; customers: number; revenue: number; costs: number; profitLoss: number; label: string }> = []
+
+  try {
     const ua = d.unitEconomicsAssumptions
     const contributionMargin = fin.calculateContributionMargin(
       ua.estimatedSellingPrice,
@@ -432,8 +407,21 @@ export async function runFullValidation(
       ua.estimatedSellingPrice
     )
 
+    computedUnitEconomics = {
+      contributionMargin,
+      contributionMarginPercent,
+      breakEvenCustomers: Math.ceil(breakEvenCustomers),
+      breakEvenRevenue: Math.round(breakEvenRevenue),
+      cac,
+      ltv,
+      ltvCacRatio,
+      cacPaybackMonths,
+      grossMarginPercent,
+      label: 'ASSUMPTION',
+    }
+
     // Build 12-month projection (PROJECTION label, not real)
-    const financialProjection = Array.from({ length: 12 }, (_, i) => {
+    financialProjection = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1
       const customers = Math.round(
         ua.estimatedMonthlyCustomers * Math.pow(1.1, i) // 10% MoM growth assumption
@@ -450,18 +438,19 @@ export async function runFullValidation(
         label: 'PROJECTION' as const,
       }
     })
+  } catch (err) {
+    console.error('[ENGINE] Financial computation failed, using safe defaults:', err)
+    partialFailures.push('financial_computation')
+  }
 
-    await db
-      .update(validationJobs)
-      .set({
-        status: 'complete',
-        completedSections: 8,
-        tokensUsed: totalTokens,
-        aiProvider: provider,
-      })
-      .where(eq(validationJobs.id, jobId))
+  const agentTrail = {
+    agents: { monolithic: (partialFailures.length > 0 ? 'partial' : 'ok') as 'partial' | 'ok' },
+    totalTokens,
+    providers: [provider],
+  }
 
-    return {
+  return {
+    report: {
       ...d,
       problemScore: ps,
       customerScore: cs,
@@ -474,37 +463,13 @@ export async function runFullValidation(
       overallScore,
       provider,
       tokensUsed: totalTokens,
-      // Attach computed financials to report_data
-      computedUnitEconomics: {
-        contributionMargin,
-        contributionMarginPercent,
-        breakEvenCustomers: Math.ceil(breakEvenCustomers),
-        breakEvenRevenue: Math.round(breakEvenRevenue),
-        cac,
-        ltv,
-        ltvCacRatio,
-        cacPaybackMonths,
-        grossMarginPercent,
-        label: 'ASSUMPTION' as const,
-      },
+      computedUnitEconomics,
       financialProjection,
-    } as FullReport & {
-      overallScore: number
-      provider: string
-      tokensUsed: number
-      computedUnitEconomics: Record<string, number | string>
-      financialProjection: Array<{ month: number; customers: number; revenue: number; costs: number; profitLoss: number; label: string }>
-    }
-  } catch (err) {
-    await db
-      .update(validationJobs)
-      .set({
-        status: 'failed',
-        errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        aiProvider: provider,
-      })
-      .where(eq(validationJobs.id, jobId))
-    return null
+      agentTrail,
+    },
+    provider,
+    tokensUsed: totalTokens,
+    agentTrail,
   }
 }
 

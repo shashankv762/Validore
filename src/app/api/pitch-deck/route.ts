@@ -3,10 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, pitchDecks } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { canUserAccessWithCredits, decrementCredit } from '@/lib/tier-gate'
+import { checkCredits, deductCredits } from '@/lib/credits'
+import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { z } from 'zod'
 import { PITCH_WEIGHTS, clampScore } from '@/lib/scoring'
+import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
 
 const PitchDeckInputSchema = z.object({
   ideaId: z.string().uuid(),
@@ -71,6 +73,22 @@ const PitchDeckAiSchema = z.object({
     })),
   })),
   integrityNote: z.string(),
+  entrepreneurialSkillsMatrix: z.array(z.object({ skill: z.string(), selfRating: z.number(), evidence: z.string(), gap: z.string() })).optional(),
+  customerJourney: z.array(z.object({ stage: z.string(), touchpoint: z.string(), emotion: z.string(), opportunity: z.string() })).optional(),
+  valuePropositionCanvas: z.object({ customerJobs: z.array(z.string()), pains: z.array(z.string()), gains: z.array(z.string()), products: z.array(z.string()), painRelievers: z.array(z.string()), gainCreators: z.array(z.string()) }).optional(),
+  moscowFeatures: z.object({ must: z.array(z.string()), should: z.array(z.string()), could: z.array(z.string()), wont: z.array(z.string()) }).optional(),
+  competitorMatrix: z.array(z.object({ competitor: z.string(), pricing: z.string(), strengths: z.array(z.string()), weaknesses: z.array(z.string()), ourAdvantage: z.string() })).optional(),
+  positioningMap: z.array(z.object({ label: z.string(), x: z.number(), y: z.number(), isUs: z.boolean() })).optional(),
+  swot: z.object({ strengths: z.array(z.string()), weaknesses: z.array(z.string()), opportunities: z.array(z.string()), threats: z.array(z.string()) }).optional(),
+  pestleAnalysis: z.object({ political: z.array(z.string()), economic: z.array(z.string()), social: z.array(z.string()), technological: z.array(z.string()), legal: z.array(z.string()), environmental: z.array(z.string()) }).optional(),
+  useOfFundsBreakdown: z.array(z.object({ category: z.string(), amount: z.number(), percentage: z.number(), rationale: z.string() })).optional(),
+  gtmStrategy: z.object({ phase1: z.object({ name: z.string(), channels: z.array(z.string()), budget: z.string(), timeline: z.string() }), phase2: z.object({ name: z.string(), channels: z.array(z.string()), budget: z.string(), timeline: z.string() }) }).optional(),
+  salesFunnel: z.array(z.object({ stage: z.string(), count: z.number(), conversion: z.number(), tactic: z.string() })).optional(),
+  brandStrategy: z.object({ positioning: z.string(), voiceTone: z.string(), visualIdentity: z.string(), tagline: z.string() }).optional(),
+  kpiTargets: z.array(z.object({ metric: z.string(), current: z.string(), target: z.string(), timeline: z.string() })).optional(),
+  riskRegister: z.array(z.object({ risk: z.string(), severity: z.enum(['high','medium','low']), likelihood: z.enum(['high','medium','low']), mitigation: z.string() })).optional(),
+  actionPlan: z.object({ thirtyDay: z.array(z.object({ action: z.string(), owner: z.string(), deadline: z.string() })), ninetyDay: z.array(z.object({ action: z.string(), owner: z.string(), deadline: z.string() })) }).optional(),
+  investorQA: z.array(z.object({ question: z.string(), answer: z.string(), category: z.string() })).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -81,32 +99,67 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const access = await canUserAccessWithCredits(user.id, 'pitch_deck')
-  if (!access.allowed) {
-    return NextResponse.json({
-      error: 'Access denied. Upgrade to Max Premium or purchase a Pitch Deck Pack ($49).',
-      upgradeRequired: true,
-    }, { status: 403 })
+  const rl = await rateLimitCheck(dbUser.id)
+  if (!rl.success) {
+    return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
 
-  const body = await request.json()
-  const parsed = PitchDeckInputSchema.safeParse(body)
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-
-  const i = parsed.data
-  const idea = await db.query.ideas.findFirst({
-    where: and(eq(ideas.id, i.ideaId), eq(ideas.userId, dbUser.id)),
-  })
-  if (!idea) return NextResponse.json({ error: 'Idea not found' }, { status: 404 })
-
-  if (access.reason === 'credit') {
-    await decrementCredit(user.id, 'pitchDeckCredits')
+  const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK)
+  if (!creditCheck.allowed) {
+    return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
   }
 
-  const today = new Date().toISOString().split('T')[0]
-  const milestonesStr = i.milestones?.map(m => `- ${m.milestone} | ${m.targetDate} | Status: ${m.status}`).join('\n') ?? 'No milestones provided'
+  // GAP-1: Concurrency check
+  const tierConcurrencyLimits: Record<string, number> = { free: 1, premium: 2, max_premium: 3 }
+  const maxConcurrent = tierConcurrencyLimits[dbUser.tier || 'free'] ?? 1
+  const concurrencyCheck = await checkAndIncrementConcurrency(dbUser.id, maxConcurrent)
+  if (!concurrencyCheck.allowed) {
+    return NextResponse.json(
+      { error: 'Too many concurrent requests. Please wait for your current analysis to complete.' },
+      { status: 429 }
+    )
+  }
 
-  const prompt = `You are a world-class pitch deck consultant creating a professional 12-slide investor pitch deck.
+  // GAP-2: Decrypt custom OpenRouter key if stored
+  let customOpenRouterKey: string | null = null
+  const encryptedKey = (dbUser as any).encryptedOpenrouterKey as string | null
+  if (encryptedKey) {
+    if (encryptedKey.includes(':') && process.env.ENCRYPTION_KEY) {
+      try {
+        const crypto = await import('crypto')
+        const [ivHex, encryptedHex] = encryptedKey.split(':')
+        const iv = Buffer.from(ivHex, 'hex')
+        const decipher = crypto.createDecipheriv(
+          'aes-256-cbc',
+          Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
+          iv
+        )
+        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
+        decrypted += decipher.final('utf8')
+        customOpenRouterKey = decrypted
+      } catch {
+        console.warn('[BYOK] Failed to decrypt custom key, using platform default')
+      }
+    } else {
+      customOpenRouterKey = encryptedKey // Unencrypted fallback (dev)
+    }
+  }
+
+  try {
+    const body = await request.json()
+    const parsed = PitchDeckInputSchema.safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+
+    const i = parsed.data
+    const idea = await db.query.ideas.findFirst({
+      where: and(eq(ideas.id, i.ideaId), eq(ideas.userId, dbUser.id)),
+    })
+    if (!idea) return NextResponse.json({ error: 'Idea not found' }, { status: 404 })
+
+    const today = new Date().toISOString().split('T')[0]
+    const milestonesStr = i.milestones?.map(m => `- ${m.milestone} | ${m.targetDate} | Status: ${m.status}`).join('\n') ?? 'No milestones provided'
+
+    const prompt = `You are a world-class pitch deck consultant creating a professional 12-slide investor pitch deck.
 
 STARTUP:
 Name: ${idea.name}
@@ -169,42 +222,48 @@ CRITICAL RULES:
 5. Investor Q&A: provide honest, balanced answers — do not over-promise
 6. Do not automatically recommend fundraising if evidence is thin — note what evidence is still needed
 7. founderReadinessScore is a developmental tool, not a personality diagnosis
-8. integrityNote must list what is verified evidence vs PROJECTION vs PROPOSED_STRATEGY in this deck`
+8. integrityNote must list what is verified evidence vs PROJECTION vs PROPOSED_STRATEGY in this deck
+9. Generate 20 investor Q&As for the investorQA array.
+10. Generate all fields including: entrepreneurialSkillsMatrix, customerJourney, valuePropositionCanvas, moscowFeatures, competitorMatrix, positioningMap, swot, pestleAnalysis, useOfFundsBreakdown, gtmStrategy, salesFunnel, brandStrategy, kpiTargets, riskRegister, actionPlan, investorQA`
 
-  const aiResult = await generateWithFallback({ prompt, schema: PitchDeckAiSchema, temperature: 0.3 })
-  const ai = aiResult.data
+    const aiResult = await generateWithFallback({ prompt, schema: PitchDeckAiSchema, temperature: 0.3, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
+    const ai = aiResult.data
 
-  const qualityScore =
-    clampScore(ai.problemClarityScore, PITCH_WEIGHTS.problemClarity) +
-    clampScore(ai.solutionStrengthScore, PITCH_WEIGHTS.solutionStrength) +
-    clampScore(ai.customerEvidenceScore, PITCH_WEIGHTS.customerEvidence) +
-    clampScore(ai.marketOpportunityScore, PITCH_WEIGHTS.marketOpportunity) +
-    clampScore(ai.businessModelScore, PITCH_WEIGHTS.businessModel) +
-    clampScore(ai.competitivePositioningScore, PITCH_WEIGHTS.competitivePositioning) +
-    clampScore(ai.gtmStrategyScore, PITCH_WEIGHTS.gtmStrategy) +
-    clampScore(ai.financialLogicScore, PITCH_WEIGHTS.financialLogic) +
-    clampScore(ai.teamExecutionScore, PITCH_WEIGHTS.teamExecutionReadiness) +
-    clampScore(ai.presentationQualityScore, PITCH_WEIGHTS.presentationQuality)
+    const qualityScore =
+      clampScore(ai.problemClarityScore, PITCH_WEIGHTS.problemClarity) +
+      clampScore(ai.solutionStrengthScore, PITCH_WEIGHTS.solutionStrength) +
+      clampScore(ai.customerEvidenceScore, PITCH_WEIGHTS.customerEvidence) +
+      clampScore(ai.marketOpportunityScore, PITCH_WEIGHTS.marketOpportunity) +
+      clampScore(ai.businessModelScore, PITCH_WEIGHTS.businessModel) +
+      clampScore(ai.competitivePositioningScore, PITCH_WEIGHTS.competitivePositioning) +
+      clampScore(ai.gtmStrategyScore, PITCH_WEIGHTS.gtmStrategy) +
+      clampScore(ai.financialLogicScore, PITCH_WEIGHTS.financialLogic) +
+      clampScore(ai.teamExecutionScore, PITCH_WEIGHTS.teamExecutionReadiness) +
+      clampScore(ai.presentationQualityScore, PITCH_WEIGHTS.presentationQuality)
 
-  const [saved] = await db.insert(pitchDecks).values({
-    ideaId: i.ideaId,
-    userId: dbUser.id,
-    qualityScore,
-    founderReadinessScore: clampScore(ai.founderReadinessScore, 100),
-    slides: ai.slides,
-    pitchScript3min: ai.pitchScript3min,
-    pitchScript60sec: ai.pitchScript60sec,
-    investorQa: ai.investorQa,
-    portfolioSections: ai.portfolioSections,
-    roadmap: ai.roadmap,
-    milestones: i.milestones ?? [],
-    reportData: { inputs: i, ai, qualityScore },
-  }).returning()
+    await deductCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK, 'PITCH_DECK', i.ideaId)
+    const [saved] = await db.insert(pitchDecks).values({
+      ideaId: i.ideaId,
+      userId: dbUser.id,
+      qualityScore,
+      founderReadinessScore: clampScore(ai.founderReadinessScore, 100),
+      slides: ai.slides,
+      pitchScript3min: ai.pitchScript3min,
+      pitchScript60sec: ai.pitchScript60sec,
+      investorQa: ai.investorQa,
+      portfolioSections: ai.portfolioSections,
+      roadmap: ai.roadmap,
+      milestones: i.milestones ?? [],
+      reportData: { inputs: i, ai, qualityScore },
+    }).returning()
 
-  return NextResponse.json({
-    deckId: saved.id,
-    qualityScore,
-    founderReadinessScore: saved.founderReadinessScore,
-    result: saved,
-  })
+    return NextResponse.json({
+      deckId: saved.id,
+      qualityScore,
+      founderReadinessScore: saved.founderReadinessScore,
+      result: saved,
+    })
+  } finally {
+    await decrementConcurrency(dbUser.id)
+  }
 }

@@ -12,8 +12,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Sign In | Aurexa',
-  description: 'Sign in to your Aurexa account.',
+  title: 'Sign In | Validore',
+  description: 'Sign in to your Validore account.',
 }
 
 export default function SignInPage() {
@@ -23,8 +23,8 @@ export default function SignInPage() {
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12" style={{ background: 'var(--navy)' }}>
         <div>
           <Link href="/" className="inline-flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">aurexa</span>
+            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">validore</span>
           </Link>
         </div>
         <div>
@@ -35,7 +35,7 @@ export default function SignInPage() {
             </span>
           </h1>
           <div className="p-6 rounded-lg border border-[#C8A860]/20 bg-white/5 backdrop-blur-sm max-w-md">
-            <p className="text-[#F5F0E8] opacity-80 text-sm mb-4">"Aurexa's validation reports saved us months of going down the wrong path. The AI-driven competitor benchmarking alone is worth the price."</p>
+            <p className="text-[#F5F0E8] opacity-80 text-sm mb-4">"Validore's validation reports saved us months of going down the wrong path. The AI-driven competitor benchmarking alone is worth the price."</p>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-[#C8A860]/20 flex items-center justify-center text-[#C8A860] text-xs font-bold">JD</div>
               <div className="text-sm">
@@ -52,8 +52,8 @@ export default function SignInPage() {
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8">
             <Link href="/" className="inline-flex items-center gap-3">
-              <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+              <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
             </Link>
           </div>
           
@@ -132,8 +132,8 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 export const metadata = {
-  title: 'Sign Up | Aurexa',
-  description: 'Create your free Aurexa account.',
+  title: 'Sign Up | Validore',
+  description: 'Create your free Validore account.',
 }
 
 export default function SignUpPage() {
@@ -143,8 +143,8 @@ export default function SignUpPage() {
       <div className="hidden lg:flex flex-1 flex-col justify-between p-12" style={{ background: 'var(--navy)' }}>
         <div>
           <Link href="/" className="inline-flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">aurexa</span>
+            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+            <span className="text-xl font-light tracking-widest text-[#F5F0E8]">validore</span>
           </Link>
         </div>
         <div>
@@ -176,8 +176,8 @@ export default function SignUpPage() {
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8">
             <Link href="/" className="inline-flex items-center gap-3">
-              <Image src="/logo/aurexa-icon.svg" alt="Aurexa Logo" width={32} height={32} />
-              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">aurexa</span>
+              <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
+              <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
             </Link>
           </div>
           

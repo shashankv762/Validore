@@ -1,0 +1,84 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Validore — .dockerignore
+# ─────────────────────────────────────────────────────────────────────────────
+# Everything listed here is EXCLUDED from the Docker build context.
+# Reducing the build context:
+#   • speeds up `docker build` (less data sent to the daemon)
+#   • prevents secrets from accidentally entering the image
+#   • avoids layer cache busting from irrelevant files
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Build artifacts (re-generated inside the container) ──────────────────────
+node_modules
+.next
+out
+build
+dist
+
+# ── Version control metadata ──────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+
+# ── Secrets — NEVER allow these into the image ───────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.development
+.env.staging
+.env.production
+*.pem
+*.key
+*.p12
+
+# ── CI/CD artefacts ───────────────────────────────────────────────────────────
+reports
+.trivy-cache
+coverage
+Jenkinsfile
+
+# ── Docker files (not needed inside the image) ────────────────────────────────
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# ── TypeScript build info ─────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Development scripts (generators, seed scripts) ───────────────────────────
+scripts/generators
+*.py
+scripts/probe-constraints-m1-2.ts
+
+# ── Documentation & config files not needed at runtime ───────────────────────
+vercel.json
+README.md
+PROJECT.md
+TEST_READY.md
+TEST_INFRA.md
+CICD.md
+AGENTS.md
+CLAUDE.md
+AGENT.md
+docs
+
+# ── IDE / editor files ────────────────────────────────────────────────────────
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Test files (not needed at runtime) ───────────────────────────────────────
+tests
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+vitest.config.ts
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+firebase-debug.log

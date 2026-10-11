@@ -1,19 +1,77 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Lock } from 'lucide-react'
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Validation', icon: '✦', tier: 'free' },
-  { href: '/dashboard/lean-canvas', label: 'Lean Canvas', icon: '◈', tier: 'premium' },
-  { href: '/dashboard/pricing', label: 'Pricing', icon: '◉', tier: 'premium' },
-  { href: '/dashboard/crowdfunding', label: 'Crowdfunding', icon: '◆', tier: 'max' },
-  { href: '/dashboard/pitch-deck', label: 'Pitch Deck', icon: '◇', tier: 'max' },
+interface NavItem {
+  href: string
+  label: string
+  icon: string
+  requiredTier: 'free' | 'premium' | 'max_premium'
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard', label: 'Validation', icon: '✦', requiredTier: 'free' },
+  { href: '/dashboard/lean-canvas', label: 'Lean Canvas', icon: '◈', requiredTier: 'free' },
+  { href: '/dashboard/pricing', label: 'Pricing', icon: '◉', requiredTier: 'premium' },
+  { href: '/dashboard/crowdfunding', label: 'Crowdfunding', icon: '◆', requiredTier: 'max_premium' },
+  { href: '/dashboard/pitch-deck', label: 'Pitch Deck', icon: '◇', requiredTier: 'max_premium' },
 ]
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [userTier, setUserTier] = useState<'free' | 'premium' | 'max_premium'>('free')
+  const [crowdfundingCredits, setCrowdfundingCredits] = useState(0)
+  const [pitchDeckCredits, setPitchDeckCredits] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/me')
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (data?.user) {
+          setUserTier(data.user.tier || 'free')
+          setCrowdfundingCredits(data.user.crowdfundingCredits ?? 0)
+          setPitchDeckCredits(data.user.pitchDeckCredits ?? 0)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const getItemLockState = (item: NavItem): { isLocked: boolean; badgeLabel?: string } => {
+    if (userTier === 'max_premium') {
+      return { isLocked: false }
+    }
+
+    if (userTier === 'premium') {
+      if (item.href === '/dashboard/crowdfunding') {
+        const hasCredits = crowdfundingCredits > 0
+        return {
+          isLocked: !hasCredits,
+          badgeLabel: hasCredits ? `${crowdfundingCredits} cr` : 'Buy $49',
+        }
+      }
+      if (item.href === '/dashboard/pitch-deck') {
+        const hasCredits = pitchDeckCredits > 0
+        return {
+          isLocked: !hasCredits,
+          badgeLabel: hasCredits ? `${pitchDeckCredits} cr` : 'Buy $49',
+        }
+      }
+      return { isLocked: false }
+    }
+
+    // Free tier
+    if (item.href === '/dashboard/pricing') {
+      return { isLocked: true, badgeLabel: 'PRO' }
+    }
+    if (item.href === '/dashboard/crowdfunding' || item.href === '/dashboard/pitch-deck') {
+      return { isLocked: true, badgeLabel: 'MAX' }
+    }
+
+    return { isLocked: false }
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row w-full" style={{ background: 'var(--cream, #F5F0E8)' }}>
@@ -57,7 +115,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
                 validore
               </span>
               <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
-                Know it's gold before you dig.
+                Know it&apos;s gold before you dig.
               </div>
             </div>
           </Link>
@@ -65,29 +123,39 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
 
         {/* Nav items */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.map(item => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all group hover:bg-[#C8A860]/10 hover:opacity-100"
-              style={{ borderRadius: '2px 8px 2px 8px', color: '#F5F0E8', opacity: 0.7 }}
-            >
-              <span style={{ color: '#C8A860', fontSize: '11px' }}>{item.icon}</span>
-              <span>{item.label}</span>
-              {(item.tier === 'premium' || item.tier === 'max') && (
-                <span
-                  className="ml-auto text-xs px-1.5 py-0.5 rounded font-medium bg-[#C8A860]/15 text-[#C8A860]"
-                  style={{
-                    fontSize: '9px',
-                    letterSpacing: '0.05em',
-                  }}
-                >
-                  {item.tier === 'max' ? 'MAX' : 'PRO'}
-                </span>
-              )}
-            </Link>
-          ))}
+          {NAV_ITEMS.map(item => {
+            const { isLocked, badgeLabel } = getItemLockState(item)
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all group hover:bg-[#C8A860]/10 ${
+                  isLocked ? 'opacity-60 hover:opacity-90' : 'opacity-85 hover:opacity-100'
+                }`}
+                style={{ borderRadius: '2px 8px 2px 8px', color: '#F5F0E8' }}
+              >
+                <span style={{ color: '#C8A860', fontSize: '11px' }}>{item.icon}</span>
+                <span>{item.label}</span>
+                {badgeLabel && (
+                  <span
+                    className={`ml-auto text-xs px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1 ${
+                      isLocked
+                        ? 'bg-amber-500/20 text-amber-300'
+                        : 'bg-[#C8A860]/15 text-[#C8A860]'
+                    }`}
+                    style={{
+                      fontSize: '9px',
+                      letterSpacing: '0.05em',
+                    }}
+                  >
+                    {isLocked && <Lock className="w-2.5 h-2.5 text-amber-400 inline" />}
+                    <span>{badgeLabel}</span>
+                  </span>
+                )}
+              </Link>
+            )
+          })}
         </nav>
 
         {/* Bottom links */}
@@ -96,7 +164,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             href="/dashboard/credits"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 px-3 py-2 rounded text-sm hover:opacity-100 hover:bg-[#C8A860]/10"
-            style={{ color: '#F5F0E8', opacity: 0.5, borderRadius: '2px 8px 2px 8px' }}
+            style={{ color: '#F5F0E8', opacity: 0.7, borderRadius: '2px 8px 2px 8px' }}
           >
             <span style={{ color: '#C8A860', fontSize: '11px' }}>◎</span>
             <span>Credits</span>
@@ -105,7 +173,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
             href="/dashboard/settings"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 px-3 py-2 rounded text-sm hover:opacity-100 hover:bg-[#C8A860]/10"
-            style={{ color: '#F5F0E8', opacity: 0.5, borderRadius: '2px 8px 2px 8px' }}
+            style={{ color: '#F5F0E8', opacity: 0.7, borderRadius: '2px 8px 2px 8px' }}
           >
             <span style={{ color: '#C8A860', fontSize: '11px' }}>⚙</span>
             <span>Settings</span>

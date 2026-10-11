@@ -1,0 +1,77 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# Validore — Docker Compose
+# ─────────────────────────────────────────────────────────────────────────────
+# Provides a local environment identical to staging/production for:
+#   • End-to-end development without cloud dependencies
+#   • Pre-deploy validation after a successful Jenkins build
+#   • Quick staging stack spin-up with docker compose up -d
+#
+# Usage:
+#   docker compose up -d            # start full stack
+#   docker compose logs -f app      # tail app logs
+#   docker compose down -v          # stop + remove volumes
+#
+# Environment variables are read from .env.local (git-ignored).
+# Copy .env.example → .env.local and fill in real values.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Application ─────────────────────────────────────────────────────────────
+  app:
+    image: validore:local        # built locally or pulled from registry
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_DATE: "${BUILD_DATE:-local}"
+        GIT_COMMIT: "${GIT_COMMIT:-dev}"
+        VERSION: "${VERSION:-0.0.0-local}"
+    container_name: validore-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.local               # runtime secrets — never committed
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    healthcheck:
+      test: ["CMD", "node", "-e",
+        "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    depends_on:
+      - nginx
+    networks:
+      - validore-net
+    labels:
+      com.validore.service: "app"
+      com.validore.environment: "local"
+
+  # ── Reverse Proxy / TLS Terminator ──────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: validore-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - nginx-certs:/etc/nginx/certs
+    networks:
+      - validore-net
+    labels:
+      com.validore.service: "nginx"
+
+# ── Named volumes ──────────────────────────────────────────────────────────────
+volumes:
+  nginx-certs:
+
+# ── Network ────────────────────────────────────────────────────────────────────
+networks:
+  validore-net:
+    driver: bridge

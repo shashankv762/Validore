@@ -29,7 +29,7 @@ export default function LegalPage() {
 
 <div className="prose prose-sm max-w-none text-[#1C1C1C]">
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">1. Data Controller</h2>
-  <p className="mb-4">Validore is operated as a sole proprietorship by [Your Name].<br/>Address: [Your Address], New Delhi, India<br/>Contact Email: legal@validore.app</p>
+  <p className="mb-4">Validore is operated as a sole proprietorship by Shashank V.<br/>Address: Bengaluru, Karnataka, India<br/>Contact Email: legal@validore.app</p>
   
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">2. What data we collect</h2>
   <p className="mb-2">We collect only the minimum data necessary to provide our service:</p>
@@ -80,7 +80,7 @@ export default function LegalPage() {
   </ul>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">9. Data Protection Officer / Grievance Officer</h2>
-  <p className="mb-4">Name: [Your Name]<br/>Email: legal@validore.app</p>
+  <p className="mb-4">Name: Shashank V<br/>Email: legal@validore.app</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">10. Children&apos;s Privacy</h2>
   <p className="mb-4">Our service is not intended for users under the age of 18.</p>
@@ -110,7 +110,7 @@ export default function LegalPage() {
         </div>
         <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
            <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by [Your Name], New Delhi, India. Contact: support@validore.app</p>
+           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
         </div>
       </footer>
     </div>
