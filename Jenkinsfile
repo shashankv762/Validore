@@ -75,6 +75,47 @@ pipeline {
     )
   }
 
+  // ── Automated build triggers ─────────────────────────────────────────────────
+  //
+  // THREE COMPLEMENTARY TRIGGERS are configured:
+  //
+  //  1. GitHub Push Webhook  — fires the moment a developer pushes to GitHub.
+  //     Jenkins receives an HTTP POST from GitHub on every push/PR event.
+  //     Requires:  "GitHub plugin" installed in Jenkins.
+  //     GitHub setup: Repository → Settings → Webhooks → Add webhook
+  //       Payload URL : http://<jenkins-host>:8080/github-webhook/
+  //       Content type: application/json
+  //       Events      : Pushes + Pull requests (or "Send me everything")
+  //
+  //  2. Poll SCM (safety net fallback) — Jenkins polls GitHub every 5 minutes.
+  //     Triggers a build only when changes are detected, even if the webhook
+  //     was missed (e.g., Jenkins was temporarily offline).
+  //     Cron expression: H/5 * * * *
+  //       H = hash-distributed minute, prevents thundering-herd on Jenkins restart.
+  //
+  //  3. Nightly full build — runs the complete pipeline at 01:30 IST every day
+  //     regardless of commits.  Catches dependency drift, stale caches, or
+  //     environment regressions that don't always surface in incremental builds.
+  //
+  // ─────────────────────────────────────────────────────────────────────────────
+  triggers {
+    // ── Trigger 1: GitHub push / PR webhook ─────────────────────────────────
+    // Every git push to any branch on GitHub fires this pipeline immediately.
+    // No polling delay — the build starts within seconds of the developer's push.
+    githubPush()
+
+    // ── Trigger 2: SCM Poll fallback (every 5 minutes) ───────────────────────
+    // Acts as a safety net when the webhook delivery fails.
+    // H/5 distributes the poll across agents to reduce peak load.
+    pollSCM('H/5 * * * *')
+
+    // ── Trigger 3: Nightly scheduled build ───────────────────────────────────
+    // Full regression run every night at 01:30 IST (20:00 UTC).
+    // Detects dependency drift, security advisories, and environment regressions
+    // that might not be caught by commit-triggered incremental builds.
+    cron('30 20 * * *')
+  }
+
   // ── Environment variables (resolved once at pipeline start) ─────────────────
   environment {
     // Image coordinates — override REGISTRY in Jenkins System Config if needed.
