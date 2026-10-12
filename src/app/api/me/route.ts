@@ -25,6 +25,15 @@ export async function GET() {
       validationsThisMonth: dbUser.validationsThisMonth,
       currentPeriodEnd: dbUser.currentPeriodEnd,
       subscriptionStatus: dbUser.subscriptionStatus,
+      cancelAtPeriodEnd: dbUser.cancelAtPeriodEnd,
+      createdAt: dbUser.createdAt,
+      emailVerified: Boolean(user.email_confirmed_at),
+      creditBalance: dbUser.creditBalance,
+      purchasedCredits: dbUser.purchasedCredits,
+      creditsUsedThisCycle: dbUser.creditsUsedThisCycle,
+      creditResetAt: dbUser.creditResetAt,
+      preferredAiProvider: dbUser.preferredAiProvider,
+      hasCustomApiKey: Boolean(dbUser.encryptedOpenrouterKey),
     },
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 }

@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decryptApiKey } from '@/lib/byok-crypto'
+import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, leanCanvases } from '@/db/schema'
-import { eq, and, max } from 'drizzle-orm'
-import { checkCredits, deductCredits } from '@/lib/credits'
+import { eq, and } from 'drizzle-orm'
+import { nextCanvasVersion } from '@/lib/canvas-versions'
+import { checkCredits } from '@/lib/credits'
+import { saveCanvasVersion } from '@/lib/canvas-store'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
@@ -56,18 +61,19 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const ideaId = request.nextUrl.searchParams.get('ideaId')
-  if (!ideaId) return NextResponse.json({ error: 'ideaId required' }, { status: 400 })
-
+  const parsed = z.string().uuid().safeParse(request.nextUrl.searchParams.get('ideaId'))
+  if (!parsed.success) return NextResponse.json({ error: 'A valid ideaId is required' }, { status: 400 })
+  const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
+  if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
   const canvases = await db.query.leanCanvases.findMany({
-    where: eq(leanCanvases.ideaId, ideaId),
-    orderBy: (lc, { asc }) => [asc(lc.version)],
+    where: and(eq(leanCanvases.ideaId, parsed.data), eq(leanCanvases.userId, dbUser.id)),
+    orderBy: (lc, { asc }) => [asc(lc.version)], limit: 100,
   })
-  return NextResponse.json({ canvases })
+  return NextResponse.json({ canvases }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 export async function POST(request: NextRequest) {
+  if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
 
+  if (!await canUserAccess(user.id, 'canAiLeanCanvas')) return NextResponse.json({ error: 'This module requires an eligible plan' }, { status: 403 })
   const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.LEAN_CANVAS)
   if (!creditCheck.allowed) {
     return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
@@ -97,46 +104,36 @@ export async function POST(request: NextRequest) {
   }
 
   // GAP-2: Decrypt custom OpenRouter key if stored
-  let customOpenRouterKey: string | null = null
-  const encryptedKey = (dbUser as any).encryptedOpenrouterKey as string | null
-  if (encryptedKey) {
-    if (encryptedKey.includes(':') && process.env.ENCRYPTION_KEY) {
-      try {
-        const crypto = await import('crypto')
-        const [ivHex, encryptedHex] = encryptedKey.split(':')
-        const iv = Buffer.from(ivHex, 'hex')
-        const decipher = crypto.createDecipheriv(
-          'aes-256-cbc',
-          Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
-          iv
-        )
-        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-        decrypted += decipher.final('utf8')
-        customOpenRouterKey = decrypted
-      } catch {
-        console.warn('[BYOK] Failed to decrypt custom key, using platform default')
-      }
-    } else {
-      customOpenRouterKey = encryptedKey // Unencrypted fallback (dev)
-    }
-  }
-
   try {
-    const body = await request.json()
-    const { ideaId, intakeAnswers } = body as { ideaId?: string; intakeAnswers?: Record<number, string> }
-    if (!ideaId) return NextResponse.json({ error: 'ideaId required' }, { status: 400 })
+    let customOpenRouterKey: string | null = null
+    if (dbUser.encryptedOpenrouterKey) {
+      try { customOpenRouterKey = decryptApiKey(dbUser.encryptedOpenrouterKey) }
+      catch { return NextResponse.json({ error: 'Your custom AI key could not be loaded. Save it again in settings.' }, { status: 503 }) }
+    }
+    const body = await request.json().catch(() => null)
+    const parsed = z.object({ ideaId: z.string().uuid(),
+      intakeAnswers: z.record(z.string().regex(/^(?:[0-9]|1[01])$/), z.string().max(4000)).optional(),
+    }).safeParse(body)
+    if (!parsed.success) return NextResponse.json({ error: 'Invalid canvas input' }, { status: 400 })
+    const { ideaId, intakeAnswers } = parsed.data
 
     const idea = await db.query.ideas.findFirst({
       where: and(eq(ideas.id, ideaId), eq(ideas.userId, dbUser.id)),
     })
     if (!idea) return NextResponse.json({ error: 'Idea not found' }, { status: 404 })
 
-    // Get next version number
-    const existing = await db.query.leanCanvases.findMany({ where: eq(leanCanvases.ideaId, ideaId) })
-    const nextVersion = Math.min((existing.length > 0 ? Math.max(...existing.map(c => c.version ?? 1)) : 0) + 1, 4)
+    const versionQuery = {
+      where: and(eq(leanCanvases.ideaId, ideaId), eq(leanCanvases.userId, dbUser.id)),
+      columns: { version: true as const },
+      orderBy: [leanCanvases.version],
+      limit: 4,
+    }
+    // Reject completed histories before spending on another AI request.
+    const existing = await db.query.leanCanvases.findMany(versionQuery)
+    if (nextCanvasVersion(existing) === null) return NextResponse.json({ error: 'This idea has reached the four-canvas version limit.' }, { status: 409 })
 
     // Web search for market context
-    const searchResp = await webSearch(`${idea.industry} business model ${idea.location} market 2024`, 4)
+    const searchResp = await webSearch(`${idea.industry} business model ${idea.location} market ${new Date().getFullYear()}`, 4)
     const searchCtx = searchResp.degraded
       ? 'No live search results. Mark all market claims as ASSUMPTION.'
       : searchResp.results.map(r => `- ${r.title}: ${r.content.slice(0, 250)} [${r.source}, ${r.fetchedAt}]`).join('\n')
@@ -215,46 +212,48 @@ INTEGRITY RULES:
     })
 
     const canvas = result.data
-    await deductCredits(dbUser.id, CREDIT_COSTS.LEAN_CANVAS, 'LEAN_CANVAS', idea.id)
-    const [saved] = await db.insert(leanCanvases).values({
-      ideaId,
-      userId: dbUser.id,
-      version: nextVersion,
-      problem: canvas.problem,
-      customerSegments: canvas.customerSegments,
-      uvp: canvas.uvp,
-      solution: canvas.solution,
-      channels: canvas.channels,
-      revenueStreams: canvas.revenueStreams,
-      costStructure: canvas.costStructure,
-      keyMetrics: canvas.keyMetrics,
-      unfairAdvantage: canvas.unfairAdvantage,
-      confidenceScores: {
-        riskiestAssumption: canvas.riskiestAssumption,
-        validationExperiments: canvas.validationExperiments,
-        overallScore: canvas.overallConfidenceScore,
-      },
-      validationScore: canvas.overallConfidenceScore,
-      changeReason: canvas.changeReason,
-      evidenceSummary: canvas.evidenceSummary,
-      analysisData: {
-        assumptionRegister: canvas.assumptionRegister,
-        problemStatement: canvas.problemStatement,
-        interviewQuestions: canvas.interviewQuestions,
-        segmentPrioritization: canvas.segmentPrioritization,
-        alternativeSolutions: canvas.alternativeSolutions,
-        businessModelCanvas: canvas.businessModelCanvas,
-        businessModelValidationScore: canvas.businessModelValidationScore,
-        bmScoreBreakdown: canvas.bmScoreBreakdown,
-        ratMatrix: canvas.ratMatrix,
-        buildMeasureLearnCycles: canvas.buildMeasureLearnCycles,
-        pivotAnalysis: canvas.pivotAnalysis,
-        ifThenRules: canvas.ifThenRules,
-        pricingVsVolumeMatrix: canvas.pricingVsVolumeMatrix
-      },
-    }).returning()
+    const saved = await saveCanvasVersion(dbUser.id, ideaId, {
+        problem: canvas.problem,
+        customerSegments: canvas.customerSegments,
+        uvp: canvas.uvp,
+        solution: canvas.solution,
+        channels: canvas.channels,
+        revenueStreams: canvas.revenueStreams,
+        costStructure: canvas.costStructure,
+        keyMetrics: canvas.keyMetrics,
+        unfairAdvantage: canvas.unfairAdvantage,
+        confidenceScores: {
+          riskiestAssumption: canvas.riskiestAssumption,
+          validationExperiments: canvas.validationExperiments,
+          overallScore: canvas.overallConfidenceScore,
+        },
+        validationScore: Math.round(canvas.overallConfidenceScore),
+        changeReason: canvas.changeReason,
+        evidenceSummary: canvas.evidenceSummary,
+        analysisData: {
+          assumptionRegister: canvas.assumptionRegister,
+          problemStatement: canvas.problemStatement,
+          interviewQuestions: canvas.interviewQuestions,
+          segmentPrioritization: canvas.segmentPrioritization,
+          alternativeSolutions: canvas.alternativeSolutions,
+          businessModelCanvas: canvas.businessModelCanvas,
+          businessModelValidationScore: canvas.businessModelValidationScore,
+          bmScoreBreakdown: canvas.bmScoreBreakdown,
+          ratMatrix: canvas.ratMatrix,
+          buildMeasureLearnCycles: canvas.buildMeasureLearnCycles,
+          pivotAnalysis: canvas.pivotAnalysis,
+          ifThenRules: canvas.ifThenRules,
+          pricingVsVolumeMatrix: canvas.pricingVsVolumeMatrix
+        },
+    }, CREDIT_COSTS.LEAN_CANVAS)
+    if (saved.kind === 'limit') return NextResponse.json({ error: 'This idea has reached the four-canvas version limit. No credits were charged.' }, { status: 409 })
+    if (saved.kind === 'missing') return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (saved.kind === 'credits') return NextResponse.json({ error: 'Insufficient credits. Refresh your balance and try again.' }, { status: 402 })
 
-    return NextResponse.json({ canvas: saved, tokensUsed: result.tokensUsed, provider: result.provider })
+    return NextResponse.json({ canvas: saved.canvas, tokensUsed: result.tokensUsed, provider: result.provider }, { headers: { 'Cache-Control': 'private, no-store' } })
+  } catch {
+    console.error('[lean-canvas] Analysis failed')
+    return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {
     await decrementConcurrency(dbUser.id)
   }

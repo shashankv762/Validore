@@ -1,5 +1,5 @@
 import {
-  pgTable, text, integer, boolean, timestamp, uuid, jsonb, pgEnum
+  pgTable, text, integer, boolean, timestamp, uuid, jsonb, pgEnum, uniqueIndex, index
 } from 'drizzle-orm/pg-core'
 
 export const tierEnum = pgEnum('tier', ['free', 'premium', 'max_premium'])
@@ -31,7 +31,7 @@ export const users = pgTable('users', {
   encryptedOpenrouterKey: text('encrypted_openrouter_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}).enableRLS()
 
 export const tierConfig = pgTable('tier_config', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -51,13 +51,13 @@ export const tierConfig = pgTable('tier_config', {
   canPitchDeck: boolean('can_pitch_deck').notNull().default(false),
   canAiLeanCanvas: boolean('can_ai_lean_canvas').notNull().default(false),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}).enableRLS()
 
 export const foundingMemberCounter = pgTable('founding_member_counter', {
   id: integer('id').primaryKey().default(1),
   count: integer('count').notNull().default(0),
   cap: integer('cap').notNull().default(100),
-})
+}).enableRLS()
 
 export const ideas = pgTable('ideas', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -74,7 +74,9 @@ export const ideas = pgTable('ideas', {
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (table) => [
+  index('ideas_user_created_idx').on(table.userId, table.createdAt),
+]).enableRLS()
 
 export const validationJobs = pgTable('validation_jobs', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -90,7 +92,10 @@ export const validationJobs = pgTable('validation_jobs', {
   aiProvider: text('ai_provider'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-})
+}, (table) => [
+  index('validation_jobs_user_status_idx').on(table.userId, table.status, table.createdAt),
+  index('validation_jobs_idea_status_idx').on(table.ideaId, table.status),
+]).enableRLS()
 
 export const validationReports = pgTable('validation_reports', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -116,7 +121,12 @@ export const validationReports = pgTable('validation_reports', {
   isLite: boolean('is_lite').notNull().default(false),
   status: text('status').default('complete'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('validation_reports_job_uidx').on(table.jobId),
+  uniqueIndex('validation_reports_share_uidx').on(table.shareToken),
+  index('validation_reports_user_created_idx').on(table.userId, table.createdAt),
+  index('validation_reports_idea_idx').on(table.ideaId),
+]).enableRLS()
 
 export const leanCanvases = pgTable('lean_canvases', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -138,7 +148,7 @@ export const leanCanvases = pgTable('lean_canvases', {
   evidenceSummary: text('evidence_summary'),
   analysisData: jsonb('analysis_data'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()
 
 export const crowdfundingAnalyses = pgTable('crowdfunding_analyses', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -158,7 +168,7 @@ export const crowdfundingAnalyses = pgTable('crowdfunding_analyses', {
   recommendation: text('recommendation'),
   reportData: jsonb('report_data'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()
 
 export const pricingSimulations = pgTable('pricing_simulations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -172,7 +182,7 @@ export const pricingSimulations = pgTable('pricing_simulations', {
   validationPlan: jsonb('validation_plan'),
   reportData: jsonb('report_data'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()
 
 export const pitchDecks = pgTable('pitch_decks', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -189,7 +199,7 @@ export const pitchDecks = pgTable('pitch_decks', {
   milestones: jsonb('milestones'),
   reportData: jsonb('report_data'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()
 
 export const creditPurchases = pgTable('credit_purchases', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -201,7 +211,10 @@ export const creditPurchases = pgTable('credit_purchases', {
   razorpayOrderId: text('razorpay_order_id'),
   status: text('status').notNull().default('pending'), // pending | completed | refunded
   createdAt: timestamp('created_at').defaultNow(),
-})
+}, (table) => [
+  uniqueIndex('credit_purchases_stripe_payment_uidx').on(table.stripePaymentIntentId),
+  uniqueIndex('credit_purchases_razorpay_order_uidx').on(table.razorpayOrderId),
+]).enableRLS()
 
 export const syntheticCampaigns = pgTable('synthetic_campaigns', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -238,7 +251,7 @@ export const syntheticCampaigns = pgTable('synthetic_campaigns', {
   campaignStatus: text('campaign_status').notNull(), // 'Successful' | 'Unsuccessful'
   dataLabel: text('data_label').notNull().default('SYNTHETIC DATA'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()
 export const creditLedger = pgTable('credit_ledger', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => users.id),
@@ -246,7 +259,9 @@ export const creditLedger = pgTable('credit_ledger', {
   transactionType: text('transaction_type').notNull(),
   description: text('description'),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}, (table) => [
+  index('credit_ledger_user_created_idx').on(table.userId, table.createdAt),
+]).enableRLS()
 
 export const userDevices = pgTable('user_devices', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -256,4 +271,4 @@ export const userDevices = pgTable('user_devices', {
   ipAddress: text('ip_address'),
   lastActive: timestamp('last_active').defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),
-})
+}).enableRLS()

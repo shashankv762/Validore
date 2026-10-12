@@ -21,12 +21,8 @@ dist
 .gitattributes
 
 # ── Secrets — NEVER allow these into the image ───────────────────────────────
-.env
-.env.local
-.env.*.local
-.env.development
-.env.staging
-.env.production
+.env*
+!.env.example
 *.pem
 *.key
 *.p12
@@ -36,6 +32,12 @@ reports
 .trivy-cache
 coverage
 Jenkinsfile
+/.classroom
+/.agents
+/.rbxsync-trash
+/.npm-cache
+/.tmp
+/.docker-auth.*/
 
 # ── Docker files (not needed inside the image) ────────────────────────────────
 Dockerfile

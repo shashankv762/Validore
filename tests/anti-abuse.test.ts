@@ -54,7 +54,7 @@ describe('Anti-abuse and Credit limits', () => {
       validationsThisMonth: 0,
     })
     ;(db.query.ideas.findFirst as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
-      id: 'idea-123',
+      id: '11111111-1111-4111-8111-111111111111',
       userId: 'db-user-id',
       name: 'Test Idea',
     })
@@ -65,7 +65,7 @@ describe('Anti-abuse and Credit limits', () => {
 
     const req = new NextRequest('http://localhost/api/validate', {
       method: 'POST',
-      body: JSON.stringify({ ideaId: 'idea-123' })
+      body: JSON.stringify({ ideaId: '11111111-1111-4111-8111-111111111111' })
     })
 
     const res = await validateRoute(req)
@@ -81,7 +81,7 @@ describe('Anti-abuse and Credit limits', () => {
 
     const req = new NextRequest('http://localhost/api/validate', {
       method: 'POST',
-      body: JSON.stringify({ ideaId: 'idea-123' })
+      body: JSON.stringify({ ideaId: '11111111-1111-4111-8111-111111111111' })
     })
 
     const res = await validateRoute(req)

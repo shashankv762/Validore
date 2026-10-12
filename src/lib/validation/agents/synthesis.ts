@@ -69,6 +69,7 @@ Stay in your scope — the research sections are owned by other agents.`
 
 export async function runSynthesisAgent(idea: IdeaInput, researchDigest: string, opts?: AgentOpts) {
   return generateWithFallback({
+    agentRole: 'synthesis',
     prompt: buildSynthesisPrompt(idea, researchDigest),
     schema: SynthesisAgentSchema,
     temperature: 0,

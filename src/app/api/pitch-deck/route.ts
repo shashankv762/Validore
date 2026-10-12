@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decryptApiKey } from '@/lib/byok-crypto'
+import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, pitchDecks } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { checkCredits, deductCredits } from '@/lib/credits'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { canUserAccessWithCredits } from '@/lib/tier-gate'
+import { consumeModulePack } from '@/lib/module-credits'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { z } from 'zod'
 import { PITCH_WEIGHTS, clampScore } from '@/lib/scoring'
@@ -12,17 +16,17 @@ import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } fr
 
 const PitchDeckInputSchema = z.object({
   ideaId: z.string().uuid(),
-  founderName: z.string().min(2),
-  founderBackground: z.string().min(10),
-  teamSize: z.number().min(1),
-  fundingAskAmount: z.string().optional(),
-  useOfFunds: z.string().optional(),
-  currentTraction: z.string().optional(),
+  founderName: z.string().trim().min(2).max(200),
+  founderBackground: z.string().trim().min(10).max(8000),
+  teamSize: z.number().int().min(1).max(10000),
+  fundingAskAmount: z.string().max(200).optional(),
+  useOfFunds: z.string().max(4000).optional(),
+  currentTraction: z.string().max(4000).optional(),
   milestones: z.array(z.object({
-    milestone: z.string(),
-    targetDate: z.string(),
+    milestone: z.string().max(2000),
+    targetDate: z.string().max(100),
     status: z.enum(['PLANNED', 'ACHIEVED']),
-  })).optional(),
+  })).max(50).optional(),
 })
 
 const SlideSchema = z.object({
@@ -92,6 +96,7 @@ const PitchDeckAiSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -104,7 +109,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
 
-  const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK)
+  const access = await canUserAccessWithCredits(user.id, 'pitch_deck')
+  if (!access.allowed) return NextResponse.json({ error: 'This module requires an eligible plan or a module run pack' }, { status: 403 })
+  const creditCheck = access.reason === 'credit' ? { allowed: true } : await checkCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK)
   if (!creditCheck.allowed) {
     return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
   }
@@ -121,32 +128,13 @@ export async function POST(request: NextRequest) {
   }
 
   // GAP-2: Decrypt custom OpenRouter key if stored
-  let customOpenRouterKey: string | null = null
-  const encryptedKey = (dbUser as any).encryptedOpenrouterKey as string | null
-  if (encryptedKey) {
-    if (encryptedKey.includes(':') && process.env.ENCRYPTION_KEY) {
-      try {
-        const crypto = await import('crypto')
-        const [ivHex, encryptedHex] = encryptedKey.split(':')
-        const iv = Buffer.from(ivHex, 'hex')
-        const decipher = crypto.createDecipheriv(
-          'aes-256-cbc',
-          Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
-          iv
-        )
-        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-        decrypted += decipher.final('utf8')
-        customOpenRouterKey = decrypted
-      } catch {
-        console.warn('[BYOK] Failed to decrypt custom key, using platform default')
-      }
-    } else {
-      customOpenRouterKey = encryptedKey // Unencrypted fallback (dev)
-    }
-  }
-
   try {
-    const body = await request.json()
+    let customOpenRouterKey: string | null = null
+    if (dbUser.encryptedOpenrouterKey) {
+      try { customOpenRouterKey = decryptApiKey(dbUser.encryptedOpenrouterKey) }
+      catch { return NextResponse.json({ error: 'Your custom AI key could not be loaded. Save it again in settings.' }, { status: 503 }) }
+    }
+    const body = await request.json().catch(() => null)
     const parsed = PitchDeckInputSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
@@ -241,21 +229,26 @@ CRITICAL RULES:
       clampScore(ai.teamExecutionScore, PITCH_WEIGHTS.teamExecutionReadiness) +
       clampScore(ai.presentationQualityScore, PITCH_WEIGHTS.presentationQuality)
 
-    await deductCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK, 'PITCH_DECK', i.ideaId)
-    const [saved] = await db.insert(pitchDecks).values({
-      ideaId: i.ideaId,
-      userId: dbUser.id,
-      qualityScore,
-      founderReadinessScore: clampScore(ai.founderReadinessScore, 100),
-      slides: ai.slides,
-      pitchScript3min: ai.pitchScript3min,
-      pitchScript60sec: ai.pitchScript60sec,
-      investorQa: ai.investorQa,
-      portfolioSections: ai.portfolioSections,
-      roadmap: ai.roadmap,
-      milestones: i.milestones ?? [],
-      reportData: { inputs: i, ai, qualityScore },
-    }).returning()
+    const saved = await db.transaction(async tx => {
+      const charged = access.reason === 'credit' ? await consumeModulePack(tx, dbUser.id, 'pitchDeckCredits', i.ideaId) : await deductCredits(dbUser.id, CREDIT_COSTS.PITCH_DECK, 'PITCH_DECK', i.ideaId, undefined, tx)
+      if (!charged) return null
+      const [created] = await tx.insert(pitchDecks).values({
+        ideaId: i.ideaId,
+        userId: dbUser.id,
+        qualityScore,
+        founderReadinessScore: clampScore(ai.founderReadinessScore, 100),
+        slides: ai.slides,
+        pitchScript3min: ai.pitchScript3min,
+        pitchScript60sec: ai.pitchScript60sec,
+        investorQa: ai.investorQa,
+        portfolioSections: ai.portfolioSections,
+        roadmap: ai.roadmap,
+        milestones: i.milestones ?? [],
+        reportData: { inputs: i, ai, qualityScore },
+      }).returning()
+      return created
+    })
+    if (!saved) return NextResponse.json({ error: 'Insufficient credits. Refresh your balance and try again.' }, { status: 402 })
 
     return NextResponse.json({
       deckId: saved.id,
@@ -263,6 +256,9 @@ CRITICAL RULES:
       founderReadinessScore: saved.founderReadinessScore,
       result: saved,
     })
+  } catch (error) {
+    console.error('[pitch-deck] Analysis failed:', error)
+    return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {
     await decrementConcurrency(dbUser.id)
   }

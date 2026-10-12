@@ -5,7 +5,8 @@ import { STARTUP_WEIGHTS, clampScore, getCampaignClassificationBand } from '../s
 import * as fin from '../financial'
 import { db } from '@/db'
 import { validationJobs } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { auditEvidence } from './agents/quality-auditor'
 import { runMultiAgentValidation, type MultiAgentResult } from './agents/orchestrator'
 
 // ─── Shared schemas (single source of truth: ./schemas) ──────────────────────
@@ -123,7 +124,7 @@ export async function runLiteValidation(
   opts?: EngineOptions
 ): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number }> {
   const searchResp = await webSearch(
-    `${idea.industry} market size ${idea.location} startups 2024 2025`,
+    `${idea.industry} market size ${idea.location} startups ${new Date().getFullYear()}`,
     5
   )
 
@@ -150,6 +151,7 @@ export async function runLiteValidation(
 
   return {
     ...d,
+    ...auditEvidence(d.keyEvidence, searchResp.results),
     problemScore: ps,
     customerScore: cs,
     marketScore: ms,
@@ -189,8 +191,8 @@ export async function runFullValidation(
     // Update job: started
     await db
       .update(validationJobs)
-      .set({ status: 'running', totalSections: 6, completedSections: 0 })
-      .where(eq(validationJobs.id, jobId))
+      .set({ totalSections: 6, completedSections: 0 })
+      .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
 
     // ─── Primary path: multi-agent pipeline ──────────────────────────────────
     let agentReport: MultiAgentResult | null = await runMultiAgentValidation(idea, {
@@ -199,43 +201,32 @@ export async function runFullValidation(
         await db
           .update(validationJobs)
           .set({ completedSections: completed })
-          .where(eq(validationJobs.id, jobId))
+          .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
           .catch(() => {})
       },
+    }).catch((error) => {
+      console.error('[ENGINE] Multi-agent pipeline failed:', error)
+      return null
     })
 
     // Critical fallback: if the whole agent pipeline failed, use the monolith.
     if (!agentReport) {
       console.warn('[ENGINE] Multi-agent pipeline returned null — falling back to monolithic generation')
       agentReport = await runMonolithicFull(idea, jobId, opts)
-      if (!agentReport) {
-        await db
-          .update(validationJobs)
-          .set({
-            status: 'failed',
-            errorMessage: 'All validation paths failed',
-            aiProvider: provider,
-          })
-          .where(eq(validationJobs.id, jobId))
-        return null
-      }
+      if (!agentReport) return null
     }
 
     totalTokens = agentReport.tokensUsed
     provider = agentReport.provider
 
-    const anyFailed = Object.values(agentReport.agentTrail.agents).some((s) => s === 'failed')
-    const finalStatus = anyFailed ? 'partial' : 'complete'
-
     await db
       .update(validationJobs)
       .set({
-        status: finalStatus,
         completedSections: 6,
         tokensUsed: totalTokens,
         aiProvider: provider,
       })
-      .where(eq(validationJobs.id, jobId))
+      .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
 
     return {
       ...agentReport.report,
@@ -246,14 +237,7 @@ export async function runFullValidation(
       financialProjection: agentReport.report.financialProjection,
     }
   } catch (err) {
-    await db
-      .update(validationJobs)
-      .set({
-        status: 'failed',
-        errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        aiProvider: provider,
-      })
-      .where(eq(validationJobs.id, jobId))
+    console.error('[ENGINE] Validation attempt failed:', err)
     return null
   }
 }
@@ -328,7 +312,7 @@ async function runMonolithicFull(
   let degraded = true
   try {
     const [marketSearch, competitorSearch] = await Promise.all([
-      webSearch(`${idea.industry} market size ${idea.location} 2024 2025`, 5),
+      webSearch(`${idea.industry} market size ${idea.location} ${new Date().getFullYear()}`, 5),
       webSearch(`${idea.name} competitors alternatives ${idea.industry} pricing`, 5),
     ])
     allResults = [...marketSearch.results, ...competitorSearch.results]
@@ -341,7 +325,7 @@ async function runMonolithicFull(
   await db
     .update(validationJobs)
     .set({ completedSections: 1 })
-    .where(eq(validationJobs.id, jobId))
+    .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
 
   // Step 2: Generate full report
   let result
@@ -452,6 +436,7 @@ async function runMonolithicFull(
   return {
     report: {
       ...d,
+      ...auditEvidence(d.keyEvidence, allResults),
       problemScore: ps,
       customerScore: cs,
       marketScore: ms,

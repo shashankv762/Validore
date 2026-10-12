@@ -1,5 +1,5 @@
 import { config } from 'dotenv'
-config({ path: '.env.local' })
+if (process.env.CI !== 'true') config({ path: '.env.local' })
 
 import { NextRequest } from 'next/server'
 

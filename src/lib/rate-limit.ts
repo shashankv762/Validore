@@ -17,7 +17,8 @@ export async function rateLimitCheck(userId: string) {
     })
     return await ratelimit.limit(userId)
   } catch (error) {
-    return { success: true }
+    console.error('[RATE-LIMIT] Redis unavailable:', error)
+    return { success: process.env.NODE_ENV !== 'production' }
   }
 }
 
@@ -29,7 +30,7 @@ export async function rateLimitCheck(userId: string) {
 export async function checkAndIncrementConcurrency(userId: string, maxAllowed: number): Promise<{ allowed: boolean }> {
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
     // Allow through if Redis not configured (dev/staging)
-    return { allowed: true }
+    return { allowed: process.env.NODE_ENV !== 'production' }
   }
   try {
     const redis = Redis.fromEnv()
@@ -46,8 +47,8 @@ export async function checkAndIncrementConcurrency(userId: string, maxAllowed: n
     }
     return { allowed: true }
   } catch {
-    // On Redis error, allow through to avoid blocking users
-    return { allowed: true }
+    // Expensive production requests must not bypass limits during an outage.
+    return { allowed: process.env.NODE_ENV !== 'production' }
   }
 }
 

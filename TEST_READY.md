@@ -1,10 +1,12 @@
-# Validore — Test Suite Ready Report (TEST_READY)
+# Validore — Historical Test Suite Report (2026-10-02)
+
+> Historical report only. Its test counts, tier paths, commands, and readiness claims describe an earlier repository state and have not been revalidated against the current code. The latest verification status is tracked in [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md); use the current package scripts and Vitest configuration for the present test layout.
 
 **Date**: 2026-10-02  
 **Role**: E2E Test Writer  
 **Framework**: Vitest v5.0.2  
 **Execution Command**: `npm test` or `npx vitest run tests/e2e/`  
-**Status**: E2E Test Suite Implemented (Tiers 1–4) & Validated
+**Status at the time**: E2E Test Suite Implemented (Tiers 1–4) & Validated
 
 ---
 

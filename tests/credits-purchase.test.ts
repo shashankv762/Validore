@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { POST, GET, CREDIT_PACKAGES } from '@/app/api/credits/purchase/route'
+import { POST, GET } from '@/app/api/credits/purchase/route'
+import { CREDIT_PACKAGES } from '@/lib/credit-packages'
 
 // Mock Supabase server client
 const mockGetUser = vi.fn()
@@ -276,7 +277,7 @@ describe('Credits Purchase API & Business Logic', () => {
       const data = await res.json()
       expect(data.configured).toBe(false)
       expect(data.error).toContain('Payment provider error')
-      expect(data.error).toContain('Stripe network connection failed')
+      expect(data.error).not.toContain('Stripe network connection failed')
     })
   })
 
@@ -302,7 +303,7 @@ describe('Credits Purchase API & Business Logic', () => {
       mockSelect.mockReturnValue({
         from: () => ({
           where: () => ({
-            orderBy: () => Promise.resolve(mockPurchases),
+            orderBy: () => ({ limit: () => Promise.resolve(mockPurchases) }),
           }),
         }),
       })

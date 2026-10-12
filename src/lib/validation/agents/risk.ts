@@ -35,6 +35,7 @@ Other agents handle market, customers, competitors, financials, and the final de
 
 export async function runRiskAgent(idea: IdeaInput, researchDigest: string, opts?: AgentOpts) {
   return generateWithFallback({
+    agentRole: 'risk',
     prompt: buildRiskPrompt(idea, researchDigest),
     schema: RiskAgentSchema,
     temperature: 0,

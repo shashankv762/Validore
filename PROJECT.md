@@ -1,5 +1,7 @@
 # Project: Validore — Production Readiness
 
+> Requirements and architecture baseline, not a live implementation or deployment report. File paths, API inventory, and feature expectations may have changed; use [README.md](README.md) and [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for the current repository overview and verification status.
+
 ## Architecture
 - **Framework**: Next.js 16.3.7 (App Router, Turbopack, React 19)
 - **Database & ORM**: PostgreSQL (Supabase) via Drizzle ORM (`drizzle-orm@^0.45.3`, `postgres@^3.4.9`, `drizzle-kit@^0.31.11`)

@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import AuthNotice from '@/components/auth/AuthNotice'
 
 export const metadata = {
   title: 'Sign In | Validore',
   description: 'Sign in to your Validore account.',
 }
 
-export default function SignInPage() {
+export default async function SignInPage({ searchParams }: { searchParams: Promise<{ error?: string; message?: string; next?: string }> }) {
+  const params = await searchParams
   return (
     <div className="min-h-screen flex">
       {/* Left side - Branding */}
@@ -37,7 +39,7 @@ export default function SignInPage() {
       </div>
       
       {/* Right side - Form */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 bg-[#F5F0E8]">
+      <div className="flex-1 flex flex-col justify-center items-center p-4 sm:p-8 bg-[#F5F0E8]">
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8">
             <Link href="/" className="inline-flex items-center gap-3">
@@ -46,16 +48,20 @@ export default function SignInPage() {
             </Link>
           </div>
           
-          <div className="card-angular p-8 shadow-sm">
+          <div className="card-angular p-6 sm:p-8 shadow-sm">
             <h2 className="text-2xl font-light text-[#0A1628] mb-6">Sign In</h2>
             
+            <AuthNotice error={params.error} message={params.message} />
             <form action="/api/auth/signin" method="POST" className="space-y-4">
+              <input type="hidden" name="next" value={params.next || '/dashboard'} />
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-[#1C1C1C] mb-1">Email</label>
                 <input 
                   type="email" 
                   id="email" 
                   name="email" 
+                  autoComplete="email"
+                  maxLength={320}
                   required 
                   className="w-full px-3 py-2 border border-[#E8E0D0] rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]"
                 />
@@ -70,6 +76,8 @@ export default function SignInPage() {
                   type="password" 
                   id="password" 
                   name="password" 
+                  autoComplete="current-password"
+                  maxLength={128}
                   required 
                   className="w-full px-3 py-2 border border-[#E8E0D0] rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]"
                 />

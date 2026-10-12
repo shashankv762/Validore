@@ -102,3 +102,20 @@ body {
     color: #0A1628;
   }
 }
+
+/* Shared interaction surfaces keep the existing navy, gold and cream identity. */
+html { scroll-padding-top: 5rem; }
+body { line-height: 1.6; }
+::selection { color: var(--navy); background: var(--gold); }
+:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; }
+.dashboard-navigation :focus-visible { outline-color: var(--gold); }
+input, textarea, select { caret-color: var(--navy); }
+input::placeholder, textarea::placeholder { color: var(--charcoal); opacity: 0.65; }
+button:not(:disabled), [role='button'] { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+.skip-link { position: fixed; top: 0.75rem; left: 0.75rem; z-index: 100; padding: 0.75rem 1rem; color: var(--ivory); background: var(--navy); border-radius: 0.5rem; transform: translateY(-200%); }
+.skip-link:focus { transform: translateY(0); outline-color: var(--gold); }
+@media (max-width: 640px) { input, textarea, select { font-size: 1rem; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

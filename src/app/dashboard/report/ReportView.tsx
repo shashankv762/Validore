@@ -34,6 +34,7 @@ import { ActionPlanTable, ActionPlanRow } from '@/components/ui/ActionPlanTable'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { ScatterPlot2x2 } from '@/components/ui/ScatterPlot2x2'
 import { ScorecardGrid } from '@/components/ui/ScorecardGrid'
+import { STARTUP_WEIGHTS } from '@/lib/scoring'
 
 // Multi-agent pipeline trail labels (rendered only when agentTrail exists)
 const AGENT_LABELS = [
@@ -48,12 +49,14 @@ const AGENT_LABELS = [
 interface CompetitorItem {
   name?: string
   strength?: string
+  strengths?: string[]
   weakness?: string
+  weaknesses?: string[]
   threatLevel?: string
 }
 
 interface FinancialItem {
-  month?: string
+  month?: string | number
   revenue?: number
   costs?: number
 }
@@ -116,6 +119,7 @@ interface EvidenceCitation {
 interface ReportData {
   competitors?: CompetitorItem[]
   financials?: FinancialItem[]
+  financialProjection?: FinancialItem[]
   actionPlan?: ActionPlanRow[] | Array<{ step?: number; action: string; timeframe?: string; kpi?: string }> | string[]
   tamSamSom?: TamSamSomData
   tamEstimate?: string
@@ -157,6 +161,10 @@ export interface ReportModel {
 }
 
 const emptySubscribe = () => () => {}
+const stringList = (value: unknown): string[] => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+const safeCitationLink = (value?: string) => {
+  try { const url = new URL(value || ''); return ['http:', 'https:'].includes(url.protocol) ? url.href : undefined } catch { return undefined }
+}
 
 export default function ReportView({ report, isSharePage = false, filters }: { report: ReportModel | null, isSharePage?: boolean, filters?: any }) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
@@ -175,33 +183,27 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
     return allowed;
   };
 
-  const overallScore = report?.overallScore ?? 0
-  const decision = report?.decision ?? 'N/A'
-  const problemScore = report?.problemScore ?? 0
-  const customerScore = report?.customerScore ?? 0
-  const marketScore = report?.marketScore ?? 0
-  const competitiveScore = report?.competitiveScore ?? 0
-  const wtpScore = report?.wtpScore ?? 0
-  const businessModelScore = report?.businessModelScore ?? 0
-  const financialScore = report?.financialScore ?? 0
-  const executionScore = report?.executionScore ?? 0
-  const decisionReasons = (Array.isArray(report?.decisionReasons) ? report.decisionReasons : []) as string[]
   const reportData = (report?.reportData && typeof report.reportData === 'object' ? report.reportData : {}) as ReportData
+  const scoreValue = (value: unknown, max: number) => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= max ? value : null
+  const overallScore = scoreValue(report?.overallScore, 100)
+  const decision = typeof report?.decision === 'string' ? report.decision : 'N/A'
+  const problemScore = scoreValue(report?.problemScore, STARTUP_WEIGHTS.problemValidation)
+  const customerScore = scoreValue(report?.customerScore, STARTUP_WEIGHTS.customerValidation)
+  const marketScore = scoreValue(report?.marketScore, STARTUP_WEIGHTS.marketOpportunity)
+  const competitiveScore = scoreValue(report?.competitiveScore, STARTUP_WEIGHTS.competitiveDifferentiation)
+  const wtpScore = scoreValue(report?.wtpScore, STARTUP_WEIGHTS.willingnessToPay)
+  const businessModelScore = scoreValue(report?.businessModelScore, STARTUP_WEIGHTS.businessModel)
+  const financialScore = scoreValue(report?.financialScore, STARTUP_WEIGHTS.financialFeasibility)
+  const executionScore = scoreValue(report?.executionScore, STARTUP_WEIGHTS.executionFeasibility)
+  const decisionReasons = (Array.isArray(report?.decisionReasons) ? report.decisionReasons.filter(item => typeof item === 'string') : []) as string[]
+  const competitors = Array.isArray(reportData.competitors) ? reportData.competitors.filter(item => item && typeof item === 'object').map(item => ({
+    ...item, strength: item.strength || stringList(item.strengths).join(', '), weakness: item.weakness || stringList(item.weaknesses).join(', '),
+  })) : []
+  const rawFinancials = Array.isArray(reportData.financialProjection) ? reportData.financialProjection : reportData.financials
+  const financials = Array.isArray(rawFinancials) ? rawFinancials.filter(item => item && Number.isFinite(item.revenue) && Number.isFinite(item.costs)) : []
 
-  const competitors = Array.isArray(reportData?.competitors) ? reportData.competitors : [
-    { name: 'Competitor A', strength: 'High', weakness: 'Expensive', threatLevel: 'High' },
-    { name: 'Competitor B', strength: 'Brand presence', weakness: 'Poor UI', threatLevel: 'Medium' }
-  ]
-
-  const financials = Array.isArray(reportData?.financials) && reportData.financials.length > 0 ? reportData.financials : [
-    { month: 'Month 1', revenue: 0, costs: 5000 },
-    { month: 'Month 6', revenue: 12000, costs: 8000 },
-    { month: 'Month 12', revenue: 45000, costs: 22000 },
-    { month: 'Month 18', revenue: 95000, costs: 35000 },
-    { month: 'Month 24', revenue: 180000, costs: 60000 },
-  ]
-
-  const getScoreColor = (score: number) => {
+  const getScoreColor = (score: number | null) => {
+    if (score === null) return '#1C1C1C'
     if (score >= 80) return '#22c55e'
     if (score >= 50) return '#f97316'
     return '#ef4444'
@@ -211,16 +213,16 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
 
   // 0A-1: TAM / SAM / SOM Normalization
   const tam = reportData.tamSamSom?.tam?.value || reportData.tamEstimate || ''
-  const tamMethod = reportData.tamSamSom?.tam?.method || reportData.tamSamSom?.tam?.source || 'Global addressable industry estimate'
+  const tamMethod = reportData.tamSamSom?.tam?.method || reportData.tamSamSom?.tam?.source || 'Method not provided'
   const sam = reportData.tamSamSom?.sam?.value || reportData.samEstimate || ''
-  const samMethod = reportData.tamSamSom?.sam?.method || 'Target geography & serviceable segment'
+  const samMethod = reportData.tamSamSom?.sam?.method || 'Method not provided'
   const som = reportData.tamSamSom?.som?.value || reportData.somEstimate || ''
-  const somMethod = reportData.tamSamSom?.som?.method || 'Years 1-3 obtainable market capture'
+  const somMethod = reportData.tamSamSom?.som?.method || 'Method not provided'
   const hasMarketSizing = Boolean(tam || sam || som)
 
   // 0A-2: Personas Normalization
   const personas: PersonaItem[] = Array.isArray(reportData.personas) && reportData.personas.length > 0
-    ? reportData.personas
+    ? reportData.personas.filter(item => item && typeof item === 'object')
     : reportData.persona
     ? [reportData.persona]
     : []
@@ -253,35 +255,32 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
 
   // 0A-6: Risk Register Normalization
   const risks: RiskItem[] = Array.isArray(reportData.riskRegister) && reportData.riskRegister.length > 0
-    ? reportData.riskRegister
+    ? reportData.riskRegister.filter(item => item && typeof item === 'object')
     : Array.isArray(reportData.keyRisks) && reportData.keyRisks.length > 0
-    ? reportData.keyRisks.map(r => ({
+    ? reportData.keyRisks.filter(r => typeof r === 'string' && r.trim()).map(r => ({
         risk: typeof r === 'string' ? r : String(r),
-        probability: 'medium',
-        impact: 'medium',
-        riskLevel: 'medium',
-        mitigation: 'Empirical market discovery and validation sprint required',
+        mitigation: 'Mitigation not provided',
       }))
     : []
 
   // 0A-7: Action Plan Normalization
   const rawActionPlan = reportData.actionPlan || (Array.isArray(report?.actionPlan) ? report.actionPlan : [])
   const actionPlan: ActionPlanRow[] = Array.isArray(rawActionPlan)
-    ? rawActionPlan.map((item, idx) => {
+    ? rawActionPlan.filter(item => typeof item === 'string' || (item && typeof item === 'object')).map((item, idx) => {
         if (typeof item === 'string') {
-          return { week: `Week ${idx + 1}`, action: item, owner: 'Founder', kpi: 'Completion verification' }
+          return { step: idx + 1, action: item }
         }
         if (typeof item === 'object' && item !== null) {
           const typed = item as Record<string, unknown>
           return {
             week: (typed.week || typed.timeframe || (typed.step ? `Step ${typed.step}` : `Phase ${idx + 1}`)) as string,
             action: (typed.action || typed.activity || 'Validation action') as string,
-            owner: (typed.owner || 'Founder') as string,
-            kpi: (typed.kpi || 'Delivery target') as string,
+            owner: typed.owner as string | undefined,
+            kpi: typed.kpi as string | undefined,
             expectedOutput: (typed.expectedOutput || undefined) as string | undefined,
           }
         }
-        return { week: `Phase ${idx + 1}`, action: String(item), owner: 'Founder', kpi: 'Status verified' }
+        return { step: idx + 1, action: 'Action not provided' }
       })
     : []
 
@@ -329,7 +328,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
   }
 
   // 0A-10: Evidence Citations & Integrity Note
-  const evidenceList: EvidenceCitation[] = Array.isArray(reportData.keyEvidence) ? reportData.keyEvidence : []
+  const evidenceList: EvidenceCitation[] = Array.isArray(reportData.keyEvidence) ? reportData.keyEvidence.filter(item => item && typeof item === 'object') : []
   const integrityNote = reportData.integrityNote || ''
   // Multi-agent pipeline trail (present on reports produced by the agent pipeline)
   const agentTrail = (reportData as any).agentTrail as
@@ -369,6 +368,8 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
         </div>
       )}
 
+      {agentTrail && Object.values(agentTrail.agents || {}).some(status => status === 'failed') && <div role="status" className="card-angular mb-6 p-5 text-sm text-[#0A1628]">This analysis is partial. Some specialist sections could not complete; review the agent status and treat the overall score with caution.</div>}
+
       {/* Main Validation Score & Sub-scores */}
       <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
         {/* Score Gauge */}
@@ -380,12 +381,12 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
                <circle 
                  cx="50" cy="50" r="45" fill="none" stroke={color} strokeWidth="8"
                  strokeDasharray="283"
-                 strokeDashoffset={mounted ? 283 - (283 * overallScore) / 100 : 283}
+                 strokeDashoffset={mounted ? 283 - (283 * (overallScore ?? 0)) / 100 : 283}
                  className="transition-all duration-1000 ease-out"
                />
              </svg>
              <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-5xl font-light text-[#0A1628]">{overallScore}</span>
+                <span className="text-5xl font-light text-[#0A1628]">{overallScore ?? '—'}</span>
                 <span className="text-xs text-[#1C1C1C] opacity-60 mt-1">/ 100</span>
              </div>
            </div>
@@ -399,18 +400,18 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
         {/* Section Cards */}
         <div className="w-full md:w-2/3 grid grid-cols-2 md:grid-cols-4 gap-4 stagger-children">
            {[
-             { label: 'Problem', score: problemScore },
-             { label: 'Customer', score: customerScore },
-             { label: 'Market', score: marketScore },
-             { label: 'Competitive', score: competitiveScore },
-             { label: 'WTP', score: wtpScore },
-             { label: 'Business', score: businessModelScore },
-             { label: 'Financial', score: financialScore },
-             { label: 'Execution', score: executionScore },
+             { label: 'Problem', score: problemScore, max: STARTUP_WEIGHTS.problemValidation },
+             { label: 'Customer', score: customerScore, max: STARTUP_WEIGHTS.customerValidation },
+             { label: 'Market', score: marketScore, max: STARTUP_WEIGHTS.marketOpportunity },
+             { label: 'Competitive', score: competitiveScore, max: STARTUP_WEIGHTS.competitiveDifferentiation },
+             { label: 'WTP', score: wtpScore, max: STARTUP_WEIGHTS.willingnessToPay },
+             { label: 'Business', score: businessModelScore, max: STARTUP_WEIGHTS.businessModel },
+             { label: 'Financial', score: financialScore, max: STARTUP_WEIGHTS.financialFeasibility },
+             { label: 'Execution', score: executionScore, max: STARTUP_WEIGHTS.executionFeasibility },
            ].map(s => (
              <div key={s.label} className="card-angular p-4 bg-[#FAFAF7] shadow-sm">
                 <div className="text-xs text-[#1C1C1C] opacity-70 mb-2 uppercase tracking-wide">{s.label}</div>
-                <div className="text-2xl font-light text-[#0A1628]" style={{ color: getScoreColor(s.score) }}>{s.score}</div>
+                <div className="text-2xl font-light text-[#0A1628]" style={{ color: getScoreColor(s.score === null ? null : (s.score / s.max) * 100) }}>{s.score ?? '—'}<span className="ml-1 text-xs text-[#1C1C1C]/70">/ {s.max}</span></div>
              </div>
            ))}
         </div>
@@ -623,6 +624,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
             </tr>
           </thead>
           <tbody>
+            {competitors.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-[#1C1C1C]/75">Competitor data is unavailable for this report.</td></tr>}
             {competitors.map((comp: CompetitorItem, i: number) => (
               <tr key={i} className="border-b border-[#E8E0D0] last:border-0 hover:bg-[#F5F0E8]/50 transition-colors">
                 <td className="px-4 py-4 font-medium text-[#0A1628]">{comp.name || 'Unknown'}</td>
@@ -630,7 +632,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
                 <td className="px-4 py-4">{comp.weakness || 'N/A'}</td>
                 <td className="px-4 py-4">
                   <span className={`px-2 py-1 rounded text-xs font-bold ${comp.threatLevel?.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {comp.threatLevel || 'Medium'}
+                    {comp.threatLevel || 'Unassessed'}
                   </span>
                 </td>
               </tr>
@@ -648,7 +650,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
         </h2>
         <p className="text-xs text-[#96792b] font-semibold tracking-wider uppercase mb-8">PROJECTION</p>
         <div className="h-80 w-full" role="img" aria-label="Line chart showing revenue and costs over time">
-          {mounted ? (
+          {financials.length === 0 ? <div className="flex h-full items-center justify-center rounded-lg bg-[#F5F0E8] px-6 text-center text-sm text-[#1C1C1C]/75">Financial projections are unavailable for this report.</div> : mounted ? (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={financials} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D0" vertical={false} />
@@ -924,7 +926,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
             </h2>
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">
-                AUDITED_SOURCES
+                SOURCE_PROVENANCE
               </span>
               {evidenceOpen ? <ChevronUp className="w-4 h-4 text-stone-500" /> : <ChevronDown className="w-4 h-4 text-stone-500" />}
             </div>
@@ -970,7 +972,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
           {evidenceOpen && evidenceList.length > 0 && (
             <div className="space-y-3 pt-2">
               {evidenceList.map((item, idx) => {
-                const strength = (item.strength || 'MODERATE').toUpperCase()
+                const strength = typeof item.strength === 'string' ? item.strength.toUpperCase() : 'WEAK'
                 const strengthColor =
                   strength === 'STRONGER'
                     ? 'bg-emerald-100 text-emerald-800'
@@ -978,7 +980,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
                     ? 'bg-stone-100 text-stone-600'
                     : 'bg-blue-100 text-blue-800'
 
-                const label = item.label || 'VERIFIED'
+                const label = item.label || 'AI_ESTIMATE_UNVERIFIED'
                 const labelColor =
                   label === 'VERIFIED'
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -1004,9 +1006,9 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
                       {item.publication && <span>Pub: {item.publication}</span>}
                       {item.year && <span>Year: {item.year}</span>}
                       {item.geography && <span>Region: {item.geography}</span>}
-                      {item.link && (
+                      {safeCitationLink(item.link) && (
                         <a
-                          href={item.link}
+                          href={safeCitationLink(item.link)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-[#96792b] hover:underline flex items-center gap-1 font-medium"
@@ -1031,7 +1033,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
               <Sparkles className="w-5 h-5 text-[#C8A860]" /> One-Line Concept
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">
-              VERIFIED
+              PROPOSED_STRATEGY
             </span>
           </div>
           <p className="text-xl font-normal text-[#0A1628] leading-relaxed p-6 bg-gradient-to-br from-amber-50/50 to-stone-50 border-2 border-[#C8A860] rounded">
@@ -1112,7 +1114,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
               <Users className="w-5 h-5 text-[#C8A860]" /> Customer Jobs, Pains & Gains
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">
-              VERIFIED
+              PROPOSED_STRATEGY
             </span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1152,7 +1154,7 @@ export default function ReportView({ report, isSharePage = false, filters }: { r
               <Search className="w-5 h-5 text-[#C8A860]" /> Interview Questions
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">
-              VERIFIED
+              PROPOSED_STRATEGY
             </span>
           </div>
           <ol className="list-decimal list-inside space-y-3 text-sm text-[#1C1C1C]">

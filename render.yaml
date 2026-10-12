@@ -1,0 +1,51 @@
+# Free public beta. Configure accounts/secrets and verify the release before syncing.
+# No paid datastore, persistent disk, or paid worker is provisioned by this blueprint.
+services:
+  - type: web
+    name: validore
+    runtime: node
+    plan: free
+    autoDeployTrigger: 'off'
+    buildCommand: npm ci --include=dev --no-fund && node scripts/ci-config.mjs && npm run ci && npm audit --omit=dev --audit-level=high && npm run build:deploy
+    startCommand: node --max-old-space-size=256 .next/standalone/server.js
+    healthCheckPath: /api/health
+    domains:
+      - validore.tech
+    envVars:
+      - key: NODE_VERSION
+        value: 24.14.1
+      - key: NODE_ENV
+        value: production
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: CI
+        value: "true"
+      - key: BUILD_PROFILE
+        value: release
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://validore.tech
+      - key: DB_MAX_CONNECTIONS
+        value: "5"
+      - key: VALIDATION_RUNNER
+        value: inngest
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+# Add the chosen AI provider key/model overrides in Render's secret environment.
+# ENCRYPTION_KEY must be 64 hex characters if custom key storage is enabled.
+# Payment configuration is optional; leave it unset until Stripe test/live setup is ready.

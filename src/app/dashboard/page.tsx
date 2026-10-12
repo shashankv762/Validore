@@ -1,357 +1,166 @@
-"use client";
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+'use client'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
+import { IdeaInputSchema, type IdeaDraft } from '@/lib/idea-input'
+
+const FIELDS: { key: keyof IdeaDraft; label: string; hint: string; placeholder: string; multiline?: boolean; max: number }[] = [
+  { key: 'name', label: 'Startup name', hint: 'A working title is enough. You can refine it later.', placeholder: 'e.g. Validore', max: 100 },
+  { key: 'industry', label: 'Industry', hint: 'Which industry best describes your startup?', placeholder: 'e.g. SaaS, FinTech, E-commerce', max: 200 },
+  { key: 'product', label: 'Product or service', hint: 'Describe what you are building and how someone will use it.', placeholder: 'We are building a platform that…', multiline: true, max: 4000 },
+  { key: 'targetCustomer', label: 'Target customer', hint: 'Be specific about who needs this and who will pay.', placeholder: 'e.g. Sales teams at small B2B companies', max: 2000 },
+  { key: 'location', label: 'Launch market', hint: 'Where will you reach your first customers?', placeholder: 'e.g. India, United States, Global', max: 200 },
+  { key: 'businessModel', label: 'Business model', hint: 'Describe how your startup will earn revenue.', placeholder: 'e.g. B2B subscriptions at $99 per month', max: 2000 },
+  { key: 'coreProblem', label: 'Core problem', hint: 'What is difficult, expensive or frustrating for your customer today?', placeholder: 'Our customers struggle with…', multiline: true, max: 4000 },
+  { key: 'proposedSolution', label: 'Proposed solution', hint: 'How will your approach solve that problem?', placeholder: 'We will help them by…', multiline: true, max: 4000 },
+]
+const EMPTY: IdeaDraft = { name: '', industry: '', product: '', targetCustomer: '', location: '', businessModel: '', coreProblem: '', proposedSolution: '' }
+const errorText = (data: { error?: unknown }, fallback: string) => typeof data.error === 'string' ? data.error : fallback
+const delay = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  if (signal.aborted) { reject(signal.reason); return }
+  const aborted = () => { clearTimeout(timer); reject(signal.reason) }
+  const timer = setTimeout(() => { signal.removeEventListener('abort', aborted); resolve() }, ms)
+  signal.addEventListener('abort', aborted, { once: true })
+})
 
 export default function IdeaWizard() {
-  const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState("");
-  const [formData, setFormData] = useState({
-    name: "", industry: "", product: "", targetCustomer: "",
-    location: "", businessModel: "", coreProblem: "", proposedSolution: "", website: ""
-  });
-
-  const nextStep = () => setStep(s => Math.min(s + 1, 9));
-  const prevStep = () => setStep(s => Math.max(s - 1, 1));
-  const updateForm = (key: string, val: string) => setFormData(p => ({ ...p, [key]: val }));
-
-  const STAGE_MESSAGES = [
-    "Scanning the market landscape...",
-    "Interviewing your target customers...",
-    "Benchmarking the competition...",
-    "Modelling the financials...",
-    "Weighing the risks...",
-    "Synthesising the verdict...",
-  ];
-
-  const handleSubmit = async () => {
-    setLoading(true);
-    setLoadingMsg(STAGE_MESSAGES[0]);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    // Slow stage message rotation while the real progress comes from polling
-    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[1]), 4000));
-    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[2]), 8000));
-    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[3]), 12000));
-    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[4]), 16000));
-    timers.push(setTimeout(() => setLoadingMsg(STAGE_MESSAGES[5]), 20000));
-
-    const cleanup = () => timers.forEach(clearTimeout);
-
+  const router = useRouter()
+  const [step, setStep] = useState(0)
+  const [draft, setDraft] = useState<IdeaDraft>(EMPTY)
+  const [website, setWebsite] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState('Saving your idea')
+  const [progress, setProgress] = useState(0)
+  const active = useRef(false)
+  const request = useRef<AbortController | null>(null)
+  const saved = useRef<{ id: string; fingerprint: string } | null>(null)
+  useEffect(() => () => request.current?.abort(), [])
+  const field = FIELDS[step]
+  const next = () => {
+    const result = IdeaInputSchema.shape[field.key].safeParse(draft[field.key])
+    if (!result.success) { setError(result.error.issues[0].message); document.getElementById(field.key)?.focus(); return }
+    setError('')
+    setStep(value => Math.min(FIELDS.length, value + 1))
+  }
+  const submit = async () => {
+    if (active.current) return
+    const parsed = IdeaInputSchema.safeParse(draft)
+    if (!parsed.success) {
+      const first = parsed.error.issues[0]
+      setStep(Math.max(0, FIELDS.findIndex(item => item.key === first.path[0])))
+      setError(first.message)
+      return
+    }
+    active.current = true
+    const controller = new AbortController()
+    request.current = controller
+    let navigating = false
+    setError(''); setLoading(true); setProgress(0); setLoadingMsg('Saving your idea')
+    const fetchJson = async (url: string, init?: RequestInit) => {
+      const res = await fetch(url, { ...init, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]) })
+      return { res, data: await res.json().catch(() => ({})) }
+    }
     try {
-      const ideaRes = await fetch("/api/ideas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData)
-      });
-      const ideaData = await ideaRes.json().catch(() => ({}));
-
-      if (!ideaRes.ok || !ideaData.idea?.id) {
-        cleanup();
-        toast.error(ideaData.error || "Failed to save startup idea. Please try again.");
-        setLoading(false);
-        return;
+      const fingerprint = JSON.stringify(parsed.data)
+      if (!saved.current || saved.current.fingerprint !== fingerprint) {
+        const { res, data } = await fetchJson('/api/ideas', { method: saved.current ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...parsed.data, website, ...(saved.current ? { ideaId: saved.current.id } : {}) }) })
+        if (!res.ok || !data.idea?.id) throw new Error(errorText(data, 'Your idea could not be saved. Try again.'))
+        saved.current = { id: data.idea.id, fingerprint }
       }
-
-      const ideaId = ideaData.idea.id;
-      const valRes = await fetch("/api/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ideaId })
-      });
-      const valData = await valRes.json().catch(() => ({}));
-
-      if (!valRes.ok) {
-        cleanup();
-        toast.error(valData.error || "Failed to start validation.");
-        setLoading(false);
-        return;
+      setLoadingMsg('Starting your validation')
+      const { res, data } = await fetchJson('/api/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ideaId: saved.current.id }) })
+      if (!res.ok || !data.jobId) throw new Error(errorText(data, 'Validation could not start. Your idea is saved; try again.'))
+      const deadline = Date.now() + 10 * 60 * 1000
+      let networkFailures = 0
+      while (Date.now() < deadline) {
+        await delay(2000, controller.signal)
+        let status
+        try { status = await fetchJson('/api/reports/status?jobId=' + encodeURIComponent(data.jobId)) }
+        catch (pollError) {
+          if (controller.signal.aborted) throw pollError
+          if (++networkFailures >= 5) throw new Error('We lost the connection to your analysis. Your work continues; check Your reports shortly.')
+          continue
+        }
+        if (status.res.status === 401) throw new Error('Your session ended. Sign in again to view your report.')
+        if (!status.res.ok) throw new Error(errorText(status.data, 'Progress could not be loaded. Check Your reports shortly.'))
+        networkFailures = 0
+        const job = status.data
+        setProgress(typeof job.progress === 'number' && Number.isFinite(job.progress) ? Math.max(0, Math.min(100, job.progress)) : 0)
+        setLoadingMsg(job.status === 'pending' ? 'Your analysis is queued' : job.reportId ? 'Your report is ready' : job.completedSections > 0 ? 'Analysing: ' + job.completedSections + ' of ' + job.totalSections + ' sections complete' : 'Researching your startup idea')
+        if (job.reportId) {
+          navigating = true
+          toast.success('Your analysis is ready')
+          router.push('/dashboard/report/' + job.reportId)
+          return
+        }
+        if (job.status === 'failed') throw new Error(errorText({ error: job.errorMessage }, 'Analysis could not complete. Please try again.'))
       }
-
-      // /api/validate returns 202 + jobId — poll until the report is ready.
-      const jobId = valData.jobId;
-      if (!jobId) {
-        // Legacy immediate-report flow (reportId in the 202 body)
-        if (valData.reportId) {
-          cleanup();
-          toast.success("Analysis complete! Redirecting to report...");
-          router.push(`/dashboard/report/${valData.reportId}`);
-          return;
-        }
-        cleanup();
-        toast.error("Validation started but no job reference returned.");
-        setLoading(false);
-        return;
+      throw new Error('Your analysis is taking longer than expected. It continues in the background; check Your reports shortly.')
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        const message = err instanceof Error ? err.message : 'The request could not complete. Please try again.'
+        setError(message)
+        toast.error(message)
       }
-
-      const MAX_WAIT_MS = 180000; // 3 minutes
-      const POLL_INTERVAL_MS = 2000;
-      const startedAt = Date.now();
-
-      for (;;) {
-        if (Date.now() - startedAt > MAX_WAIT_MS) {
-          cleanup();
-          toast.error("Validation is taking longer than expected. Check your reports page shortly.");
-          setLoading(false);
-          return;
-        }
-
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-
-        let statusData: any;
-        try {
-          const statusRes = await fetch(`/api/reports/status?jobId=${jobId}`);
-          statusData = await statusRes.json().catch(() => ({}));
-        } catch {
-          continue; // transient network error — keep polling
-        }
-
-        // Reflect real agent progress in the loading message
-        if (typeof statusData.completedSections === "number" && statusData.completedSections > 0) {
-          setLoadingMsg(STAGE_MESSAGES[Math.min(statusData.completedSections - 1, STAGE_MESSAGES.length - 1)]);
-        }
-
-        if (statusData.reportId) {
-          cleanup();
-          toast.success("Analysis complete! Redirecting to report...");
-          router.push(`/dashboard/report/${statusData.reportId}`);
-          return;
-        }
-
-        if (statusData.status === "failed") {
-          cleanup();
-          toast.error(statusData.errorMessage || "Validation failed. Please try again.");
-          setLoading(false);
-          return;
-        }
-      }
-    } catch (e) {
-      console.error(e);
-      cleanup();
-      toast.error("An unexpected network error occurred. Please try again.");
+    } finally {
+      active.current = false
+      if (!controller.signal.aborted && !navigating) setLoading(false)
     }
-    cleanup();
-    setLoading(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (step < 9) nextStep();
-      else handleSubmit();
-    }
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto py-12 px-4 md:px-8">
-      <div className="flex gap-3 mb-12 justify-center" aria-label={`Step ${step} of 9`}>
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(i => (
-          <div key={i} className="flex-1 max-w-[40px]">
-            <div 
-              className={`h-2 rounded transition-all duration-300 ${
-                step > i ? 'bg-[#C8A860]' : step === i ? 'bg-[#0A1628] animate-pulse' : 'bg-[#E8E0D0]'
-              }`}
-            />
-          </div>
-        ))}
-      </div>
-      
-      {loading ? (
-        <div className="card-angular p-16 flex flex-col items-center justify-center bg-[#FAFAF7] shadow-sm">
-          <div className="w-12 h-12 border-4 border-[#E8E0D0] border-t-[#C8A860] rounded-full animate-spin mb-6" />
-          <div className="text-xl font-light text-shimmer">{loadingMsg}</div>
-          <div className="mt-4 w-40 h-1 bg-[#E8E0D0] rounded-full overflow-hidden">
-            <div className="h-full w-1/2 bg-[#C8A860] rounded-full animate-pulse" />
-          </div>
-        </div>
-      ) : (
-        <div className="card-angular p-8 md:p-12 bg-[#FAFAF7] shadow-sm">
-          <div key={step} className="animate-step-in">
-          {step === 1 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Startup Name</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">What is the working title for your startup?</p>
-              <label htmlFor="name" className="sr-only">Startup Name</label>
-              <input 
-                id="name"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors" 
-                value={formData.name} 
-                onChange={e => updateForm('name', e.target.value)} 
-                onKeyDown={handleKeyDown}
-                autoFocus
-                placeholder="e.g. Validore"
-              />
-              <input 
-                name="website" 
-                style={{display:'none'}} 
-                tabIndex={-1} 
-                autoComplete="off"
-                value={formData.website}
-                onChange={e => updateForm('website', e.target.value)}
-              />
-            </div>
-          )}
-          {step === 2 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Industry</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">Which primary industry does this operate in?</p>
-              <label htmlFor="industry" className="sr-only">Industry</label>
-              <input 
-                id="industry"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors" 
-                value={formData.industry} 
-                onChange={e => updateForm('industry', e.target.value)} 
-                onKeyDown={handleKeyDown}
-                autoFocus
-                placeholder="e.g. SaaS, FinTech, E-commerce"
-              />
-            </div>
-          )}
-          {step === 3 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Product or Service</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">Describe what you are actually building.</p>
-              <label htmlFor="product" className="sr-only">Product or Service</label>
-              <textarea 
-                id="product"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors min-h-[120px] resize-y" 
-                value={formData.product} 
-                onChange={e => updateForm('product', e.target.value)} 
-                autoFocus
-                placeholder="We are building an AI-powered platform that..."
-              />
-            </div>
-          )}
-          {step === 4 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Target Customer</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">Who exactly will pay for this?</p>
-              <label htmlFor="targetCustomer" className="sr-only">Target Customer</label>
-              <input 
-                id="targetCustomer"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors" 
-                value={formData.targetCustomer} 
-                onChange={e => updateForm('targetCustomer', e.target.value)} 
-                onKeyDown={handleKeyDown}
-                autoFocus
-                placeholder="e.g. B2B enterprise sales teams"
-              />
-            </div>
-          )}
-          {step === 5 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Market / Location</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">Where is your primary launch market?</p>
-              <label htmlFor="location" className="sr-only">Location</label>
-              <input 
-                id="location"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors" 
-                value={formData.location} 
-                onChange={e => updateForm('location', e.target.value)} 
-                onKeyDown={handleKeyDown}
-                autoFocus
-                placeholder="e.g. United States, Global, India"
-              />
-            </div>
-          )}
-          {step === 6 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Business Model</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">How do you plan to generate revenue?</p>
-              <label htmlFor="businessModel" className="sr-only">Business Model</label>
-              <input 
-                id="businessModel"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors" 
-                value={formData.businessModel} 
-                onChange={e => updateForm('businessModel', e.target.value)} 
-                onKeyDown={handleKeyDown}
-                autoFocus
-                placeholder="e.g. B2B SaaS Subscriptions, $99/mo"
-              />
-            </div>
-          )}
-          {step === 7 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Core Problem</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">What painful problem does this solve for the target customer?</p>
-              <label htmlFor="coreProblem" className="sr-only">Core Problem</label>
-              <textarea 
-                id="coreProblem"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors min-h-[120px] resize-y" 
-                value={formData.coreProblem} 
-                onChange={e => updateForm('coreProblem', e.target.value)} 
-                autoFocus
-                placeholder="Founders spend too much money building products nobody wants..."
-              />
-            </div>
-          )}
-          {step === 8 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Proposed Solution</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">How do you plan to solve this problem?</p>
-              <label htmlFor="proposedSolution" className="sr-only">Proposed Solution</label>
-              <textarea 
-                id="proposedSolution"
-                className="w-full px-4 py-3 bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860] focus:ring-1 focus:ring-[#C8A860] text-[#1C1C1C] transition-colors min-h-[120px] resize-y" 
-                value={formData.proposedSolution} 
-                onChange={e => updateForm('proposedSolution', e.target.value)} 
-                autoFocus
-                placeholder="We will build..."
-              />
-            </div>
-          )}
-          {step === 9 && (
-            <div>
-              <h1 className="text-2xl font-light text-[#0A1628] mb-2">Review & Submit</h1>
-              <p className="text-sm text-[#1C1C1C] opacity-70 mb-6">Does everything look correct? We will use this to generate your validation report.</p>
-              <div className="bg-[#F5F0E8] p-6 rounded-lg text-sm text-[#1C1C1C] space-y-4 mb-6">
-                 <div><strong className="text-[#0A1628]">Name:</strong> {formData.name || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Industry:</strong> {formData.industry || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Product:</strong> {formData.product || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Customer:</strong> {formData.targetCustomer || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Location:</strong> {formData.location || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Model:</strong> {formData.businessModel || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Problem:</strong> {formData.coreProblem || '-'}</div>
-                 <div><strong className="text-[#0A1628]">Proposed Solution:</strong> {formData.proposedSolution || '-'}</div>
-              </div>
-              <p className="text-xs text-[#1C1C1C] opacity-60 mb-2">
-                Your startup idea data is processed by AI providers to generate your validation report. See our <a href="/legal/privacy" className="text-[#C8A860] hover:underline" target="_blank" rel="noreferrer">Privacy Policy</a> for details.
-              </p>
-            </div>
-          )}
-          </div>
-
-          <div className="mt-10 flex justify-between items-center border-t border-[#E8E0D0] pt-6">
-            <button 
-              onClick={prevStep} 
-              disabled={step === 1} 
-              className="px-6 py-2.5 text-sm font-medium text-[#1C1C1C] border border-[#E8E0D0] rounded hover:border-[#0A1628] transition-colors disabled:opacity-30 disabled:hover:border-[#E8E0D0] focus:outline-none focus:ring-2 focus:ring-[#0A1628]"
-              aria-label="Previous step"
-            >
-              Back
-            </button>
-            {step < 9 ? (
-              <button 
-                onClick={nextStep} 
-                className="px-8 py-2.5 text-sm font-medium text-[#FAFAF7] bg-[#0A1628] rounded hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#C8A860]"
-                aria-label="Next step"
-              >
-                Continue
-              </button>
-            ) : (
-              <button 
-                onClick={handleSubmit} 
-                className="px-8 py-2.5 text-sm font-medium text-[#0A1628] rounded hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#0A1628]"
-                style={{ background: 'var(--gold-gradient)' }}
-                aria-label="Submit for validation"
-              >
-                Validate Idea
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+  }
+  return <div className="mx-auto max-w-3xl">
+    <div className="mb-8">
+      <h1 className="text-3xl font-light tracking-tight text-[#0A1628] sm:text-4xl">Validate your startup idea</h1>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#1C1C1C]/75">Build a clear picture of your market, customers and next steps. Start with what you know; your report will label assumptions.</p>
     </div>
-  );
+    <div className="mb-6 flex items-center justify-between gap-4 text-sm">
+      <span className="text-[#1C1C1C]/75">Step {step + 1} of 9</span><span className="font-medium text-[#0A1628]">{field?.label || 'Review your idea'}</span>
+    </div>
+    <div className="mb-8 flex gap-2" role="progressbar" aria-label="Idea details" aria-valuemin={1} aria-valuemax={9} aria-valuenow={step + 1}>
+      {Array.from({ length: 9 }, (_, index) => <span key={index} className={'h-1.5 flex-1 rounded-full ' + (index < step ? 'bg-[#C8A860]' : index === step ? 'bg-[#0A1628]' : 'bg-[#E8E0D0]')} />)}
+    </div>
+    {loading ? <section className="card-angular px-6 py-12 sm:p-12" aria-busy="true" aria-label="Validation progress">
+      <div className="flex items-center gap-3"><Loader2 className="h-6 w-6 animate-spin text-[#B8963E]" aria-hidden="true" /><h2 className="text-xl font-light text-[#0A1628]">Preparing your report</h2></div>
+      <p role="status" aria-live="polite" className="mt-4 text-sm text-[#1C1C1C]/80">{loadingMsg}</p>
+      <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#E8E0D0]" role="progressbar" aria-label="Analysis completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+        <div className="h-full rounded-full bg-[#C8A860] transition-[width]" style={{ width: progress + '%' }} />
+      </div>
+      <p className="mt-6 text-sm leading-relaxed text-[#1C1C1C]/75">You can leave this page while the analysis runs. Your report will be saved to your workspace.</p>
+      <Link href="/dashboard/reports" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#0A1628] underline underline-offset-4">View your reports<ArrowRight size={16} aria-hidden="true" /></Link>
+    </section> : <form noValidate className="card-angular p-6 sm:p-9" onSubmit={event => { event.preventDefault(); if (field) next(); else void submit() }}>
+      {field ? <div key={field.key} className="animate-step-in">
+        <label htmlFor={field.key} className="block text-xl font-medium text-[#0A1628]">{field.label}</label>
+        <p id={field.key + '-hint'} className="mb-5 mt-2 text-sm text-[#1C1C1C]/75">{field.hint}</p>
+        {field.multiline ? <textarea id={field.key} autoFocus maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+          onChange={event => { setDraft(value => ({ ...value, [field.key]: event.target.value })); setError('') }}
+          aria-invalid={!!error} aria-describedby={field.key + '-hint' + (error ? ' wizard-error' : '')}
+          className="min-h-40 w-full resize-y rounded-lg border border-[#E8E0D0] bg-white px-4 py-3 text-[#1C1C1C]" /> :
+          <input id={field.key} autoFocus maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+            onChange={event => { setDraft(value => ({ ...value, [field.key]: event.target.value })); setError('') }}
+            aria-invalid={!!error} aria-describedby={field.key + '-hint' + (error ? ' wizard-error' : '')}
+            className="w-full rounded-lg border border-[#E8E0D0] bg-white px-4 py-3 text-[#1C1C1C]" />}
+      </div> : <div>
+        <h2 className="text-xl font-medium text-[#0A1628]">Your idea at a glance</h2>
+        <p className="mt-2 text-sm text-[#1C1C1C]/75">Check your details before starting the analysis.</p>
+        <dl className="mt-6 divide-y divide-[#E8E0D0]">{FIELDS.map((item, index) => <div key={item.key} className="py-4 first:pt-0">
+          <div className="flex items-center justify-between gap-3"><dt className="text-sm font-medium text-[#0A1628]">{item.label}</dt>
+            <button type="button" onClick={() => { setStep(index); setError('') }} className="px-2 py-1 text-xs underline underline-offset-4" aria-label={'Edit ' + item.label.toLowerCase()}>Edit</button></div>
+          <dd className="mt-2 whitespace-pre-wrap break-words text-sm text-[#1C1C1C]/80">{draft[item.key]}</dd>
+        </div>)}</dl>
+        <p className="mt-5 text-xs leading-relaxed text-[#1C1C1C]/75">Starting an analysis uses credits from your plan. Your idea is processed by AI providers; read our <Link href="/legal/privacy" className="underline underline-offset-4">Privacy Policy</Link>.</p>
+      </div>}
+      <input name="website" aria-hidden="true" hidden tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
+      {error && <div id="wizard-error" role="alert" className="mt-5 rounded-lg border border-[#B8963E] bg-[#F5F0E8] p-4 text-sm text-[#0A1628]">{error}<Link href="/dashboard/reports" className="mt-2 block underline underline-offset-4">View your reports</Link></div>}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E0D0] pt-6">
+        <button type="button" disabled={step === 0} onClick={() => { setStep(value => Math.max(0, value - 1)); setError('') }} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E8E0D0] px-5 py-2.5 text-sm disabled:opacity-40"><ArrowLeft size={16} aria-hidden="true" />Back</button>
+        <button type="submit" disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-[#FAFAF7]" style={{ background: field ? 'var(--navy)' : 'var(--gold-gradient)', color: field ? 'var(--ivory)' : 'var(--navy)' }}>
+          {field ? <>Continue<ArrowRight size={16} aria-hidden="true" /></> : <>Validate idea<Check size={16} aria-hidden="true" /></>}
+        </button>
+      </div>
+    </form>}
+  </div>
 }

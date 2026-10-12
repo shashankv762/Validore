@@ -32,7 +32,7 @@ function resolveTimeline(row: ActionPlanRow, index: number): string {
 }
 
 function resolveAction(row: ActionPlanRow): string {
-  return row.action || row.activity || 'Validation action item'
+  return row.action || row.activity || 'Action not provided'
 }
 
 export function ActionPlanTable({
@@ -43,7 +43,8 @@ export function ActionPlanTable({
   showExpectedOutput = false,
   className = '',
 }: ActionPlanTableProps) {
-  if (!plan || plan.length === 0) {
+  const rows = Array.isArray(plan) ? plan.filter(item => item && typeof item === 'object') : []
+  if (rows.length === 0) {
     return (
       <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
         <div className="flex items-center justify-between mb-2">
@@ -59,7 +60,7 @@ export function ActionPlanTable({
     )
   }
 
-  const hasExpectedOutput = showExpectedOutput || plan.some(p => Boolean(p.expectedOutput))
+  const hasExpectedOutput = showExpectedOutput || rows.some(p => Boolean(p.expectedOutput))
 
   return (
     <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
@@ -91,7 +92,7 @@ export function ActionPlanTable({
             </tr>
           </thead>
           <tbody>
-            {plan.map((row, idx) => {
+            {rows.map((row, idx) => {
               const timeline = resolveTimeline(row, idx)
               const action = resolveAction(row)
               return (
@@ -107,7 +108,7 @@ export function ActionPlanTable({
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
                     <span className="inline-block bg-[#F5F0E8] text-[#0A1628] text-[11px] px-2 py-0.5 rounded border border-[#E8E0D0]">
-                      {row.owner || 'Founder / Team'}
+                      {row.owner || 'Not assigned'}
                     </span>
                   </td>
                   <td className="py-3 px-3 text-[#1C1C1C] opacity-90 align-top">

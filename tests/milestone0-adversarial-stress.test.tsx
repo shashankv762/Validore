@@ -79,7 +79,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
         <RiskRegisterTable risks={[{} as RiskItem]} title="Empty Object Risk" />
       )
       expect(html).toContain('Empty Object Risk')
-      expect(html).toContain('low') // defaults to low severity
+      expect(html).toContain('unassessed') // missing severity is never presented as low risk
     })
 
     it('handles completely malformed / unrecognised risk levels and severities', () => {
@@ -91,7 +91,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       const html = renderToString(<RiskRegisterTable risks={malformedRisks} showOwner={true} />)
       expect(html).toContain('Catastrophic event')
       expect(html).toContain('critical')
-      expect(html).toContain('Founder') // default owner fallback
+      expect(html).toContain('Not assigned') // missing owner remains unassigned
     })
 
     it('handles HTML injection characters in risk text safely', () => {
@@ -119,8 +119,8 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
     it('handles empty object {} in plan array without crashing', () => {
       const html = renderToString(<ActionPlanTable plan={[{} as ActionPlanRow]} />)
       expect(html).toContain('Phase 1')
-      expect(html).toContain('Validation action item')
-      expect(html).toContain('Founder / Team')
+      expect(html).toContain('Action not provided')
+      expect(html).toContain('Not assigned')
     })
 
     it('resolves diverse timeline formats and activities cleanly', () => {
@@ -215,8 +215,9 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       const html = renderToString(<ReportView report={emptyReport} />)
       expect(html).toContain('65')
       expect(html).toContain('PROCEED_WITH_CAUTION')
-      // Fallback financials and competitors should render
-      expect(html).toContain('Competitor A')
+      // Missing data is shown explicitly without fabricated competitors or projections
+      expect(html).toContain('Competitor data is unavailable')
+      expect(html).not.toContain('>Competitor A<')
       expect(html).toContain('Financial Projections')
     })
 
@@ -284,7 +285,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       expect(html).toContain('BUILD_MVP')
       expect(html).toContain('Evidence Sources &amp; Integrity Citations')
       expect(html).toContain('Market expanding at 30% CAGR')
-      expect(html).toContain('AUDITED_SOURCES')
+      expect(html).toContain('SOURCE_PROVENANCE')
     })
 
     it('handles all 5 Next Step Recommendation enum variants', () => {
@@ -321,7 +322,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
         const html = renderToString(
           <ReportView report={{ overallScore: s, decision: 'TEST' }} />
         )
-        expect(html).toContain(String(s))
+        expect(html).toContain(s >= 0 && s <= 100 ? String(s) : '—')
       }
     })
   })
@@ -330,42 +331,20 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
   // 6. Adversarial Deep Edge Cases: Nulls Inside Arrays & Incomplete Objects
   // ─────────────────────────────────────────────────────────────────────────────
   describe('Adversarial Deep Edge Cases: Nulls in Arrays & Empty Objects', () => {
-    it('tests ScatterPlot2x2 resilience when data prop is undefined or null', () => {
-      // Test if component defaults data or throws
-      try {
-        const htmlUndefined = renderToString(<ScatterPlot2x2 data={undefined as unknown as React.ComponentProps<typeof ScatterPlot2x2>['data']} />)
-        expect(htmlUndefined).toBeDefined()
-      } catch (err: unknown) {
-        // Record whether it throws
-        expect(err).toBeInstanceOf(TypeError)
-      }
+    it('renders undefined scatter data without throwing', () => {
+      const html = renderToString(<ScatterPlot2x2 data={undefined as unknown as React.ComponentProps<typeof ScatterPlot2x2>['data']} />)
+      expect(html).toContain('Loading positioning chart')
     })
-
-    it('tests RiskRegisterTable with [null] array element', () => {
-      try {
-        const html = renderToString(<RiskRegisterTable risks={[null as unknown as React.ComponentProps<typeof RiskRegisterTable>['risks'][0]]} />)
-        expect(html).toBeDefined()
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(TypeError)
-      }
+    it('ignores null risk entries without throwing', () => {
+      const html = renderToString(<RiskRegisterTable risks={[null as unknown as RiskItem]} />)
+      expect(html).toContain('No specific risk factors cataloged')
     })
-
-    it('tests ActionPlanTable with [null] array element', () => {
-      try {
-        const html = renderToString(<ActionPlanTable plan={[null as unknown as React.ComponentProps<typeof ActionPlanTable>['plan'][0]]} />)
-        expect(html).toBeDefined()
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(TypeError)
-      }
+    it('ignores null action entries without throwing', () => {
+      const html = renderToString(<ActionPlanTable plan={[null as unknown as ActionPlanRow]} />)
+      expect(html).toContain('No phased action steps currently scheduled')
     })
-
-    it('tests ScorecardGrid with [null] array element', () => {
-      try {
-        const html = renderToString(<ScorecardGrid scores={[null as unknown as React.ComponentProps<typeof ScorecardGrid>['scores'][0]]} />)
-        expect(html).toBeDefined()
-      } catch (err: unknown) {
-        expect(err).toBeInstanceOf(TypeError)
-      }
+    it('ignores null score entries without throwing', () => {
+      expect(renderToString(<ScorecardGrid scores={[null as unknown as ScorecardItem]} />)).toBe('')
     })
 
     it('tests ReportView with null inside actionPlan and keyRisks arrays', () => {
@@ -381,7 +360,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       }
       const html = renderToString(<ReportView report={report} />)
       expect(html).toBeDefined()
-      expect(html).toContain('null')
+      expect(html).not.toContain('>null<')
     })
   })
 

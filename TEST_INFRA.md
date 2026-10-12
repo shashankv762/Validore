@@ -1,4 +1,6 @@
-# Validore — Test Infrastructure Specification (TEST_INFRA)
+# Validore — Historical Test Infrastructure Specification
+
+> Historical specification only. The commands, tier paths, API inventory, schema counts, and test contracts below may not match the current repository. Treat package.json and vitest.config.ts as the sources of truth for current scripts and test discovery; see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for current verification evidence and open checks.
 
 ## 1. Overview & Architecture
 

@@ -3,45 +3,16 @@ import { z } from 'zod'
 import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { users, creditPurchases } from '@/db/schema'
+import { creditPurchases } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 
-export const CREDIT_PACKAGES = {
-  crowdfunding: {
-    name: 'Crowdfunding Analysis Pack',
-    description: '1 Comprehensive Campaign Feasibility Analysis & Synthetic Benchmark Credit',
-    amountUsd: 49,
-    amountInr: 3999,
-    credits: { crowdfunding: 1, pitchDeck: 0 },
-  },
-  pitch_deck: {
-    name: 'Pitch Deck Generator Pack',
-    description: '1 Institutional 12-Slide Investor Pitch Deck Credit with PPTX Export',
-    amountUsd: 49,
-    amountInr: 3999,
-    credits: { crowdfunding: 0, pitchDeck: 1 },
-  },
-  bundle: {
-    name: 'Founder Bundle',
-    description: '1 Crowdfunding Credit + 1 Pitch Deck Credit (Best Value Kit)',
-    amountUsd: 79,
-    amountInr: 5999,
-    credits: { crowdfunding: 1, pitchDeck: 1 },
-  },
-  credit_topup: {
-    name: 'Credit Top-Up Pack',
-    description: '2,000 Universal AI Credits (Never Expire)',
-    amountUsd: 49,
-    amountInr: 3999,
-    credits: { crowdfunding: 0, pitchDeck: 0, universalCredits: 2000 },
-  },
-} as const
-
-export type CreditPackageType = keyof typeof CREDIT_PACKAGES
+import { CREDIT_PACKAGES } from '@/lib/credit-packages'
+import { getOrCreateDbUser } from '@/lib/auth-sync'
+import { validAuthOrigin } from '@/lib/auth-form'
 
 const PurchaseSchema = z.object({
   creditType: z.enum(['crowdfunding', 'pitch_deck', 'bundle', 'credit_topup']),
-  quantity: z.number().int().positive().default(1),
+  quantity: z.number().int().min(1).max(100).default(1),
   provider: z.enum(['stripe', 'razorpay']).default('stripe'),
 })
 
@@ -73,22 +44,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    // Auto-upsert free-tier user if not yet in database
-    if (!dbUser && user.email) {
-      const [created] = await db
-        .insert(users)
-        .values({
-          supabaseId: user.id,
-          email: user.email,
-          tier: 'free',
-        })
-        .returning()
-      dbUser = created
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -98,7 +54,7 @@ export async function GET() {
       .select()
       .from(creditPurchases)
       .where(eq(creditPurchases.userId, dbUser.id))
-      .orderBy(desc(creditPurchases.createdAt))
+      .orderBy(desc(creditPurchases.createdAt)).limit(100)
 
     return NextResponse.json({
       user: {
@@ -109,14 +65,19 @@ export async function GET() {
         pitchDeckCredits: dbUser.pitchDeckCredits,
         validationsThisMonth: dbUser.validationsThisMonth,
         isFoundingMember: dbUser.isFoundingMember,
+        creditBalance: dbUser.creditBalance,
+        purchasedCredits: dbUser.purchasedCredits,
+        creditsUsedThisCycle: dbUser.creditsUsedThisCycle,
+        creditResetAt: dbUser.creditResetAt,
+        currentPeriodEnd: dbUser.currentPeriodEnd,
       },
       packages: CREDIT_PACKAGES,
       purchases,
-    })
+    }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Internal Server Error'
     console.error('Error fetching credit history:', errorMessage)
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to process credit request' }, { status: 500 })
   }
 }
 
@@ -127,6 +88,7 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   try {
+    if (!validAuthOrigin(req)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
     const supabase = await createClient()
     const {
       data: { user },
@@ -136,22 +98,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    // Auto-upsert free-tier user if not yet in database
-    if (!dbUser && user.email) {
-      const [created] = await db
-        .insert(users)
-        .values({
-          supabaseId: user.id,
-          email: user.email,
-          tier: 'free',
-        })
-        .returning()
-      dbUser = created
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -223,9 +170,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const stripe = new Stripe(stripeSecret!, {
-        apiVersion: '2023-10-16' as Stripe.LatestApiVersion,
-      })
+      const stripe = new Stripe(stripeSecret!)
 
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
       const successUrl = `${appUrl}/dashboard/credits?success=true&session_id={CHECKOUT_SESSION_ID}`
@@ -275,7 +220,7 @@ export async function POST(req: NextRequest) {
       console.error('Stripe API checkout error:', message)
       return NextResponse.json(
         {
-          error: `Payment provider error: ${message}`,
+          error: 'Payment provider error. Please try again later.',
           configured: false,
         },
         { status: 503 }
@@ -284,6 +229,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : 'Internal Server Error'
     console.error('Unhandled credit purchase error:', errorMessage)
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    return NextResponse.json({ error: 'Unable to process credit request' }, { status: 500 })
   }
 }

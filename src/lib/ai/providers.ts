@@ -9,11 +9,8 @@ export const openrouter = createOpenAI({
 })
 
 // Free model chain: try in order, first success wins
-export const FREE_MODEL_CHAIN = [
-  'deepseek/deepseek-r1-0528-qwen3-8b:free',
-  'qwen/qwen3-8b:free',
-  'thudm/glm-4-9b:free',
-] as const
+// The router selects currently available free models; operators can pin IDs via env.
+export const FREE_MODEL_CHAIN = ['openrouter/free'] as const
 
 export type FreeModel = typeof FREE_MODEL_CHAIN[number]
 

@@ -21,42 +21,29 @@ describe('Tier 1: Feature Coverage', () => {
   // =========================================================================
   // Feature Group 1: Configuration & Database Setup (Features 1-3)
   // =========================================================================
-  describe('Group 1: Configuration & Credentials (Features 1-3)', () => {
-    const envPath = path.join(PROJECT_ROOT, '.env.local')
-    const envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : ''
+  describe('Group 1: Configuration Template & Schema (Features 1-3)', () => {
+    const envPath = path.join(PROJECT_ROOT, '.env.example')
+    const envContent = fs.readFileSync(envPath, 'utf8')
+    const values = Object.fromEntries(envContent.split(/\r?\n/).filter(line => line && !line.startsWith('#')).map(line => {
+      const separator = line.indexOf('=')
+      return [line.slice(0, separator), line.slice(separator + 1)]
+    }))
 
-    it('F1.1: .env.local contains a valid NEXT_PUBLIC_SUPABASE_URL pointing to Supabase host', () => {
-      const match = envContent.match(/NEXT_PUBLIC_SUPABASE_URL=(https:\/\/[a-zA-Z0-9.-]+\.supabase\.co)/)
-      expect(match).not.toBeNull()
-      expect(match?.[1]).not.toBe('https://placeholder.supabase.co')
-      expect(match?.[1]).toMatch(/^https:\/\/zuxbogoxodcxvpwglyum\.supabase\.co/)
+    it('F1.1: documents the public Supabase project URL', () => {
+      expect(values).toHaveProperty('NEXT_PUBLIC_SUPABASE_URL')
     })
-
-    it('F1.2: .env.local contains a valid non-placeholder NEXT_PUBLIC_SUPABASE_ANON_KEY', () => {
-      const match = envContent.match(/NEXT_PUBLIC_SUPABASE_ANON_KEY=([^\r\n]+)/)
-      expect(match).not.toBeNull()
-      const key = match?.[1]?.trim()
-      expect(key).toBeDefined()
-      expect(key).not.toBe('placeholder')
-      expect(key?.length).toBeGreaterThan(20)
+    it('F1.2: documents a public key separately from service credentials', () => {
+      expect(values).toHaveProperty('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+      expect(values.NEXT_PUBLIC_SUPABASE_ANON_KEY).not.toMatch(/^sb_secret_/)
     })
-
-    it('F1.3: .env.local contains a valid non-placeholder SUPABASE_SERVICE_ROLE_KEY', () => {
-      const match = envContent.match(/SUPABASE_SERVICE_ROLE_KEY=([^\r\n]+)/)
-      expect(match).not.toBeNull()
-      const key = match?.[1]?.trim()
-      expect(key).toBeDefined()
-      expect(key).not.toBe('your_service_role_key')
-      expect(key?.length).toBeGreaterThan(20)
+    it('F1.3: documents the private service role configuration', () => {
+      expect(values).toHaveProperty('SUPABASE_SERVICE_ROLE_KEY')
+      expect(values.SUPABASE_SERVICE_ROLE_KEY).toBe('')
+      expect(values.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY).toBeUndefined()
     })
-
-    it('F1.4: .env.local contains a valid PostgreSQL DATABASE_URL connection string', () => {
-      const match = envContent.match(/DATABASE_URL=(postgresql:\/\/[^\r\n]+)/)
-      expect(match).not.toBeNull()
-      const url = match?.[1]?.trim()
-      expect(url).toBeDefined()
-      expect(url).not.toContain('user:password@host')
-      expect(url).toContain('zuxbogoxodcxvpwglyum.supabase.co')
+    it('F1.4: provides an empty private DATABASE_URL for local configuration', () => {
+      expect(values).toHaveProperty('DATABASE_URL')
+      expect(values.DATABASE_URL).toBe('')
     })
 
     it('F2.1: drizzle.config.ts points to schema.ts and specifies postgresql dialect', () => {
@@ -376,8 +363,8 @@ describe('Tier 1: Feature Coverage', () => {
       }
     })
 
-    it('F16.1: src/middleware.ts protects /dashboard/* routes by redirecting unauthenticated users to /auth/signin', () => {
-      const middlewarePath = path.join(PROJECT_ROOT, 'src/middleware.ts')
+    it('F16.1: src/proxy.ts protects /dashboard/* routes by redirecting unauthenticated users to /auth/signin', () => {
+      const middlewarePath = path.join(PROJECT_ROOT, 'src/proxy.ts')
       expect(fs.existsSync(middlewarePath)).toBe(true)
       const content = fs.readFileSync(middlewarePath, 'utf8')
       expect(content).toContain("request.nextUrl.pathname.startsWith('/dashboard')")

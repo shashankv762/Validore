@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decryptApiKey } from '@/lib/byok-crypto'
+import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, crowdfundingAnalyses, syntheticCampaigns } from '@/db/schema'
 import { eq, and, avg, count, sql } from 'drizzle-orm'
 import { checkCredits, deductCredits } from '@/lib/credits'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { canUserAccessWithCredits } from '@/lib/tier-gate'
+import { consumeModulePack } from '@/lib/module-credits'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
@@ -15,9 +19,9 @@ import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } fr
 const CrowdfundingInputSchema = z.object({
   ideaId: z.string().uuid(),
   fundingGoal: z.number().positive(),
-  projectDescription: z.string().min(20),
-  category: z.string(),
-  country: z.string(),
+  projectDescription: z.string().trim().min(20).max(8000),
+  category: z.string().trim().min(1).max(120),
+  country: z.string().trim().min(1).max(120),
   preLaunchCommunitySize: z.number().min(0),
   socialFollowers: z.number().min(0),
   emailListSize: z.number().min(0),
@@ -100,6 +104,7 @@ const CrowdfundingAiSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -112,7 +117,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
 
-  const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.CROWDFUNDING)
+  const access = await canUserAccessWithCredits(user.id, 'crowdfunding')
+  if (!access.allowed) return NextResponse.json({ error: 'This module requires an eligible plan or a module run pack' }, { status: 403 })
+  const creditCheck = access.reason === 'credit' ? { allowed: true } : await checkCredits(dbUser.id, CREDIT_COSTS.CROWDFUNDING)
   if (!creditCheck.allowed) {
     return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
   }
@@ -129,32 +136,13 @@ export async function POST(request: NextRequest) {
   }
 
   // GAP-2: Decrypt custom OpenRouter key if stored
-  let customOpenRouterKey: string | null = null
-  const encryptedKey = (dbUser as any).encryptedOpenrouterKey as string | null
-  if (encryptedKey) {
-    if (encryptedKey.includes(':') && process.env.ENCRYPTION_KEY) {
-      try {
-        const crypto = await import('crypto')
-        const [ivHex, encryptedHex] = encryptedKey.split(':')
-        const iv = Buffer.from(ivHex, 'hex')
-        const decipher = crypto.createDecipheriv(
-          'aes-256-cbc',
-          Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
-          iv
-        )
-        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-        decrypted += decipher.final('utf8')
-        customOpenRouterKey = decrypted
-      } catch {
-        console.warn('[BYOK] Failed to decrypt custom key, using platform default')
-      }
-    } else {
-      customOpenRouterKey = encryptedKey // Unencrypted fallback (dev)
-    }
-  }
-
   try {
-    const body = await request.json()
+    let customOpenRouterKey: string | null = null
+    if (dbUser.encryptedOpenrouterKey) {
+      try { customOpenRouterKey = decryptApiKey(dbUser.encryptedOpenrouterKey) }
+      catch { return NextResponse.json({ error: 'Your custom AI key could not be loaded. Save it again in settings.' }, { status: 503 }) }
+    }
+    const body = await request.json().catch(() => null)
     const parsed = CrowdfundingInputSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
@@ -187,7 +175,7 @@ export async function POST(request: NextRequest) {
       : 38 // fallback overall avg
 
     // ── Web search ──────────────────────────────────────────────────────────────
-    const searchResp = await webSearch(`${i.category} crowdfunding campaigns ${i.country} success rate 2024`, 4)
+    const searchResp = await webSearch(`${i.category} crowdfunding campaigns ${i.country} success rate ${new Date().getFullYear()}`, 4)
     const today = new Date().toISOString().split('T')[0]
 
     const prompt = `You are a crowdfunding campaign expert analyzing a campaign's readiness.
@@ -261,32 +249,37 @@ CRITICAL RULES:
 
     const { band, label: classLabel, disclaimer } = getCampaignClassificationBand(performanceScore)
 
-    await deductCredits(dbUser.id, CREDIT_COSTS.CROWDFUNDING, 'CROWDFUNDING', i.ideaId)
-    const [saved] = await db.insert(crowdfundingAnalyses).values({
-      ideaId: i.ideaId,
-      userId: dbUser.id,
-      performanceScore,
-      classificationBand: `${band} — ${classLabel}`,
-      fundingGoal: i.fundingGoal,
-      expectedFunding: ai.scenarios.base.amountRaised,
-      expectedBackers: ai.scenarios.base.backers,
-      conversionRate: `${estimatedConversionRate}% (ASSUMPTION)`,
-      rewardTiers: ai.rewardTierAnalysis,
-      scenarioAnalysis: { ...ai.scenarios, disclaimer: 'ASSUMPTION — not guaranteed outcomes' },
-      marketingChannels: ai.marketingChannels,
-      prelaunchPlan: ai.thirtyDayPrelaunchPlan,
-      riskRegister: ai.riskRegister,
-      recommendation: ai.recommendation,
-      reportData: {
-        inputs: i,
-        computedMetrics: { requiredBackers: Math.ceil(requiredBackers), requiredVisitors: Math.ceil(requiredVisitors), marketingCostPerBacker },
-        benchmark: { ...benchmark, dataLabel: 'SYNTHETIC DATA' },
-        ai,
+    const saved = await db.transaction(async tx => {
+      const charged = access.reason === 'credit' ? await consumeModulePack(tx, dbUser.id, 'crowdfundingCredits', i.ideaId) : await deductCredits(dbUser.id, CREDIT_COSTS.CROWDFUNDING, 'CROWDFUNDING', i.ideaId, undefined, tx)
+      if (!charged) return null
+      const [created] = await tx.insert(crowdfundingAnalyses).values({
+        ideaId: i.ideaId,
+        userId: dbUser.id,
         performanceScore,
-        classificationBand: classLabel,
-        disclaimer,
-      },
-    }).returning()
+        classificationBand: `${band} — ${classLabel}`,
+        fundingGoal: i.fundingGoal,
+        expectedFunding: ai.scenarios.base.amountRaised,
+        expectedBackers: ai.scenarios.base.backers,
+        conversionRate: `${estimatedConversionRate}% (ASSUMPTION)`,
+        rewardTiers: ai.rewardTierAnalysis,
+        scenarioAnalysis: { ...ai.scenarios, disclaimer: 'ASSUMPTION — not guaranteed outcomes' },
+        marketingChannels: ai.marketingChannels,
+        prelaunchPlan: ai.thirtyDayPrelaunchPlan,
+        riskRegister: ai.riskRegister,
+        recommendation: ai.recommendation,
+        reportData: {
+          inputs: i,
+          computedMetrics: { requiredBackers: Math.ceil(requiredBackers), requiredVisitors: Math.ceil(requiredVisitors), marketingCostPerBacker },
+          benchmark: { ...benchmark, dataLabel: 'SYNTHETIC DATA' },
+          ai,
+          performanceScore,
+          classificationBand: classLabel,
+          disclaimer,
+        },
+      }).returning()
+      return created
+    })
+    if (!saved) return NextResponse.json({ error: 'Insufficient credits. Refresh your balance and try again.' }, { status: 402 })
 
     return NextResponse.json({
       analysisId: saved.id,
@@ -297,6 +290,9 @@ CRITICAL RULES:
       recommendation: ai.recommendation,
       result: saved.reportData,
     })
+  } catch (error) {
+    console.error('[crowdfunding] Analysis failed:', error)
+    return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {
     await decrementConcurrency(dbUser.id)
   }

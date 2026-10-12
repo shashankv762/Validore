@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { leanCanvases, users } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and } from 'drizzle-orm'
+import { z } from 'zod'
 
 /** Format an array of objects or strings to a numbered list */
-function formatArray(items: unknown[]): string {
-  if (!items || items.length === 0) return 'None'
+function formatArray(items: unknown): string {
+  if (!Array.isArray(items) || items.length === 0) return 'None'
   return items.map((item, i) => {
     if (typeof item === 'string') return `${i + 1}. ${item}`
     if (typeof item === 'object' && item !== null) {
@@ -36,11 +37,16 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const ideaId = request.nextUrl.searchParams.get('ideaId')
-  if (!ideaId) return NextResponse.json({ error: 'ideaId required' }, { status: 400 })
+  const parsed = z.string().uuid().safeParse(ideaId)
+  if (!parsed.success) return NextResponse.json({ error: 'A valid ideaId is required' }, { status: 400 })
+  const canvasId = request.nextUrl.searchParams.get('canvasId')
+  if (canvasId !== null && !z.string().uuid().safeParse(canvasId).success) return NextResponse.json({ error: 'A valid canvasId is required' }, { status: 400 })
+  const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
+  if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   const canvases = await db.query.leanCanvases.findMany({
-    where: eq(leanCanvases.ideaId, ideaId),
-    orderBy: (lc, { desc }) => [desc(lc.version)],
+    where: and(eq(leanCanvases.ideaId, parsed.data), eq(leanCanvases.userId, dbUser.id), canvasId ? eq(leanCanvases.id, canvasId) : undefined),
+    orderBy: (lc, { desc }) => [desc(lc.version)], limit: 1,
   })
 
   if (!canvases.length) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -68,8 +74,8 @@ export async function GET(request: NextRequest) {
     { title: '17. Build-Measure-Learn Cycles', content: formatArray(analysis.buildMeasureLearnCycles || []) },
     { title: '18. Pivot Analysis', content: formatObject(analysis.pivotAnalysis || {}) },
     { title: '19. IF→THEN Rules', content: formatArray(analysis.ifThenRules || []) },
-    { title: '20. Validation Score & Confidence', content: `Score: ${canvas.validationScore || 0}/100` },
+    { title: '20. Validation Score & Confidence', content: canvas.validationScore === null ? 'Score not available' : `Score: ${canvas.validationScore}/100` },
   ]
 
-  return NextResponse.json({ canvas, reportSections, reportNarrative: 'Lean Canvas Report' })
+  return NextResponse.json({ canvas, reportSections, reportNarrative: 'Lean Canvas Report' }, { headers: { 'Cache-Control': 'private, no-store' } })
 }

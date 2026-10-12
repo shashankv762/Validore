@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { users, tierConfig } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, and, gt, sql } from 'drizzle-orm'
 
 export type Feature =
   | 'canExportPdf' | 'canExportCsv' | 'canExportPptx'
@@ -9,6 +9,7 @@ export type Feature =
   | 'canPricingSimulator' | 'canCrowdfunding' | 'canPitchDeck'
 
 export async function getUserWithTierConfig(supabaseId: string) {
+  if (!supabaseId) return null
   const user = await db.query.users.findFirst({
     where: eq(users.supabaseId, supabaseId),
   })
@@ -49,21 +50,20 @@ export async function canUserAccessWithCredits(
 export async function checkValidationLimit(supabaseId: string): Promise<{ allowed: boolean; remaining: number }> {
   const result = await getUserWithTierConfig(supabaseId)
   if (!result?.config) return { allowed: false, remaining: 0 }
-
-  const { user, config } = result
-  const now = new Date()
-
-  // Reset counter if new billing month
-  if (!user.validationResetAt || now > user.validationResetAt) {
-    await db.update(users).set({
-      validationsThisMonth: 0,
-      validationResetAt: new Date(now.getFullYear(), now.getMonth() + 1, 1),
-    }).where(eq(users.supabaseId, supabaseId))
-    return { allowed: true, remaining: config.monthlyValidationLimit }
-  }
-
-  const remaining = config.monthlyValidationLimit - user.validationsThisMonth
-  return { allowed: remaining > 0, remaining: Math.max(0, remaining) }
+  const config = result.config
+  return db.transaction(async tx => {
+    const [user] = await tx.select().from(users).where(eq(users.id, result.user.id)).for('update')
+    if (!user) return { allowed: false, remaining: 0 }
+    const now = new Date()
+    if (!user.validationResetAt || now > user.validationResetAt) {
+      await tx.update(users).set({ validationsThisMonth: 0,
+        validationResetAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
+      }).where(eq(users.id, user.id))
+      return { allowed: true, remaining: config.monthlyValidationLimit }
+    }
+    const remaining = Math.max(0, config.monthlyValidationLimit - user.validationsThisMonth)
+    return { allowed: remaining > 0, remaining }
+  })
 }
 
 export async function decrementCredit(
@@ -73,12 +73,9 @@ export async function decrementCredit(
   const result = await getUserWithTierConfig(supabaseId)
   if (!result) return false
 
-  const user = result.user
-  if (user[creditType] <= 0) return false
-
-  await db.update(users).set({
-    [creditType]: user[creditType] - 1
-  }).where(eq(users.supabaseId, supabaseId))
-
-  return true
+  const [updated] = await db.update(users).set({
+    [creditType]: sql`${users[creditType]} - 1`,
+  }).where(and(eq(users.supabaseId, supabaseId), gt(users[creditType], 0)))
+    .returning({ id: users.id })
+  return !!updated
 }

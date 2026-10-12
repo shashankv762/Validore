@@ -13,7 +13,6 @@ import {
   RefreshCw,
   AlertTriangle,
   Coins,
-  X,
 } from 'lucide-react'
 
 interface UserData {
@@ -44,12 +43,10 @@ interface PurchaseRecord {
 
 interface LedgerItem {
   id: string
-  date: string
-  action: string
+  createdAt: string
+  transactionType: string
   amount: number
-  balanceAfter: number
-  reference: string
-  status: string
+  description: string | null
 }
 
 const ACTION_COSTS = [
@@ -105,10 +102,9 @@ function CreditsContent() {
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [buyingPackage, setBuyingPackage] = useState<string | null>(null)
-  const [demoModalOpen, setDemoModalOpen] = useState(false)
-  const [pendingDemoPackage, setPendingDemoPackage] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState('')
 
-  const [daysUntilReset, setDaysUntilReset] = useState(30)
+  const [daysUntilReset, setDaysUntilReset] = useState<number | null>(null)
 
   const reloadData = () => {
     setLoading(true)
@@ -121,7 +117,7 @@ function CreditsContent() {
           if (targetStr) {
             const target = new Date(targetStr).getTime()
             const diff = Math.ceil((target - Date.now()) / (1000 * 60 * 60 * 24))
-            if (diff > 0) setDaysUntilReset(diff)
+            if (Number.isFinite(diff)) setDaysUntilReset(Math.max(0, diff))
           }
         }
         if (Array.isArray(data?.purchases)) {
@@ -153,7 +149,7 @@ function CreditsContent() {
           if (targetStr) {
             const target = new Date(targetStr).getTime()
             const diff = Math.ceil((target - Date.now()) / (1000 * 60 * 60 * 24))
-            if (diff > 0) setDaysUntilReset(diff)
+            if (Number.isFinite(diff)) setDaysUntilReset(Math.max(0, diff))
           }
         }
         if (Array.isArray(data?.purchases)) {
@@ -180,7 +176,7 @@ function CreditsContent() {
     const canceled = searchParams.get('canceled')
 
     if (success === 'true') {
-      toast.success('Payment completed! Your compute credits have been added to your balance.')
+      toast.info('Returned from checkout. Credits appear after payment confirmation; refresh if they are still processing.')
       router.replace('/dashboard/credits')
     } else if (canceled === 'true') {
       toast.info('Checkout cancelled. No charges were made to your payment method.')
@@ -192,19 +188,9 @@ function CreditsContent() {
   const tierAllocation =
     user.tier === 'max_premium' ? 4500 : user.tier === 'premium' ? 1500 : 100
 
-  const monthlyUsed =
-    user.creditsUsedThisCycle ?? Math.min(tierAllocation, (user.validationsThisMonth || 0) * 300)
-
-  const monthlyRemaining = Math.max(0, tierAllocation - monthlyUsed)
-
-  const purchasedBonus =
-    user.purchasedCredits ??
-    (user.crowdfundingCredits * 500 + user.pitchDeckCredits * 800)
-
-  const totalAvailableCredits =
-    user.creditBalance !== undefined && user.creditBalance !== null
-      ? user.creditBalance + (user.purchasedCredits ?? 0)
-      : monthlyRemaining + purchasedBonus
+  const monthlyUsed = user.creditsUsedThisCycle ?? 0
+  const purchasedBonus = user.purchasedCredits ?? 0
+  const totalAvailableCredits = (user.creditBalance ?? 0) + purchasedBonus
 
   const monthlyUsagePercent = Math.min(
     100,
@@ -229,10 +215,6 @@ function CreditsContent() {
       if (res.ok && data.url) {
         toast.info('Redirecting to secure Stripe Checkout...')
         window.location.href = data.url
-      } else if (res.status === 503 || !data.configured) {
-        // Stripe unconfigured in dev/demo mode: open graceful demo modal
-        setPendingDemoPackage(creditType)
-        setDemoModalOpen(true)
       } else {
         toast.error(data.error || 'Failed to initiate checkout. Please try again.')
       }
@@ -244,40 +226,14 @@ function CreditsContent() {
     }
   }
 
-  const simulateDemoPurchase = () => {
-    if (pendingDemoPackage === 'credit_topup') {
-      setUser(prev => ({
-        ...prev,
-        purchasedCredits: (prev.purchasedCredits || 0) + 2000,
-      }))
-      toast.success('Demo Top-Up: Added 2,000 bonus credits to your account!')
-    } else if (pendingDemoPackage === 'crowdfunding') {
-      setUser(prev => ({
-        ...prev,
-        purchasedCredits: (prev.purchasedCredits || 0) + 500,
-        crowdfundingCredits: prev.crowdfundingCredits + 1,
-      }))
-      toast.success('Demo Top-Up: Added 1 Crowdfunding run credit (500 credits)!')
-    } else if (pendingDemoPackage === 'pitch_deck') {
-      setUser(prev => ({
-        ...prev,
-        purchasedCredits: (prev.purchasedCredits || 0) + 800,
-        pitchDeckCredits: prev.pitchDeckCredits + 1,
-      }))
-      toast.success('Demo Top-Up: Added 1 Pitch Deck run credit (800 credits)!')
-    }
-    setDemoModalOpen(false)
-    setPendingDemoPackage(null)
-  }
-
-  const [ledgerEntries, setLedgerEntries] = useState<any[]>([])
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerItem[]>([])
   const [ledgerLoading, setLedgerLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/credits/ledger?limit=50')
-      .then(r => r.json())
-      .then(data => setLedgerEntries(data.entries || []))
-      .catch(() => setLedgerEntries([]))
+      .then(r => { if (!r.ok) throw new Error('Unable to load credit history'); return r.json() })
+      .then(data => setLedgerEntries(Array.isArray(data.entries) ? data.entries : []))
+      .catch(() => { setLedgerEntries([]); setLoadError('Credit history is unavailable. Refresh to try again.') })
       .finally(() => setLedgerLoading(false))
   }, [])
 
@@ -296,6 +252,7 @@ function CreditsContent() {
 
   return (
     <div className="space-y-10 pb-16">
+      {loadError && <p role="alert" className="p-4 text-sm border border-[#C8A860]">{loadError}</p>}
       {/* Low-Credit Warning Banner */}
       {totalAvailableCredits < 100 && (
         <div className="p-4 bg-amber-500/15 border border-amber-500/40 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -308,12 +265,12 @@ function CreditsContent() {
                 Running Low on Compute Credits ({totalAvailableCredits} credits remaining)
               </h4>
               <p className="text-xs text-amber-800/80 mt-0.5">
-                Deep validation engines require at least 50 credits. Buy a top-up pack to keep building without interruption.
+                Lite validations require 50 credits; deep validations require 300. Buy a top-up pack to keep building without interruption.
               </p>
             </div>
           </div>
           <button
-            onClick={() => handlePurchase('bundle')}
+            onClick={() => handlePurchase('credit_topup')}
             disabled={buyingPackage !== null}
             className="px-4 py-2 text-xs font-semibold bg-[#0A1628] text-[#FAFAF7] hover:bg-[#C8A860] hover:text-[#0A1628] rounded transition-colors whitespace-nowrap self-stretch sm:self-auto"
           >
@@ -386,7 +343,7 @@ function CreditsContent() {
             <div className="flex items-center justify-between text-xs text-[#1C1C1C]/65 pt-1">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-[#C8A860]" />
-                <span>Resets in <strong>{daysUntilReset} days</strong></span>
+                <span>{daysUntilReset === null ? 'Reset date unavailable' : <>Resets in <strong>{daysUntilReset} days</strong></>}</span>
               </span>
               <span>
                 Tier: <strong className="capitalize">{user.tier?.replace('_', ' ') || 'Free'}</strong>
@@ -464,7 +421,7 @@ function CreditsContent() {
             Modular Credit Store
           </h2>
           <p className="text-lg font-light text-[#0A1628] mt-0.5">
-            Purchase on-demand packs with instant activation (Credits never expire)
+            Purchase on-demand packs. Activation follows payment confirmation.
           </p>
         </div>
 
@@ -497,7 +454,7 @@ function CreditsContent() {
               <ul className="space-y-2.5 text-xs text-[#1C1C1C]/80 mb-6">
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-[#96792b] shrink-0 mt-0.5" />
-                  <span>2,000 credits applied immediately</span>
+                  <span>2,000 credits after confirmed payment</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-[#96792b] shrink-0 mt-0.5" />
@@ -509,7 +466,7 @@ function CreditsContent() {
                 </li>
                 <li className="flex items-start gap-2">
                   <Check className="w-4 h-4 text-[#96792b] shrink-0 mt-0.5" />
-                  <span>Priority compute queue routing</span>
+                  <span>Use with modules available on your plan</span>
                 </li>
               </ul>
             </div>
@@ -675,22 +632,20 @@ function CreditsContent() {
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Action</th>
                 <th className="py-3 px-4">Credits</th>
-                <th className="py-3 px-4">Balance After</th>
                 <th className="py-3 px-4">Related Reference</th>
-                <th className="py-3 px-4 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E8E0D0]">
               {ledgerLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[#1C1C1C]/60">
+                  <td colSpan={4} className="py-8 text-center text-[#1C1C1C]/60">
                     Loading ledger...
                   </td>
                 </tr>
               ) : ledgerEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-[#1C1C1C]/60">
-                    No credit transactions yet. Credits never expire.
+                  <td colSpan={4} className="py-8 text-center text-[#1C1C1C]/60">
+                    No recorded credit transactions yet.
                   </td>
                 </tr>
               ) : (
@@ -699,10 +654,10 @@ function CreditsContent() {
                   return (
                     <tr key={item.id} className="hover:bg-[#F5F0E8]/50 transition-colors">
                       <td className="py-3.5 px-4 font-mono text-[#1C1C1C]/70">
-                        {formatDate(item.date)}
+                        {formatDate(item.createdAt)}
                       </td>
                       <td className="py-3.5 px-4 font-medium text-[#0A1628]">
-                        <span className="font-mono text-[11px]">{item.action}</span>
+                        <span className="font-mono text-[11px]">{item.transactionType}</span>
                       </td>
                       <td className="py-3.5 px-4 font-mono font-semibold">
                         <span
@@ -712,19 +667,11 @@ function CreditsContent() {
                               : 'text-rose-700 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20'
                           }
                         >
-                          {isCredit ? `+${item.amount.toLocaleString()}` : item.amount.toLocaleString()}
+                          {isCredit ? `+${item.amount.toLocaleString()}` : item.amount.toLocaleString()} {item.transactionType.endsWith('_PACK') ? 'run' : 'cr'}
                         </span>
-                      </td>
-                      <td className="py-3.5 px-4 font-mono text-[#0A1628]">
-                        {item.balanceAfter.toLocaleString()} cr
                       </td>
                       <td className="py-3.5 px-4 text-[#1C1C1C]/70">
-                        {item.reference}
-                      </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <span className="inline-block px-2 py-0.5 text-[10px] uppercase font-semibold rounded bg-[#C8A860]/15 text-[#96792b]">
-                          {item.status}
-                        </span>
+                        {item.description || '—'}
                       </td>
                     </tr>
                   )
@@ -735,45 +682,6 @@ function CreditsContent() {
         </div>
       </section>
 
-      {/* Demo Modal when Stripe is unconfigured */}
-      {demoModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1628]/60 backdrop-blur-sm p-4">
-          <div className="card-angular p-6 bg-[#FAFAF7] max-w-md w-full shadow-xl border border-[#E8E0D0] relative">
-            <button
-              onClick={() => setDemoModalOpen(false)}
-              className="absolute top-4 right-4 text-[#1C1C1C]/40 hover:text-[#0A1628]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-[#C8A860]/20 flex items-center justify-center text-[#96792b]">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-[#0A1628]">Stripe Checkout Mode</h3>
-                <p className="text-xs text-[#1C1C1C]/60">Development Gateway Feedback</p>
-              </div>
-            </div>
-            <p className="text-xs text-[#1C1C1C]/80 leading-relaxed mb-6">
-              Stripe API secret key is not configured in this active environment. In production, this button connects directly to Stripe Checkout to process the $49 payment and instantly credit your balance.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setDemoModalOpen(false)}
-                className="px-4 py-2 text-xs font-medium border border-[#E8E0D0] text-[#0A1628] rounded hover:bg-[#E8E0D0]"
-              >
-                Close
-              </button>
-              <button
-                onClick={simulateDemoPurchase}
-                className="px-4 py-2 text-xs font-semibold bg-[#0A1628] text-[#FAFAF7] hover:bg-[#C8A860] hover:text-[#0A1628] rounded transition-colors"
-              >
-                Simulate Successful Top-Up
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

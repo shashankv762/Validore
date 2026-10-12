@@ -81,7 +81,7 @@ describe('Auth API Routes', () => {
       const res = await signinHandler(req)
       expect(res.status).toBe(400)
       const data = await res.json()
-      expect(data.error).toBe('Email and password are required')
+      expect(data.error).toBe('Enter a valid email and password.')
     })
 
     it('returns 400 when invalid credentials are provided', async () => {
@@ -93,7 +93,7 @@ describe('Auth API Routes', () => {
       const res = await signinHandler(req)
       expect(res.status).toBe(400)
       const data = await res.json()
-      expect(data.error).toBe('Invalid login credentials')
+      expect(data.error).toBe('Unable to sign in. Check your email, password, and email confirmation.')
     })
 
     it('returns user and session on successful JSON signin', async () => {
@@ -120,7 +120,7 @@ describe('Auth API Routes', () => {
       const res = await signupHandler(req)
       expect(res.status).toBe(400)
       const data = await res.json()
-      expect(data.error).toBe('Password too short')
+      expect(data.error).toBe('Use a valid email and a password of 8 to 128 characters.')
     })
 
     it('returns user and session on successful signup', async () => {

@@ -1,652 +1,208 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// Validore — Enterprise CI/CD Pipeline (Jenkins Declarative)
-// ─────────────────────────────────────────────────────────────────────────────
-//
-// PIPELINE STAGES (in order):
-//   1.  Checkout          — pull source code, log recent commits
-//   2.  Environment Info  — print tool versions for traceability
-//   3.  Install           — npm ci (lockfile-exact, cached via Jenkins cache)
-//   4.  Lint              — ESLint (any error fails the build)
-//   5.  Typecheck         — tsc --noEmit (strict TS type safety)
-//   6.  Unit Tests        — Vitest (all AI + DB fully mocked, JUnit output)
-//   7.  Build             — next build standalone (production bundle)
-//   8.  Docker Build      — multi-stage image tagged with commit SHA
-//   9.  Security Scan     — Trivy image scan (HIGH/CRITICAL = fail)
-//   10. Publish Image     — push to registry (main branch only)
-//   11. Deploy Staging    — rolling deploy with manual approval gate
-//   12. Notify            — Slack / email notification (success / failure)
-//
-// REQUIRED JENKINS PLUGINS:
-//   docker-workflow, git, junit, pipeline-utility-steps, timestamper,
-//   ansicolor, build-discarder, credentials-binding
-//
-// REQUIRED JENKINS CREDENTIALS:
-//   validore-registry      — registry username/password (docker push)
-//   validore-git-token     — optional, for private-repo checkout
-//
-// REQUIRED TOOLS ON JENKINS AGENT:
-//   node (>=20), docker, trivy (aquasec/trivy)
-//
-// ENVIRONMENT OVERRIDES (per-controller):
-//   REGISTRY   — container registry host + org (default: ghcr.io/your-org)
-//   STAGING_HOST — SSH target for docker-compose deploy
-// ═══════════════════════════════════════════════════════════════════════════════
+// Validore: Windows/Linux classroom CI, with opt-in Linux container releases.
+// Release credentials belong on trusted branch jobs, never untrusted PR jobs.
+def runNpm(String arguments) {
+  if (isUnix()) { sh "npm ${arguments}" }
+  else { bat "call npm ${arguments}" }
+}
 
 pipeline {
   agent any
-
-  // ── Global pipeline options ─────────────────────────────────────────────────
   options {
-    // Stop remaining stages immediately when a stage fails.
-    skipStagesAfterUnstable()
-    // Retain last 30 build records; prevents disk exhaustion on long-lived jobs.
-    buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
-    // Emit timestamps in all log lines — critical for debugging timing issues.
-    timestamps()
-    // Hard ceiling: the entire pipeline must complete within 30 minutes.
-    timeout(time: 30, unit: 'MINUTES')
-    // Never queue two builds on the same ref at the same time.
+    skipDefaultCheckout(true)
     disableConcurrentBuilds()
-    // Colour-code ANSI output (requires AnsiColor plugin).
-    ansiColor('xterm')
+    skipStagesAfterUnstable()
+    timestamps()
+    timeout(time: 45, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '10'))
   }
-
-  // ── User-adjustable parameters ──────────────────────────────────────────────
   parameters {
-    booleanParam(
-      name: 'SKIP_DOCKER',
-      defaultValue: false,
-      description: 'Skip Docker build / security scan / publish / deploy stages. Useful for fast PR lint+test runs.'
-    )
-    booleanParam(
-      name: 'DEPLOY_STAGING',
-      defaultValue: true,
-      description: 'Trigger staging deployment after a successful main-branch build (requires manual approval).'
-    )
-    booleanParam(
-      name: 'FORCE_TRIVY_FAIL',
-      defaultValue: false,
-      description: 'Dev: treat any Trivy finding as a pipeline failure (normally only HIGH/CRITICAL fail).'
-    )
-    string(
-      name: 'NODE_VERSION_EXPECTED',
-      defaultValue: '20',
-      description: 'Minimum Node.js major version required on this agent.'
-    )
+    choice(name: 'BUILD_PROFILE', choices: ['demo', 'release'], description: 'Demo builds need no live service credentials. Release validates public configuration.')
+    booleanParam(name: 'SKIP_DOCKER', defaultValue: true, description: 'Classroom CI runs lint, types, tests, build and smoke on Windows or Linux. Uncheck on a Linux Docker/Trivy agent.')
+    booleanParam(name: 'PUBLISH_IMAGE', defaultValue: false, description: 'Publish a scanned release image from main/master only.')
+    booleanParam(name: 'DEPLOY_RENDER', defaultValue: false, description: 'Deploy the tested commit to the configured Render service after approval; Docker is optional.')
+    booleanParam(name: 'ROLLBACK_RENDER_ON_FAILURE', defaultValue: true, description: 'Restore the previous live Render release if public checks fail and this deployment is still current.')
+    string(name: 'RENDER_SERVICE_ID', defaultValue: '', description: 'Render service ID (srv-...) for the free beta or configured live service.')
+    booleanParam(name: 'DEPLOY_STAGING', defaultValue: false, description: 'After approval, invoke the configured staging deployment job with an immutable image digest.')
+    booleanParam(name: 'FORCE_TRIVY_FAIL', defaultValue: false, description: 'Fail on all vulnerability severities instead of HIGH/CRITICAL.')
+    string(name: 'REGISTRY', defaultValue: '', description: 'Registry host and namespace, for example ghcr.io/my-org; required to publish.')
+    string(name: 'STAGING_DEPLOY_JOB', defaultValue: '', description: 'Existing deployment job accepting IMAGE_REF; must deploy and health-check the image.')
+    string(name: 'PUBLIC_SUPABASE_URL', defaultValue: 'https://example.supabase.co', description: 'Public Supabase project URL, baked into the client build.')
+    string(name: 'PUBLIC_SUPABASE_ANON_KEY', defaultValue: 'demo-anon-key', description: 'Public anon/publishable key. Never enter a service-role or secret key.')
+    string(name: 'PUBLIC_APP_URL', defaultValue: 'http://localhost:3000', description: 'Public app origin. Release requires HTTPS.')
   }
-
-  // ── Automated build triggers ─────────────────────────────────────────────────
-  //
-  // THREE COMPLEMENTARY TRIGGERS are configured:
-  //
-  //  1. GitHub Push Webhook  — fires the moment a developer pushes to GitHub.
-  //     Jenkins receives an HTTP POST from GitHub on every push/PR event.
-  //     Requires:  "GitHub plugin" installed in Jenkins.
-  //     GitHub setup: Repository → Settings → Webhooks → Add webhook
-  //       Payload URL : http://<jenkins-host>:8080/github-webhook/
-  //       Content type: application/json
-  //       Events      : Pushes + Pull requests (or "Send me everything")
-  //
-  //  2. Poll SCM (safety net fallback) — Jenkins polls GitHub every 5 minutes.
-  //     Triggers a build only when changes are detected, even if the webhook
-  //     was missed (e.g., Jenkins was temporarily offline).
-  //     Cron expression: H/5 * * * *
-  //       H = hash-distributed minute, prevents thundering-herd on Jenkins restart.
-  //
-  //  3. Nightly full build — runs the complete pipeline at 01:30 IST every day
-  //     regardless of commits.  Catches dependency drift, stale caches, or
-  //     environment regressions that don't always surface in incremental builds.
-  //
-  // ─────────────────────────────────────────────────────────────────────────────
-  triggers {
-    // ── Trigger 1: GitHub push / PR webhook ─────────────────────────────────
-    // Every git push to any branch on GitHub fires this pipeline immediately.
-    // No polling delay — the build starts within seconds of the developer's push.
-    githubPush()
-
-    // ── Trigger 2: SCM Poll fallback (every 5 minutes) ───────────────────────
-    // Acts as a safety net when the webhook delivery fails.
-    // H/5 distributes the poll across agents to reduce peak load.
-    pollSCM('H/5 * * * *')
-
-    // ── Trigger 3: Nightly scheduled build ───────────────────────────────────
-    // Full regression run every night at 01:30 IST (20:00 UTC).
-    // Detects dependency drift, security advisories, and environment regressions
-    // that might not be caught by commit-triggered incremental builds.
-    cron('30 20 * * *')
-  }
-
-  // ── Environment variables (resolved once at pipeline start) ─────────────────
+  // Multibranch webhooks are configured in Jenkins; polling is a portable fallback.
+  triggers { pollSCM('H/5 * * * *') }
   environment {
-    // Image coordinates — override REGISTRY in Jenkins System Config if needed.
-    IMAGE_NAME      = 'validore'
-    REGISTRY        = 'ghcr.io/your-org'               // ← update to real registry
-    // Commit SHA (7 chars) used as the immutable image tag; falls back to build
-    // number when GIT_COMMIT isn't available (e.g., manual triggers).
-    IMAGE_TAG       = "${env.GIT_COMMIT?.take(7) ?: env.BUILD_NUMBER}"
-    // Full image references for easy reuse across stages.
-    IMAGE_REF       = "${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-    IMAGE_LATEST    = "${REGISTRY}/${IMAGE_NAME}:latest"
-    // Deterministic builds: disable telemetry and auto-open.
+    CI = 'true'
     NEXT_TELEMETRY_DISABLED = '1'
-    CI              = 'true'
-    // Node options: expose GC handles large monorepos without OOM kills.
-    NODE_OPTIONS    = '--max-old-space-size=4096'
-    // Trivy cache directory — persisted between builds for speed.
-    TRIVY_CACHE_DIR = "${WORKSPACE}/.trivy-cache"
-    // JUnit report path consumed by the junit() step.
-    JUNIT_REPORT    = 'reports/junit.xml'
-    // Suppress Vite config-loader warning (cosmetic only, does not affect tests).
     VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
+    NODE_OPTIONS = '--max-old-space-size=4096'
+    BUILD_PROFILE = "${params.BUILD_PROFILE}"
+    NEXT_PUBLIC_SUPABASE_URL = "${params.PUBLIC_SUPABASE_URL}"
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = "${params.PUBLIC_SUPABASE_ANON_KEY}"
+    NEXT_PUBLIC_APP_URL = "${params.PUBLIC_APP_URL}"
+    npm_config_cache = "${WORKSPACE}/.npm-cache"
+    TRIVY_CACHE_DIR = "${WORKSPACE}/.trivy-cache"
+    TMPDIR = "${WORKSPACE}/.tmp"
+    TEMP = "${WORKSPACE}/.tmp"
+    TMP = "${WORKSPACE}/.tmp"
   }
-
   stages {
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 1 — Checkout
-    // ──────────────────────────────────────────────────────────────────────────
     stage('Checkout') {
       steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 1: Checkout Source Code        ║'
-        echo '╚══════════════════════════════════════╝'
-
-        // Standard SCM checkout — works with Multibranch Pipeline and plain jobs.
-        checkout scm
-
-        // Print the last 5 commits for traceability in the build log.
-        sh 'git log --oneline -5 || true'
-
-        // Emit the exact commit reference so the build log is self-contained.
         script {
-          def sha    = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-          def branch = env.BRANCH_NAME ?: sh(script: 'git rev-parse --abbrev-ref HEAD', returnStdout: true).trim()
-          def author = sh(script: 'git log -1 --format="%an <%ae>"', returnStdout: true).trim()
-          def msg    = sh(script: 'git log -1 --format="%s"', returnStdout: true).trim()
-
-          echo "Branch  : ${branch}"
-          echo "Commit  : ${sha}"
-          echo "Author  : ${author}"
-          echo "Message : ${msg}"
-
-          // Stash for later stages that need branch-awareness.
-          env.GIT_BRANCH_CLEAN = branch
-          env.GIT_SHA_FULL     = sha
+          def checkoutResult = checkout scm
+          env.GIT_SHA_FULL = checkoutResult.GIT_COMMIT
+          if (!env.GIT_SHA_FULL || !(env.GIT_SHA_FULL ==~ /[a-fA-F0-9]{40,64}/)) { error('Checkout did not return a valid commit SHA') }
+          env.IMAGE_TAG = "${env.GIT_SHA_FULL}-${env.BUILD_NUMBER}-${env.BUILD_TAG}".replaceAll('[^A-Za-z0-9_.-]', '-').take(128)
+          env.IMAGE_REF = "validore:${env.IMAGE_TAG}"
+          env.CAN_RELEASE = (!env.CHANGE_ID && (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master')) ? 'true' : 'false'
+          if (isUnix()) { sh 'mkdir -p reports .tmp' }
+          else { bat '''if not exist reports mkdir reports
+if not exist .tmp mkdir .tmp''' }
+          echo "Commit: ${env.GIT_SHA_FULL}; profile: ${params.BUILD_PROFILE}"
         }
       }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 2 — Environment Info
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Environment Info') {
+    stage('Validate Environment') {
       steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 2: Environment Info            ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          echo "=== OS ==="
-          uname -a || ver || true
-          echo "=== Node.js ==="
-          node --version
-          echo "=== npm ==="
-          npm --version
-          echo "=== Docker ==="
-          docker --version || echo "Docker not available on this agent"
-          echo "=== Trivy ==="
-          trivy --version 2>/dev/null || echo "Trivy not available on this agent"
-          echo "=== Workspace ==="
-          echo "WORKSPACE  : ${WORKSPACE}"
-          echo "BUILD_URL  : ${BUILD_URL}"
-          echo "IMAGE_REF  : ${IMAGE_REF}"
-        '''
-
-        // Validate that the Node major version meets requirements.
         script {
-          def nodeVersion = sh(
-            script: 'node -e "process.stdout.write(String(process.version.match(/\\d+/)[0]))"',
-            returnStdout: true
-          ).trim().toInteger()
-          def required = params.NODE_VERSION_EXPECTED.toInteger()
-          if (nodeVersion < required) {
-            error "Node.js ${nodeVersion} is below the required major version ${required}. " +
-                  "Please upgrade the agent or adjust NODE_VERSION_EXPECTED."
+          if (isUnix()) { sh 'node scripts/prepare-ci.mjs && node scripts/ci-config.mjs' }
+          else { bat 'node scripts/prepare-ci.mjs && node scripts/ci-config.mjs' }
+          runNpm('--version')
+          if ((params.PUBLISH_IMAGE || params.DEPLOY_STAGING) && (params.SKIP_DOCKER || params.BUILD_PROFILE != 'release' || env.CAN_RELEASE != 'true')) {
+            error('Publishing/deployment requires a release profile, Docker stages, and a trusted main/master multibranch job')
           }
-          echo "Node.js version check passed: v${nodeVersion} >= v${required}"
+          if (params.DEPLOY_RENDER && (params.BUILD_PROFILE != 'release' || env.CAN_RELEASE != 'true' || !(params.RENDER_SERVICE_ID.trim() ==~ 'srv-[A-Za-z0-9_-]{5,80}'))) {
+            error('Render deployment requires release profile, a trusted main/master multibranch job, and a valid service ID')
+          }
+          if (params.DEPLOY_RENDER && params.DEPLOY_STAGING) { error('Select one deployment target per release') }
+          if (!params.SKIP_DOCKER) {
+            if (!isUnix()) { error('Container release stages require a Linux agent with Docker and Trivy. Use SKIP_DOCKER for Windows classroom CI.') }
+            sh 'docker version && trivy --version'
+          }
+          if (params.PUBLISH_IMAGE || params.DEPLOY_STAGING) {
+            def registry = params.REGISTRY.trim()
+            if (!(registry ==~ '[a-z0-9.-]+(:[0-9]+)?(/[a-z0-9._-]+)+')) { error('Set REGISTRY to a registry host/namespace') }
+            env.REGISTRY_HOST = registry.tokenize('/')[0]
+            env.IMAGE_REF = "${registry}/validore:${env.IMAGE_TAG}"
+          }
+          if (params.DEPLOY_STAGING && (!params.PUBLISH_IMAGE || !params.STAGING_DEPLOY_JOB.trim())) {
+            error('Staging requires PUBLISH_IMAGE and an existing STAGING_DEPLOY_JOB')
+          }
         }
       }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 3 — Install Dependencies
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Install Dependencies') {
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 3: Install Dependencies        ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          # npm ci guarantees exact lockfile reproduction — no surprise version bumps.
-          # --legacy-peer-deps: required for React 19 / Next 16 peer-dep graph.
-          # --prefer-offline: use cache if available for faster builds.
-          npm ci --legacy-peer-deps --prefer-offline
-          echo "=== Installed packages ==="
-          npm ls --depth=0 2>/dev/null || true
-        '''
-      }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 4 — Lint
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Lint') {
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 4: ESLint Code Quality         ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          echo "Running ESLint..."
-          npm run lint
-          echo "✅ Lint passed — no ESLint errors found."
-        '''
-      }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 5 — Typecheck
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Typecheck') {
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 5: TypeScript Type Safety      ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          echo "Running tsc --noEmit (strict type checking)..."
-          npx tsc --noEmit
-          echo "✅ Typecheck passed — no TypeScript errors found."
-        '''
-      }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 6 — Unit Tests
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Unit Tests') {
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 6: Unit Tests (Vitest)         ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          # Ensure the reports directory exists before Vitest writes junit.xml
-          mkdir -p reports
-
-          echo "Running Vitest unit tests..."
-          echo "CI=true prevents .env.local loading; DB-backed tests self-skip."
-          echo "All AI providers and web-search are mocked — no API credits spent."
-
-          CI=true npx vitest run --reporter=default --reporter=junit \
-            --outputFile.junit=reports/junit.xml
-
-          echo "✅ All unit tests passed."
-        '''
-      }
-
+    stage('Install Dependencies') { steps { script { runNpm('ci --include=dev --prefer-offline --no-fund') } } }
+    stage('Lint') { steps { script { runNpm('run lint:ci') } } }
+    stage('Typecheck') { steps { script { runNpm('run typecheck') } } }
+    stage('Unit and Regression Tests') {
+      steps { script { runNpm('run test:ci') } }
       post {
         always {
-          // Publish JUnit XML to Jenkins for trend graphs and test result UI.
-          junit allowEmptyResults: true, testResults: "${JUNIT_REPORT}"
-
-          // Archive the raw XML as a build artifact.
-          archiveArtifacts artifacts: "${JUNIT_REPORT}", allowEmptyArchive: true
-        }
-        failure {
-          echo '❌ Unit tests FAILED. Review the Test Results tab for details.'
+          junit testResults: 'reports/junit.xml', allowEmptyResults: false
+          archiveArtifacts artifacts: 'reports/junit.xml', allowEmptyArchive: false
         }
       }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 7 — Build
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Build') {
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 7: Next.js Production Build    ║'
-        echo '╚══════════════════════════════════════╝'
-
-        sh '''
-          echo "Building Next.js standalone bundle..."
-          CI=true NEXT_TELEMETRY_DISABLED=1 npm run build
-
-          echo "=== Build output size ==="
-          du -sh .next/standalone 2>/dev/null || true
-          du -sh .next/static 2>/dev/null || true
-          echo "✅ Build succeeded."
-        '''
-      }
-
-      post {
-        success {
-          // Archive the standalone server bundle for traceability.
-          archiveArtifacts(
-            artifacts: '.next/standalone/**,.next/static/**',
-            allowEmptyArchive: true,
-            fingerprint: true
-          )
-        }
-        failure {
-          echo '❌ Build FAILED. Check Next.js compilation errors above.'
-        }
-      }
+    stage('Dependency Security') { steps { script { runNpm('audit --omit=dev --audit-level=high') } } }
+    stage('Production Build') {
+      steps { script { runNpm('run build') } }
+      post { success { archiveArtifacts artifacts: '.next/BUILD_ID', fingerprint: true } }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 8 — Docker Build
-    // ──────────────────────────────────────────────────────────────────────────
+    stage('Production Smoke Test') { steps { script { runNpm('run smoke:production') } } }
     stage('Docker Build') {
-      when {
-        expression { !params.SKIP_DOCKER }
-      }
-
+      when { expression { !params.SKIP_DOCKER } }
       steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 8: Docker Image Build          ║'
-        echo '╚══════════════════════════════════════╝'
-
-        script {
-          // Tag with both the immutable commit SHA and 'latest' on main.
-          def isMaster = (env.GIT_BRANCH_CLEAN == 'main' || env.GIT_BRANCH_CLEAN == 'master')
-          def latestFlag = isMaster ? "-t ${IMAGE_LATEST}" : ""
-
-          sh """
-            echo "Building Docker image..."
-            echo "  Primary tag : ${IMAGE_REF}"
-            echo "  Latest tag  : ${isMaster ? IMAGE_LATEST : 'N/A (non-main branch)'}"
-
-            docker build \\
-              --build-arg BUILD_DATE=\$(date -u +"%Y-%m-%dT%H:%M:%SZ") \\
-              --build-arg GIT_COMMIT=${env.GIT_SHA_FULL} \\
-              --build-arg VERSION=${IMAGE_TAG} \\
-              --label "org.opencontainers.image.created=\$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \\
-              --label "org.opencontainers.image.revision=${env.GIT_SHA_FULL}" \\
-              --label "org.opencontainers.image.version=${IMAGE_TAG}" \\
-              --label "org.opencontainers.image.source=https://github.com/your-org/validore" \\
-              -t ${IMAGE_REF} \\
-              ${latestFlag} \\
-              .
-
-            echo "=== Image details ==="
-            docker image inspect ${IMAGE_REF} --format '{{.Size}}' | \\
-              awk '{printf "Image size: %.1f MB\\n", \$1/1024/1024}' || true
-
-            echo "✅ Docker image built successfully."
-          """
-        }
+        sh '''#!/bin/sh
+set -eu
+docker build --build-arg GIT_COMMIT="$GIT_SHA_FULL" --build-arg VERSION="$IMAGE_TAG" \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY \
+  --build-arg NEXT_PUBLIC_APP_URL -t "$IMAGE_REF" .
+'''
       }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 9 — Security Scan (Trivy)
-    // ──────────────────────────────────────────────────────────────────────────
-    stage('Security Scan (Trivy)') {
-      when {
-        expression { !params.SKIP_DOCKER }
-      }
-
+    stage('Container Security') {
+      when { expression { !params.SKIP_DOCKER } }
       steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 9: Trivy Security Scan         ║'
-        echo '╚══════════════════════════════════════╝'
-
         script {
-          def trivyExitCode = params.FORCE_TRIVY_FAIL ? 'ALL' : 'HIGH,CRITICAL'
-
-          sh """
-            # Create cache dir if not present (speeds up repeated scans).
-            mkdir -p ${TRIVY_CACHE_DIR}
-
-            echo "Scanning image ${IMAGE_REF} for vulnerabilities..."
-            echo "Severity threshold: HIGH and CRITICAL vulnerabilities fail the build."
-
-            # Full scan output to console for the build log.
-            trivy image \\
-              --cache-dir ${TRIVY_CACHE_DIR} \\
-              --format table \\
-              --severity HIGH,CRITICAL,MEDIUM,LOW \\
-              --no-progress \\
-              ${IMAGE_REF} || true
-
-            # Save machine-readable JSON report.
-            mkdir -p reports
-            trivy image \\
-              --cache-dir ${TRIVY_CACHE_DIR} \\
-              --format json \\
-              --output reports/trivy-report.json \\
-              --no-progress \\
-              ${IMAGE_REF} || true
-
-            # Strict check: exit-code 1 if HIGH or CRITICAL CVEs found.
-            echo "--- Strict check: HIGH / CRITICAL vulnerabilities ---"
-            trivy image \\
-              --cache-dir ${TRIVY_CACHE_DIR} \\
-              --exit-code 1 \\
-              --severity HIGH,CRITICAL \\
-              --no-progress \\
-              --quiet \\
-              ${IMAGE_REF}
-
-            echo "✅ Security scan passed — no HIGH/CRITICAL vulnerabilities."
-          """
+          env.TRIVY_SEVERITY = params.FORCE_TRIVY_FAIL ? 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL' : 'HIGH,CRITICAL'
         }
+        sh '''#!/bin/sh
+set -eu
+trivy image --scanners vuln --format json --output reports/trivy-report.json \
+  --severity "$TRIVY_SEVERITY" --exit-code 1 --no-progress "$IMAGE_REF"
+'''
       }
-
-      post {
-        always {
-          archiveArtifacts artifacts: 'reports/trivy-report.json', allowEmptyArchive: true
-        }
-        failure {
-          echo '❌ Security scan FAILED — HIGH or CRITICAL CVEs detected. Fix before publishing.'
-        }
-      }
+      post { always { archiveArtifacts artifacts: 'reports/trivy-report.json', allowEmptyArchive: false } }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 10 — Publish Image
-    // ──────────────────────────────────────────────────────────────────────────
     stage('Publish Image') {
+      when { expression { params.PUBLISH_IMAGE && env.CAN_RELEASE == 'true' } }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'validore-registry', usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_PASS')]) {
+          sh '''#!/bin/sh
+set -eu
+# Isolate credentials to this build and clean them even when a push fails.
+DOCKER_CONFIG="$(mktemp -d "$WORKSPACE/.docker-auth.XXXXXX")"
+export DOCKER_CONFIG
+trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT HUP INT TERM
+printf '%s' "$REGISTRY_PASS" | docker login "$REGISTRY_HOST" --username "$REGISTRY_USER" --password-stdin
+docker push "$IMAGE_REF"
+docker image inspect "$IMAGE_REF" --format '{{index .RepoDigests 0}}' > reports/image-digest.txt
+'''
+        }
+        script {
+          env.IMAGE_DIGEST = readFile('reports/image-digest.txt').trim()
+          if (!(env.IMAGE_DIGEST ==~ '[a-z0-9.:_/-]+@sha256:[a-f0-9]{64}')) { error('Registry did not produce a valid image digest') }
+        }
+        archiveArtifacts artifacts: 'reports/image-digest.txt', fingerprint: true
+      }
+    }
+    stage('Deploy Render') {
       when {
-        allOf {
-          expression { !params.SKIP_DOCKER }
-          // Only publish from the main/master branch.
-          anyOf {
-            branch 'main'
-            branch 'master'
+        beforeInput true
+        expression { params.DEPLOY_RENDER && env.CAN_RELEASE == 'true' }
+      }
+      options { timeout(time: 30, unit: 'MINUTES') }
+      input { message 'Deploy the tested commit to the configured Render service?'; ok 'Deploy' }
+      steps {
+        script {
+          env.RENDER_SERVICE_ID = params.RENDER_SERVICE_ID.trim()
+          env.RENDER_ROLLBACK_ON_FAILURE = params.ROLLBACK_RENDER_ON_FAILURE ? 'true' : 'false'
+        }
+        withCredentials([string(credentialsId: 'validore-render-api', variable: 'RENDER_API_KEY')]) {
+          script {
+            if (isUnix()) { sh 'node scripts/render-deployment.mjs' }
+            else { bat 'node scripts/render-deployment.mjs' }
           }
         }
       }
-
-      steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 10: Publish to Registry        ║'
-        echo '╚══════════════════════════════════════╝'
-
-        withCredentials([
-          usernamePassword(
-            credentialsId: 'validore-registry',
-            usernameVariable: 'REGISTRY_USER',
-            passwordVariable: 'REGISTRY_PASS'
-          )
-        ]) {
-          sh """
-            echo "Logging in to container registry..."
-            echo "\${REGISTRY_PASS}" | docker login ghcr.io \\
-              -u "\${REGISTRY_USER}" \\
-              --password-stdin
-
-            echo "Pushing ${IMAGE_REF}..."
-            docker push ${IMAGE_REF}
-
-            echo "Pushing ${IMAGE_LATEST}..."
-            docker push ${IMAGE_LATEST}
-
-            docker logout ghcr.io
-            echo "✅ Images published successfully."
-            echo "   SHA tag  : ${IMAGE_REF}"
-            echo "   Latest   : ${IMAGE_LATEST}"
-          """
-        }
-      }
-
-      post {
-        failure {
-          echo '❌ Image publish FAILED. Check registry credentials and network access.'
-        }
-      }
+      post { always { archiveArtifacts artifacts: 'reports/render-deploy.json', allowEmptyArchive: false } }
     }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // STAGE 11 — Deploy Staging
-    // ──────────────────────────────────────────────────────────────────────────
     stage('Deploy Staging') {
       when {
-        allOf {
-          expression { !params.SKIP_DOCKER && params.DEPLOY_STAGING }
-          anyOf {
-            branch 'main'
-            branch 'master'
-          }
-        }
+        beforeInput true
+        expression { params.DEPLOY_STAGING && params.PUBLISH_IMAGE && env.CAN_RELEASE == 'true' }
       }
-
-      // Manual approval gate — pauses the pipeline until an operator clicks.
-      input {
-        message "Deploy ${IMAGE_REF} to STAGING?"
-        ok 'Yes, deploy to staging'
-        submitter 'admin,deployer'
-        parameters {
-          string(
-            name: 'STAGING_NOTES',
-            defaultValue: '',
-            description: 'Optional release notes for this deployment'
-          )
-        }
-      }
-
+      options { timeout(time: 10, unit: 'MINUTES') }
+      input { message 'Deploy the scanned image to staging?'; ok 'Deploy' }
       steps {
-        echo '╔══════════════════════════════════════╗'
-        echo '║  STAGE 11: Deploy to Staging          ║'
-        echo '╚══════════════════════════════════════╝'
-
-        script {
-          echo "Deploying ${IMAGE_REF} to staging..."
-
-          // ─────────────────────────────────────────────────────────────────
-          // DEPLOYMENT IMPLEMENTATION NOTE:
-          // Replace the sh block below with your actual deployment mechanism:
-          //
-          //  A) Docker Compose on a remote host:
-          //     sh "ssh deploy@${STAGING_HOST} 'cd /opt/validore && \
-          //         docker-compose pull && docker-compose up -d --no-build'"
-          //
-          //  B) Kubernetes rolling update:
-          //     sh "kubectl set image deployment/validore validore=${IMAGE_REF} \
-          //         --namespace=staging --record"
-          //     sh "kubectl rollout status deployment/validore --namespace=staging"
-          //
-          //  C) AWS ECS:
-          //     sh "aws ecs update-service --cluster staging --service validore \
-          //         --force-new-deployment"
-          // ─────────────────────────────────────────────────────────────────
-
-          sh """
-            echo "=== Staging Deployment Record ==="
-            echo "Image     : ${IMAGE_REF}"
-            echo "Branch    : ${env.GIT_BRANCH_CLEAN}"
-            echo "Commit    : ${env.GIT_SHA_FULL}"
-            echo "Timestamp : \$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-            echo "Notes     : ${STAGING_NOTES}"
-            echo "=================================="
-
-            # Health-check: wait for the staging instance to respond.
-            # Uncomment when STAGING_HOST is configured:
-            # sleep 15
-            # curl --fail --retry 5 --retry-delay 5 https://staging.validore.io/api/health || exit 1
-
-            echo "✅ Staging deployment recorded. Wire the deploy commands above for live execution."
-          """
-        }
-      }
-
-      post {
-        success {
-          echo "✅ Staging deployment of ${IMAGE_REF} completed."
-        }
-        failure {
-          echo '❌ Staging deployment FAILED. Rolling back is a manual step; check the orchestrator.'
-        }
+        build job: params.STAGING_DEPLOY_JOB.trim(), wait: true, propagate: true,
+          parameters: [string(name: 'IMAGE_REF', value: env.IMAGE_DIGEST)]
       }
     }
-
-  } // end stages
-
-  // ── Post-pipeline actions (run regardless of outcome) ───────────────────────
+  }
   post {
     always {
-      echo '── Post: always ──────────────────────────────────────────────────────'
-
-      // Publish JUnit results one final time to catch any edge cases.
-      junit allowEmptyResults: true, testResults: "${JUNIT_REPORT}"
-
-      // Clean up dangling Docker images to prevent disk bloat on the agent.
-      sh '''
-        docker image prune -f --filter "label=org.opencontainers.image.source" 2>/dev/null || true
-        docker image rm ${IMAGE_REF} 2>/dev/null || true
-      '''
-
-      // Print a build summary.
+      archiveArtifacts artifacts: 'reports/junit.xml,reports/trivy-report.json,reports/image-digest.txt,reports/render-deploy.json', allowEmptyArchive: true
       script {
-        echo """
-╔══════════════════════════════════════════════════════════╗
-║  BUILD SUMMARY                                            ║
-╠══════════════════════════════════════════════════════════╣
-║  Job     : ${env.JOB_NAME}
-║  Build   : #${env.BUILD_NUMBER}
-║  Branch  : ${env.GIT_BRANCH_CLEAN ?: 'unknown'}
-║  Commit  : ${env.IMAGE_TAG}
-║  Status  : ${currentBuild.currentResult}
-║  Duration: ${currentBuild.durationString}
-║  URL     : ${env.BUILD_URL}
-╚══════════════════════════════════════════════════════════╝
-        """
+        if (!params.SKIP_DOCKER && isUnix() && env.IMAGE_REF) {
+          sh(script: 'docker image rm "$IMAGE_REF"', returnStatus: true)
+        }
+        echo "Result: ${currentBuild.currentResult}; commit: ${env.GIT_SHA_FULL ?: 'unavailable'}"
       }
     }
-
-    success {
-      echo "✅ PIPELINE SUCCESS"
-      echo "Image ${IMAGE_REF} was built${(env.GIT_BRANCH_CLEAN == 'main' || env.GIT_BRANCH_CLEAN == 'master') ? ', scanned, and published' : ' (no publish on feature branches)'}."
-    }
-
-    failure {
-      echo '❌ PIPELINE FAILED'
-      echo 'No image was published. Check the failed stage and fix before re-running.'
-      // Uncomment to send a Slack notification (requires Slack plugin + credential):
-      // slackSend channel: '#ci-alerts',
-      //   color: 'danger',
-      //   message: "❌ Validore build #${env.BUILD_NUMBER} FAILED on ${env.GIT_BRANCH_CLEAN}: ${env.BUILD_URL}"
-    }
-
-    unstable {
-      echo '⚠️  PIPELINE UNSTABLE — tests failed or produced warnings.'
-      echo 'No image was published.'
-    }
-
-    aborted {
-      echo '🛑 PIPELINE ABORTED — manually cancelled or timed out.'
-    }
+    failure { echo 'Review the failed stage and archived reports before rerunning.' }
+    success { echo 'All selected CI stages passed. Staging runs only when explicitly configured and selected.' }
   }
 }

@@ -106,6 +106,7 @@ export function ScatterPlot2x2({
   height = 380,
   className = '',
 }: ScatterPlot2x2Props) {
+  const points = Array.isArray(data) ? data.filter(point => point && typeof point === 'object' && Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= xMin && point.x <= xMax && point.y >= yMin && point.y <= yMax) : []
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
 
   if (!mounted) {
@@ -118,6 +119,8 @@ export function ScatterPlot2x2({
       </div>
     )
   }
+
+  if (points.length === 0) return <div className={`card-angular p-6 ${className}`}><p className="text-sm text-[#1C1C1C]/75">Positioning data is unavailable for this report.</p></div>
 
   return (
     <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
@@ -185,8 +188,8 @@ export function ScatterPlot2x2({
               content={<CustomTooltip xLabel={xLabel} yLabel={yLabel} />}
               cursor={{ strokeDasharray: '3 3' }}
             />
-            <Scatter name="Competitors" data={data}>
-              {data.map((entry, index) => (
+            <Scatter name="Competitors" data={points}>
+              {points.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
                   fill={entry.isHighlighted ? '#C8A860' : '#0A1628'}

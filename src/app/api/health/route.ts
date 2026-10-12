@@ -9,6 +9,7 @@ export async function GET() {
     {
       status: 'ok',
       service: 'validore',
+      commit: process.env.RENDER_GIT_COMMIT || process.env.BUILD_COMMIT_SHA || undefined,
       timestamp: new Date().toISOString(),
     },
     {

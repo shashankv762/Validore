@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { DialogShell } from '@/components/ui/DialogShell'
 import {
   User,
   Shield,
@@ -34,6 +35,7 @@ interface UserProfile {
   subscriptionStatus?: string | null
   cancelAtPeriodEnd?: boolean
   createdAt?: string
+  emailVerified?: boolean
 }
 
 interface NotificationPrefs {
@@ -45,7 +47,6 @@ interface NotificationPrefs {
 type AiProviderChain = 'free_models' | 'paid_models' | 'custom_openrouter'
 
 const PREFS_STORAGE_KEY = 'validore_notification_preferences'
-const AI_PROVIDER_STORAGE_KEY = 'validore_preferred_ai_provider'
 const OPENROUTER_KEY_STORAGE_KEY = 'validore_custom_openrouter_key'
 
 function SettingsContent() {
@@ -63,30 +64,12 @@ function SettingsContent() {
   // Subscription management dialog states
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancellingSub, setCancellingSub] = useState(false)
-  const [portalDialogOpen, setPortalDialogOpen] = useState(false)
+  const [billingBusy, setBillingBusy] = useState(false)
+  const [hasSavedKey, setHasSavedKey] = useState(false)
+  const [profileError, setProfileError] = useState('')
 
-  // AI Provider chain state with lazy initialization
-  const [aiProvider, setAiProvider] = useState<AiProviderChain>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(AI_PROVIDER_STORAGE_KEY) as AiProviderChain | null
-        if (saved && ['free_models', 'paid_models', 'custom_openrouter'].includes(saved)) {
-          return saved
-        }
-      } catch {}
-    }
-    return 'free_models'
-  })
-
-  const [customApiKey, setCustomApiKey] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return localStorage.getItem(OPENROUTER_KEY_STORAGE_KEY) || ''
-      } catch {}
-    }
-    return ''
-  })
-
+  const [aiProvider, setAiProvider] = useState<AiProviderChain>('free_models')
+  const [customApiKey, setCustomApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
 
   // Notification Preferences with lazy initialization
@@ -117,18 +100,27 @@ function SettingsContent() {
             isFoundingMember: Boolean(data.user.isFoundingMember),
             validationsThisMonth: data.user.validationsThisMonth ?? 0,
             currentPeriodEnd: data.user.currentPeriodEnd,
-            subscriptionStatus: data.user.subscriptionStatus || (data.user.tier !== 'free' ? 'active' : null),
+            subscriptionStatus: data.user.subscriptionStatus || null,
             cancelAtPeriodEnd: Boolean(data.user.cancelAtPeriodEnd),
             createdAt: data.user.createdAt,
+            emailVerified: Boolean(data.user.emailVerified),
           })
         }
+        if (data?.user) {
+          setProfileError('')
+          const provider = data.user.preferredAiProvider
+          setAiProvider(['free_models', 'paid_models', 'custom_openrouter'].includes(provider) ? provider : 'paid_models')
+          setHasSavedKey(Boolean(data.user.hasCustomApiKey))
+        } else setProfileError('Unable to load your account. Refresh to try again.')
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { setProfileError('Unable to load your account. Refresh to try again.'); setLoading(false) })
   }
 
   // Load profile from /api/me on mount
   useEffect(() => {
+    // Remove keys saved by older versions; secrets are stored only on the server.
+    try { localStorage.removeItem(OPENROUTER_KEY_STORAGE_KEY) } catch {}
     fetch('/api/me')
       .then(res => (res.ok ? res.json() : null))
       .then(data => {
@@ -140,22 +132,30 @@ function SettingsContent() {
             isFoundingMember: Boolean(data.user.isFoundingMember),
             validationsThisMonth: data.user.validationsThisMonth ?? 0,
             currentPeriodEnd: data.user.currentPeriodEnd,
-            subscriptionStatus: data.user.subscriptionStatus || (data.user.tier !== 'free' ? 'active' : null),
+            subscriptionStatus: data.user.subscriptionStatus || null,
             cancelAtPeriodEnd: Boolean(data.user.cancelAtPeriodEnd),
             createdAt: data.user.createdAt,
+            emailVerified: Boolean(data.user.emailVerified),
           })
         }
+        if (data?.user) {
+          setProfileError('')
+          const provider = data.user.preferredAiProvider
+          setAiProvider(['free_models', 'paid_models', 'custom_openrouter'].includes(provider) ? provider : 'paid_models')
+          setHasSavedKey(Boolean(data.user.hasCustomApiKey))
+        } else setProfileError('Unable to load your account. Refresh to try again.')
         setLoading(false)
       })
-      .catch(() => setLoading(false))
+      .catch(() => { setProfileError('Unable to load your account. Refresh to try again.'); setLoading(false) })
   }, [])
 
-  const copyUserId = () => {
+  const copyUserId = async () => {
     if (!profile?.id) return
-    navigator.clipboard.writeText(profile.id)
-    setCopiedId(true)
-    toast.success('User ID copied to clipboard')
-    setTimeout(() => setCopiedId(false), 2000)
+    try {
+      await navigator.clipboard.writeText(profile.id)
+      setCopiedId(true); toast.success('User ID copied to clipboard')
+      setTimeout(() => setCopiedId(false), 2000)
+    } catch { toast.error('Unable to copy. Select the account ID and copy it manually.') }
   }
 
   const handleSaveNotifications = () => {
@@ -171,26 +171,38 @@ function SettingsContent() {
   }
 
   const handleSaveAiPreferences = async () => {
+    if (aiProvider === 'custom_openrouter' && !customApiKey.trim() && !hasSavedKey) {
+      toast.error('Enter your OpenRouter key before saving.'); return
+    }
     setSavingAiPrefs(true)
     try {
-      localStorage.setItem(AI_PROVIDER_STORAGE_KEY, aiProvider)
-      if (aiProvider === 'custom_openrouter') {
-        localStorage.setItem(OPENROUTER_KEY_STORAGE_KEY, customApiKey.trim())
-      }
-      await fetch('/api/me/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          preferredAiProvider: aiProvider,
-          customOpenRouterKey: aiProvider === 'custom_openrouter' ? customApiKey.trim() : undefined,
-        }),
+      const response = await fetch('/api/me/preferences', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredAiProvider: aiProvider,
+          customOpenRouterKey: customApiKey.trim() || undefined }),
       })
-      toast.success('AI provider configuration updated and persisted.')
-    } catch {
-      toast.error('Failed to save AI preferences to local storage.')
-    } finally {
-      setTimeout(() => setSavingAiPrefs(false), 300)
-    }
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to save AI preferences')
+      if (customApiKey.trim()) setHasSavedKey(true)
+      setCustomApiKey('')
+      toast.success('AI preferences saved.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to save AI preferences')
+    } finally { setSavingAiPrefs(false) }
+  }
+
+  const removeCustomKey = async () => {
+    setSavingAiPrefs(true)
+    try {
+      const response = await fetch('/api/me/preferences', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredAiProvider: 'free_models', customOpenRouterKey: null }),
+      })
+      if (!response.ok) throw new Error('Unable to remove the stored key')
+      setCustomApiKey(''); setHasSavedKey(false); setAiProvider('free_models')
+      toast.success('Stored API key removed.')
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to remove key') }
+    finally { setSavingAiPrefs(false) }
   }
 
   const handlePasswordReset = async () => {
@@ -201,16 +213,12 @@ function SettingsContent() {
 
     try {
       setResettingPassword(true)
-      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-        redirectTo: `${origin}/auth/reset-password`,
+      const response = await fetch('/api/auth/forgot-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: profile.email }),
       })
-
-      if (error) {
-        toast.error(error.message)
-      } else {
-        toast.success(`Password reset email sent to ${profile.email}! Please check your inbox.`)
-      }
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Unable to request a reset link')
+      toast.success(data.message)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error sending password reset email'
       toast.error(msg)
@@ -222,7 +230,8 @@ function SettingsContent() {
   const handleSignOut = async () => {
     try {
       setSigningOut(true)
-      await supabase.auth.signOut()
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
       toast.success('Signed out successfully.')
       router.push('/auth/signin')
     } catch (err: unknown) {
@@ -232,9 +241,17 @@ function SettingsContent() {
     }
   }
 
-  const handleManageSubscription = () => {
-    // Open billing portal info modal or redirect to Stripe customer portal
-    setPortalDialogOpen(true)
+  const openBilling = async (tier?: 'premium' | 'max_premium') => {
+    setBillingBusy(true)
+    try {
+      const response = await fetch(tier ? '/api/billing/checkout' : '/api/billing/portal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tier ? { tier } : {}),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.url) throw new Error(data.error || 'Billing is unavailable')
+      window.location.assign(data.url)
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Billing is unavailable') }
+    finally { setBillingBusy(false) }
   }
 
   const handleConfirmCancelSubscription = async () => {
@@ -253,9 +270,10 @@ function SettingsContent() {
   }
 
   const formatDate = (dateStr?: string | null) => {
-    if (!dateStr) return 'Active'
+    if (!dateStr) return '—'
     try {
       const d = new Date(dateStr)
+      if (!Number.isFinite(d.getTime())) return '—'
       return d.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -295,6 +313,7 @@ function SettingsContent() {
         </button>
       </div>
 
+      {profileError && <p role="alert" className="p-4 border border-[#C8A860] text-sm">{profileError}</p>}
       {/* Account Info Section */}
       <section className="card-angular p-6 bg-[#FAFAF7]">
         <div className="flex items-center gap-2 mb-6">
@@ -308,9 +327,9 @@ function SettingsContent() {
               Registered Email
             </label>
             <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] font-mono text-sm flex items-center justify-between">
-              <span>{profile?.email || 'Loading…'}</span>
+              <span>{profile?.email || (loading ? 'Loading…' : 'Unavailable')}</span>
               <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-sans font-medium">
-                Verified
+                {profile?.emailVerified ? 'Verified' : 'Unconfirmed'}
               </span>
             </div>
           </div>
@@ -366,7 +385,7 @@ function SettingsContent() {
               Account Created
             </label>
             <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] font-mono">
-              {formatDate(profile?.createdAt || '2026-01-01')}
+              {formatDate(profile?.createdAt)}
             </div>
           </div>
         </div>
@@ -432,7 +451,7 @@ function SettingsContent() {
                   <Check className="w-3 h-3" />
                   {profile?.cancelAtPeriodEnd
                     ? 'Cancels at Period End'
-                    : profile?.subscriptionStatus?.toUpperCase() || 'ACTIVE'}
+                    : profile?.subscriptionStatus?.toUpperCase() || 'NO SUBSCRIPTION'}
                 </span>
               </div>
               <p className="text-[11px] text-[#1C1C1C]/60 mt-1">
@@ -448,7 +467,8 @@ function SettingsContent() {
               </span>
               <div className="flex flex-col gap-2 mt-1">
                 <button
-                  onClick={handleManageSubscription}
+                  onClick={() => openBilling()}
+                  disabled={billingBusy || loading}
                   className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-[#0A1628] bg-[#E8E0D0] hover:bg-[#C8A860] rounded transition-colors"
                 >
                   <CreditCard className="w-3 h-3" />
@@ -496,9 +516,8 @@ function SettingsContent() {
               </p>
               {profile?.tier === 'free' ? (
                 <button
-                  onClick={() =>
-                    toast.info('Stripe billing checkout will be initiated for Pro Plan ($29/mo).')
-                  }
+                  onClick={() => openBilling('premium')}
+                  disabled={billingBusy || loading}
                   className="w-full py-2 px-3 text-xs font-medium text-[#0A1628] bg-[#E8E0D0] hover:bg-[#C8A860] rounded transition-colors"
                 >
                   Upgrade to Pro ($29/mo)
@@ -527,13 +546,12 @@ function SettingsContent() {
                 )}
               </div>
               <p className="text-xs text-[#1C1C1C]/70 mb-4">
-                4,500 credits/mo, unlimited Crowdfunding & Pitch Deck, White-Label PDF, Portfolio ZIP, and PPTX export.
+                4,500 credits/mo, Crowdfunding & Pitch Deck access, White-Label PDF, Portfolio ZIP, and PPTX export.
               </p>
               {profile?.tier !== 'max_premium' ? (
                 <button
-                  onClick={() =>
-                    toast.info('Stripe billing checkout will be initiated for Max Premium ($79/mo).')
-                  }
+                  onClick={() => openBilling('max_premium')}
+                  disabled={billingBusy || loading}
                   className="w-full py-2 px-3 text-xs font-semibold text-[#0A1628] bg-[#C8A860] hover:bg-[#b09048] rounded transition-colors"
                 >
                   Upgrade to Max ($79/mo)
@@ -597,9 +615,7 @@ function SettingsContent() {
                   <div className="text-[10px] uppercase text-[#1C1C1C]/50 font-sans font-semibold mb-1">
                     Cascade Execution Order:
                   </div>
-                  <div>
-                    Generation: <span className="text-[#96792b]">deepseek-v4.1-flash-free</span> → <span className="text-[#96792b]">qwen3.8-flash-free</span> → <span className="text-[#96792b]">glm-5.3-free</span>
-                  </div>
+                  <div>Uses the free OpenRouter models configured by Validore. Availability and quotas vary by provider.</div>
                   <div className="mt-0.5">
                     Research: <span className="text-[#96792b]">kimi-k2.5-free</span>
                   </div>
@@ -642,7 +658,7 @@ function SettingsContent() {
                     Cascade Execution Order:
                   </div>
                   <div>
-                    Google Gemini 1.5 Flash → Anthropic Claude 3.5 Sonnet → OpenAI GPT-4o
+                    Google → Anthropic → OpenAI, with configured models and request budgets
                   </div>
                 </div>
               </div>
@@ -676,7 +692,7 @@ function SettingsContent() {
                   </span>
                 </div>
                 <p className="text-xs text-[#1C1C1C]/70 mt-1">
-                  Bring Your Own Key. Use personal OpenRouter quotas and bypass shared rate limits.
+                  Use your personal OpenRouter quota. Workspace credits and request limits still apply.
                 </p>
 
                 {aiProvider === 'custom_openrouter' && (
@@ -689,19 +705,21 @@ function SettingsContent() {
                         type={showApiKey ? 'text' : 'password'}
                         value={customApiKey}
                         onChange={e => setCustomApiKey(e.target.value)}
-                        placeholder="sk-or-v1-..."
+                        placeholder={hasSavedKey ? 'A key is saved. Enter a replacement to change it.' : 'sk-or-v1-...'}
+                        maxLength={512} autoComplete="off" spellCheck={false} aria-label="OpenRouter API key"
                         className="w-full px-3 py-2 pr-10 text-xs font-mono bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860]"
                       />
                       <button
                         type="button"
                         onClick={() => setShowApiKey(!showApiKey)}
+                        aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
                         className="absolute right-2 top-1/2 -translate-y-1/2 text-[#1C1C1C]/50 hover:text-[#0A1628]"
                       >
                         {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
                     <p className="text-[10px] text-[#1C1C1C]/60 mt-1">
-                      Key is stored securely in your browser and used only for direct LLM generation calls.
+                      The key is encrypted on the server and used for your analyses. Its value is never returned to this page.
                     </p>
                   </div>
                 )}
@@ -710,7 +728,8 @@ function SettingsContent() {
           </label>
         </div>
 
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
+          {hasSavedKey && <button onClick={removeCustomKey} disabled={savingAiPrefs} className="px-4 py-2 text-xs border border-[#E8E0D0] rounded">Remove stored key</button>}
           <button
             onClick={handleSaveAiPreferences}
             disabled={savingAiPrefs}
@@ -733,6 +752,7 @@ function SettingsContent() {
           <h2 className="text-base font-normal text-[#0A1628]">Notification Preferences</h2>
         </div>
 
+        <p className="text-xs text-[#1C1C1C]/70 mb-4">Preferences are saved in this browser. Email notifications are not enabled yet.</p>
         <div className="space-y-4">
           <label className="flex items-start justify-between p-3.5 bg-white border border-[#E8E0D0] rounded cursor-pointer hover:border-[#C8A860]/50 transition-colors">
             <div className="pr-4">
@@ -866,10 +886,12 @@ function SettingsContent() {
 
       {/* Cancel Subscription Confirmation Dialog */}
       {cancelDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1628]/60 backdrop-blur-sm p-4">
+        <DialogShell title="Cancel subscription" onClose={() => { if (!cancellingSub) setCancelDialogOpen(false) }}>
           <div className="card-angular p-6 bg-[#FAFAF7] max-w-md w-full shadow-xl border border-[#E8E0D0] relative">
             <button
               onClick={() => setCancelDialogOpen(false)}
+              disabled={cancellingSub}
+              aria-label="Close cancellation dialog"
               className="absolute top-4 right-4 text-[#1C1C1C]/40 hover:text-[#0A1628]"
             >
               <X className="w-5 h-5" />
@@ -892,6 +914,7 @@ function SettingsContent() {
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setCancelDialogOpen(false)}
+              disabled={cancellingSub}
                 className="px-4 py-2 text-xs font-medium border border-[#E8E0D0] text-[#0A1628] rounded hover:bg-[#E8E0D0]"
               >
                 Keep Subscription
@@ -910,45 +933,9 @@ function SettingsContent() {
               </button>
             </div>
           </div>
-        </div>
+        </DialogShell>
       )}
 
-      {/* Stripe Portal Info Modal */}
-      {portalDialogOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0A1628]/60 backdrop-blur-sm p-4">
-          <div className="card-angular p-6 bg-[#FAFAF7] max-w-md w-full shadow-xl border border-[#E8E0D0] relative">
-            <button
-              onClick={() => setPortalDialogOpen(false)}
-              className="absolute top-4 right-4 text-[#1C1C1C]/40 hover:text-[#0A1628]"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-[#C8A860]/20 flex items-center justify-center text-[#96792b]">
-                <CreditCard className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-[#0A1628]">Stripe Billing Portal</h3>
-                <p className="text-xs text-[#1C1C1C]/60">Payment Methods & Invoices</p>
-              </div>
-            </div>
-            <p className="text-xs text-[#1C1C1C]/80 leading-relaxed mb-4">
-              The self-service Stripe Customer Portal allows managing payment cards, viewing invoices, and updating billing contact details.
-            </p>
-            <p className="text-xs text-[#1C1C1C]/60 leading-relaxed mb-6">
-              In production with a connected Stripe customer record, you are redirected securely to billing.stripe.com.
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setPortalDialogOpen(false)}
-                className="px-4 py-2 text-xs font-semibold bg-[#0A1628] text-[#FAFAF7] hover:bg-[#C8A860] hover:text-[#0A1628] rounded transition-colors"
-              >
-                Got It
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

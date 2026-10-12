@@ -19,6 +19,7 @@ export type ExportFormat = 'pdf' | 'csv' | 'pptx' | 'white-label-pdf' | 'portfol
 export interface ExportToolbarProps {
   tier?: 'free' | 'premium' | 'max_premium'
   reportId?: string
+  canvasId?: string
   ideaId?: string
   deckId?: string
   deckType?: 'validation' | 'crowdfunding' | 'pitch' | 'pricing'
@@ -76,6 +77,7 @@ const FORMAT_CONFIG: Record<ExportFormat, FormatMeta> = {
 export function ExportToolbar({
   tier: initialTier,
   reportId,
+  canvasId,
   ideaId,
   deckId,
   deckType = 'validation',
@@ -129,21 +131,21 @@ export function ExportToolbar({
     // Build URL
     let url = ''
     if (format === 'pdf') {
-      const id = reportId || ideaId
+      const id = canvasId ? ideaId : reportId || ideaId
       if (!id) {
         toast.error('A report or idea must be selected to export PDF.')
         return
       }
-      const paramKey = reportId ? 'reportId' : 'ideaId'
-      url = `/api/export/pdf?${paramKey}=${encodeURIComponent(id)}`
+      const paramKey = reportId && !canvasId ? 'reportId' : 'ideaId'
+      url = `/api/export/pdf?${paramKey}=${encodeURIComponent(id)}` + (canvasId ? '&canvasId=' + encodeURIComponent(canvasId) : '')
     } else if (format === 'csv') {
-      const id = reportId || ideaId
+      const id = canvasId ? ideaId : reportId || ideaId
       if (!id) {
         toast.error('A report or idea must be selected to export CSV.')
         return
       }
-      const paramKey = reportId ? 'reportId' : 'ideaId'
-      url = `/api/export/csv?${paramKey}=${encodeURIComponent(id)}`
+      const paramKey = reportId && !canvasId ? 'reportId' : 'ideaId'
+      url = `/api/export/csv?${paramKey}=${encodeURIComponent(id)}` + (canvasId ? '&canvasId=' + encodeURIComponent(canvasId) : '')
     } else if (format === 'white-label-pdf') {
       if (!reportId) {
         toast.error('A validation report must be generated or selected to export White-label PDF.')
@@ -240,7 +242,7 @@ export function ExportToolbar({
             key={format}
             type="button"
             onClick={() => handleExport(format)}
-            disabled={isLoading}
+            disabled={loadingFormat !== null}
             title={eligible ? config.label : config.tooltip}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all ${
               compact ? 'px-2 py-1 text-[11px]' : ''

@@ -1,6 +1,6 @@
 import { db } from '@/db'
 import { users } from '@/db/schema'
-import { eq, sql } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 export interface SupabaseAuthUser {
   id: string
@@ -10,7 +10,7 @@ export interface SupabaseAuthUser {
 /**
  * Synchronizes an authenticated Supabase user into the application's PostgreSQL users table.
  * If the user does not exist, a new record is created with tier 'free'.
- * If the user already exists (by supabaseId or email), returns the existing record.
+ * Existing identities are matched by supabaseId. Email cannot transfer account ownership.
  */
 export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
   if (!supabaseUser?.id) return null
@@ -26,25 +26,9 @@ export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
 
   const email = supabaseUser.email || `user-${supabaseUser.id}@validore.app`
 
-  // 2. Check if user already exists by email (e.g. from seed or prior migration)
-  const existingByEmail = await db.query.users.findFirst({
-    where: eq(users.email, email),
-  })
-
-  if (existingByEmail) {
-    const [updated] = await db
-      .update(users)
-      .set({
-        supabaseId: supabaseUser.id,
-        updatedAt: new Date(),
-        creditBalance: sql`CASE WHEN ${users.creditBalance} = 0 AND ${users.creditResetAt} IS NULL THEN 100 ELSE ${users.creditBalance} END`,
-        creditResetAt: sql`CASE WHEN ${users.creditResetAt} IS NULL THEN now() + interval '30 days' ELSE ${users.creditResetAt} END`,
-      })
-      .where(eq(users.id, existingByEmail.id))
-      .returning()
-
-    return updated || existingByEmail
-  }
+  // A distinct auth identity must never inherit an account merely by matching email.
+  const existingByEmail = await db.query.users.findFirst({ where: eq(users.email, email) })
+  if (existingByEmail) return null
 
   // 3. Insert new row
   try {
@@ -57,15 +41,17 @@ export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
         creditBalance: 100,
         creditResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       })
+      .onConflictDoNothing()
       .returning()
 
-    return inserted
-  } catch {
-    // In case of concurrent insert or race condition, query by supabaseId
+    return inserted ?? await db.query.users.findFirst({ where: eq(users.supabaseId, supabaseUser.id) })
+  } catch (error) {
+    // Preserve a successful concurrent signup; surface genuine database failures.
     const fallback = await db.query.users.findFirst({
       where: eq(users.supabaseId, supabaseUser.id),
     })
-    return fallback
+    if (fallback) return fallback
+    throw error
   }
 }
 

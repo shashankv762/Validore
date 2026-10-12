@@ -1,192 +1,94 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Lock } from 'lucide-react'
+import { Sparkles, Layers, BarChart3, Coins, Presentation, Settings, FileText, Lock, Menu, X, type LucideIcon } from 'lucide-react'
 
-interface NavItem {
-  href: string
-  label: string
-  icon: string
-  requiredTier: 'free' | 'premium' | 'max_premium'
-}
-
+type Tier = 'free' | 'premium' | 'max_premium'
+type NavItem = { href: string; label: string; icon: LucideIcon }
 const NAV_ITEMS: NavItem[] = [
-  { href: '/dashboard', label: 'Validation', icon: '✦', requiredTier: 'free' },
-  { href: '/dashboard/lean-canvas', label: 'Lean Canvas', icon: '◈', requiredTier: 'free' },
-  { href: '/dashboard/pricing', label: 'Pricing', icon: '◉', requiredTier: 'premium' },
-  { href: '/dashboard/crowdfunding', label: 'Crowdfunding', icon: '◆', requiredTier: 'max_premium' },
-  { href: '/dashboard/pitch-deck', label: 'Pitch Deck', icon: '◇', requiredTier: 'max_premium' },
+  { href: '/dashboard', label: 'Validate an idea', icon: Sparkles },
+  { href: '/dashboard/reports', label: 'Your reports', icon: FileText },
+  { href: '/dashboard/lean-canvas', label: 'Lean Canvas', icon: Layers },
+  { href: '/dashboard/pricing', label: 'Pricing', icon: BarChart3 },
+  { href: '/dashboard/crowdfunding', label: 'Crowdfunding', icon: Coins },
+  { href: '/dashboard/pitch-deck', label: 'Pitch Deck', icon: Presentation },
+]
+const ACCOUNT_ITEMS: NavItem[] = [
+  { href: '/dashboard/credits', label: 'Credits', icon: Coins },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ]
 
 export default function Sidebar({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
-  const [userTier, setUserTier] = useState<'free' | 'premium' | 'max_premium'>('free')
-  const [crowdfundingCredits, setCrowdfundingCredits] = useState(0)
-  const [pitchDeckCredits, setPitchDeckCredits] = useState(0)
-
+  const [userTier, setUserTier] = useState<Tier>('free')
+  const [balances, setBalances] = useState({ crowdfunding: 0, pitchDeck: 0 })
+  const toggle = useRef<HTMLButtonElement>(null)
   useEffect(() => {
-    fetch('/api/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (data?.user) {
-          setUserTier(data.user.tier || 'free')
-          setCrowdfundingCredits(data.user.crowdfundingCredits ?? 0)
-          setPitchDeckCredits(data.user.pitchDeckCredits ?? 0)
-        }
-      })
-      .catch(() => {})
-  }, [])
-
-  const getItemLockState = (item: NavItem): { isLocked: boolean; badgeLabel?: string } => {
-    if (userTier === 'max_premium') {
-      return { isLocked: false }
-    }
-
-    if (userTier === 'premium') {
-      if (item.href === '/dashboard/crowdfunding') {
-        const hasCredits = crowdfundingCredits > 0
-        return {
-          isLocked: !hasCredits,
-          badgeLabel: hasCredits ? `${crowdfundingCredits} cr` : 'Buy $49',
-        }
+    const controller = new AbortController()
+    fetch('/api/me', { signal: controller.signal }).then(res => res.ok ? res.json() : null).then(data => {
+      if (data?.user) {
+        setUserTier(data.user.tier || 'free')
+        setBalances({ crowdfunding: data.user.crowdfundingCredits ?? 0, pitchDeck: data.user.pitchDeckCredits ?? 0 })
       }
-      if (item.href === '/dashboard/pitch-deck') {
-        const hasCredits = pitchDeckCredits > 0
-        return {
-          isLocked: !hasCredits,
-          badgeLabel: hasCredits ? `${pitchDeckCredits} cr` : 'Buy $49',
-        }
-      }
-      return { isLocked: false }
+    }).catch(() => {})
+    return () => controller.abort()
+  }, [pathname])
+  const active = (href: string) => href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(href + '/')
+  const badge = (href: string) => {
+    if (href === '/dashboard/pricing' && userTier === 'free') return 'Premium'
+    if (userTier !== 'max_premium' && (href === '/dashboard/crowdfunding' || href === '/dashboard/pitch-deck')) {
+      const credits = href === '/dashboard/crowdfunding' ? balances.crowdfunding : balances.pitchDeck
+      return credits > 0 ? credits + ' credits' : 'Add credits'
     }
-
-    // Free tier
-    if (item.href === '/dashboard/pricing') {
-      return { isLocked: true, badgeLabel: 'PRO' }
-    }
-    if (item.href === '/dashboard/crowdfunding' || item.href === '/dashboard/pitch-deck') {
-      return { isLocked: true, badgeLabel: 'MAX' }
-    }
-
-    return { isLocked: false }
+    return null
   }
-
-  return (
-    <div className="min-h-screen flex flex-col md:flex-row w-full" style={{ background: 'var(--cream, #F5F0E8)' }}>
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-[#0A1628] text-[#F5F0E8]">
-        <Link href="/" className="inline-flex items-center gap-2">
-          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={28} height={28} />
-          <span className="text-lg font-light tracking-widest text-[#C8A860]" style={{ letterSpacing: '0.15em' }}>
-            validore
-          </span>
+  const navLink = (item: NavItem) => {
+    const selected = active(item.href) || (item.href === '/dashboard/reports' && pathname.startsWith('/dashboard/report/'))
+    const tag = badge(item.href)
+    const locked = tag === 'Premium' || tag === 'Add credits'
+    const Icon = item.icon
+    return <Link key={item.href} href={item.href} onClick={() => setIsOpen(false)} aria-current={selected ? 'page' : undefined}
+      className={'flex min-h-11 items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors ' + (selected ? 'bg-[#C8A860]/15 text-[#F5F0E8]' : 'text-[#F5F0E8]/85 hover:bg-white/5 hover:text-[#F5F0E8]')}>
+      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#C8A860]" />
+      <span className="min-w-0 flex-1">{item.label}</span>
+      {tag && <span className="inline-flex items-center gap-1 rounded bg-[#C8A860]/10 px-1.5 py-1 text-[11px] text-[#C8A860]">
+        {locked && <Lock aria-hidden="true" className="h-3 w-3" />}{tag}
+      </span>}
+    </Link>
+  }
+  return <div className="min-h-dvh bg-[#F5F0E8] md:flex">
+    <a href="#dashboard-content" className="skip-link">Skip to workspace</a>
+    <header className="flex items-center justify-between bg-[#0A1628] px-4 py-3 md:hidden">
+      <Link href="/" aria-label="Validore home" className="inline-flex items-center gap-2">
+        <Image src="/logo/validore-icon.svg" alt="" width={28} height={28} />
+        <span className="text-lg font-light tracking-widest text-[#C8A860]">validore</span>
+      </Link>
+      <button ref={toggle} type="button" onClick={() => setIsOpen(value => !value)} aria-label={isOpen ? 'Close navigation' : 'Open navigation'}
+        aria-expanded={isOpen} aria-controls="dashboard-navigation" className="flex h-11 w-11 items-center justify-center rounded text-[#C8A860]">
+        {isOpen ? <X aria-hidden="true" size={22} /> : <Menu aria-hidden="true" size={22} />}
+      </button>
+    </header>
+    <aside id="dashboard-navigation" className={(isOpen ? 'flex' : 'hidden') + ' dashboard-navigation w-full shrink-0 flex-col bg-[#0A1628] md:sticky md:top-0 md:flex md:h-dvh md:w-64 md:overflow-y-auto'}
+      onKeyDown={event => { if (event.key === 'Escape' && isOpen) { setIsOpen(false); toggle.current?.focus() } }}>
+      <div className="hidden border-b border-white/10 px-6 py-7 md:block">
+        <Link href="/" aria-label="Validore home" className="inline-flex items-center gap-3">
+          <Image src="/logo/validore-icon.svg" alt="" width={32} height={32} />
+          <span className="text-xl font-light tracking-widest text-[#C8A860]">validore</span>
         </Link>
-        <button 
-          onClick={() => setIsOpen(!isOpen)} 
-          className="text-[#C8A860] focus:outline-none focus:ring-2 focus:ring-[#C8A860]"
-          aria-label="Toggle Navigation"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            {isOpen ? (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            ) : (
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            )}
-          </svg>
-        </button>
+        <p className="mt-3 text-xs leading-relaxed text-[#F5F0E8]/75">Know it&apos;s gold before you dig.</p>
       </div>
-
-      {/* Navy sidebar */}
-      <aside
-        className={`${isOpen ? 'flex' : 'hidden'} md:flex w-full md:w-56 flex-shrink-0 flex-col absolute md:static z-40`}
-        style={{ background: '#0A1628', minHeight: '100vh' }}
-      >
-        {/* Logo */}
-        <div className="hidden md:block px-6 py-6 border-b border-white/10">
-          <Link href="/" className="inline-flex items-center gap-3 hover:opacity-90 transition-opacity">
-            <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={32} height={32} />
-            <div>
-              <span
-                className="text-lg font-light tracking-widest block"
-                style={{ color: '#C8A860', letterSpacing: '0.15em' }}
-              >
-                validore
-              </span>
-              <div className="text-xs mt-0.5" style={{ color: '#C8A860', opacity: 0.5 }}>
-                Know it&apos;s gold before you dig.
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
-          {NAV_ITEMS.map(item => {
-            const { isLocked, badgeLabel } = getItemLockState(item)
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all group hover:bg-[#C8A860]/10 ${
-                  isLocked ? 'opacity-60 hover:opacity-90' : 'opacity-85 hover:opacity-100'
-                }`}
-                style={{ borderRadius: '2px 8px 2px 8px', color: '#F5F0E8' }}
-              >
-                <span style={{ color: '#C8A860', fontSize: '11px' }}>{item.icon}</span>
-                <span>{item.label}</span>
-                {badgeLabel && (
-                  <span
-                    className={`ml-auto text-xs px-1.5 py-0.5 rounded font-medium inline-flex items-center gap-1 ${
-                      isLocked
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-[#C8A860]/15 text-[#C8A860]'
-                    }`}
-                    style={{
-                      fontSize: '9px',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    {isLocked && <Lock className="w-2.5 h-2.5 text-amber-400 inline" />}
-                    <span>{badgeLabel}</span>
-                  </span>
-                )}
-              </Link>
-            )
-          })}
-        </nav>
-
-        {/* Bottom links */}
-        <div className="px-3 py-4 border-t border-white/10 space-y-1">
-          <Link
-            href="/dashboard/credits"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 rounded text-sm hover:opacity-100 hover:bg-[#C8A860]/10"
-            style={{ color: '#F5F0E8', opacity: 0.7, borderRadius: '2px 8px 2px 8px' }}
-          >
-            <span style={{ color: '#C8A860', fontSize: '11px' }}>◎</span>
-            <span>Credits</span>
-          </Link>
-          <Link
-            href="/dashboard/settings"
-            onClick={() => setIsOpen(false)}
-            className="flex items-center gap-3 px-3 py-2 rounded text-sm hover:opacity-100 hover:bg-[#C8A860]/10"
-            style={{ color: '#F5F0E8', opacity: 0.7, borderRadius: '2px 8px 2px 8px' }}
-          >
-            <span style={{ color: '#C8A860', fontSize: '11px' }}>⚙</span>
-            <span>Settings</span>
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 overflow-auto bg-[#F5F0E8] z-0">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8">
-          {children}
-        </div>
-      </main>
-    </div>
-  )
+      <nav aria-label="Workspace" className="flex-1 space-y-1 px-3 py-5">{NAV_ITEMS.map(navLink)}</nav>
+      <nav aria-label="Account" className="space-y-1 border-t border-white/10 px-3 py-4">{ACCOUNT_ITEMS.map(navLink)}</nav>
+      <div className="hidden px-6 pb-5 text-xs text-[#F5F0E8]/75 md:block">
+        <span className="capitalize">{userTier.replace('_', ' ')}</span> plan
+      </div>
+    </aside>
+    <main id="dashboard-content" tabIndex={-1} className="min-w-0 flex-1">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10">{children}</div>
+    </main>
+  </div>
 }

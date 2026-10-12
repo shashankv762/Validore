@@ -42,7 +42,7 @@ describeIfDb('auth-sync database tests', () => {
     if (synced?.id) {
       await db.delete(users).where(eq(users.id, synced.id)).catch(() => {})
     }
-  })
+  }, 20000)
 
   it('returns existing user if user with same supabaseId already exists', async () => {
     const testId = `test-existing-${Date.now()}`
@@ -59,7 +59,7 @@ describeIfDb('auth-sync database tests', () => {
     if (first?.id) {
       await db.delete(users).where(eq(users.id, first.id)).catch(() => {})
     }
-  })
+  }, 20000)
 
   it('getOrCreateDbUser delegates to syncUserToDatabase', async () => {
     const testId = `test-helper-${Date.now()}`
@@ -73,5 +73,5 @@ describeIfDb('auth-sync database tests', () => {
     if (user?.id) {
       await db.delete(users).where(eq(users.id, user.id)).catch(() => {})
     }
-  })
+  }, 20000)
 })

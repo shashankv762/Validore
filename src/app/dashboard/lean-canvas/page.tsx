@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { AlertTriangle, FlaskConical, History, FileText } from 'lucide-react'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
-import { ScatterPlot2x2 } from '@/components/ui/ScatterPlot2x2'
+import { nextCanvasVersion } from '@/lib/canvas-versions'
 
 type CanvasBlock = {
   content: string
@@ -91,78 +91,93 @@ export default function LeanCanvasPage() {
   const [activeVersion, setActiveVersion] = useState(0)
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [isPremium, setIsPremium] = useState(false)
   const [manualBlocks, setManualBlocks] = useState<Record<string, string>>({})
   const [canvasReport, setCanvasReport] = useState<any[] | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
   // FIX-13: Controlled state for the 12-question intake form
   const [intakeAnswers, setIntakeAnswers] = useState<Record<number, string>>({})
-  const supabase = createClient()
+  const [supabase] = useState(createClient)
 
   useEffect(() => {
+    let active = true
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const res = await fetch('/api/ideas')
-      const data = await res.json()
-      setIdeas(data.ideas ?? [])
-      // Check tier via API to avoid RLS issues
-      const tierRes = await fetch('/api/me')
-      if (tierRes.ok) {
-        const { user: u } = await tierRes.json()
-        setIsPremium(u?.tier === 'premium' || u?.tier === 'max_premium')
-      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+        const [res, tierRes] = await Promise.all([fetch('/api/ideas'), fetch('/api/me')])
+        if (!res.ok) throw new Error('Ideas unavailable')
+        const data = await res.json()
+        if (active) setIdeas(Array.isArray(data.ideas) ? data.ideas : [])
+        if (tierRes.ok) {
+          const { user: profile } = await tierRes.json()
+          if (active) setIsPremium(profile?.tier === 'premium' || profile?.tier === 'max_premium')
+        }
+      } catch { if (active) toast.error('Your ideas could not be loaded. Refresh to try again.') }
     }
-    load()
+    void load()
+    return () => { active = false }
   }, [supabase])
 
   useEffect(() => {
     if (!selectedIdeaId) return
-    let ignore = false
-    const timer = setTimeout(() => {
-      if (!ignore) setLoading(true)
-    }, 0)
-    fetch(`/api/lean-canvas?ideaId=${selectedIdeaId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (!ignore) {
-          setCanvases(d.canvases ?? [])
-          setActiveVersion(0)
+    const controller = new AbortController()
+    fetch('/api/lean-canvas?ideaId=' + encodeURIComponent(selectedIdeaId), { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error('History unavailable')
+        return response.json()
+      })
+      .then(data => {
+        if (!controller.signal.aborted) {
+          const history: Canvas[] = Array.isArray(data.canvases) ? data.canvases : []
+          setCanvases(history)
+          setActiveVersion(Math.max(0, history.length - 1))
         }
       })
-      .finally(() => {
-        if (!ignore) setLoading(false)
-      })
-    return () => {
-      ignore = true
-      clearTimeout(timer)
-    }
+      .catch(() => { if (!controller.signal.aborted) toast.error('Canvas history could not be loaded. Select the idea again to retry.') })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
   }, [selectedIdeaId])
 
-  async function handleGenerate() {
-    if (!selectedIdeaId) {
-      toast.error('Please select an idea first')
-      return
-    }
-    setGenerating(true)
-    // FIX-13: Include captured intake answers so the API can inject them into the AI prompt
-    const res = await fetch('/api/lean-canvas', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ideaId: selectedIdeaId, intakeAnswers }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      const updated = await fetch(`/api/lean-canvas?ideaId=${selectedIdeaId}`)
-      const d = await updated.json()
-      setCanvases(d.canvases ?? [])
-      setActiveVersion((d.canvases?.length ?? 1) - 1)
-      toast.success('Lean Canvas generated successfully!')
-    } else {
-      toast.error(data.error ?? 'Generation failed')
-    }
-    setGenerating(false)
+  async function saveCanvas(manual: boolean) {
+    if (generating || saving || loading) return
+    if (!selectedIdeaId) { toast.error('Please select an idea first'); return }
+    if (nextCanvasVersion(canvases) === null) { toast.error('This idea has reached the four-canvas version limit.'); return }
+    if (manual && !Object.values(manualBlocks).some(content => content.trim())) { toast.error('Add at least one canvas block.'); return }
+    if (manual) setSaving(true)
+    else setGenerating(true)
+    try {
+      const response = await fetch(manual ? '/api/lean-canvas/manual' : '/api/lean-canvas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(180_000),
+        body: JSON.stringify(manual
+          ? { ideaId: selectedIdeaId, blocks: Object.fromEntries(BLOCKS.map(({ key }) => [key, manualBlocks[key] ?? ''])) }
+          : { ideaId: selectedIdeaId, intakeAnswers }),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) { toast.error(data?.error ?? 'Canvas could not be saved. Please try again.'); return }
+      setCanvasReport(null)
+      if (manual) setManualBlocks({})
+      // Use the returned saved record if the subsequent history refresh fails.
+      if (data?.canvas) {
+        setCanvases(previous => [...previous.filter(canvas => canvas.id !== data.canvas.id), data.canvas])
+        setActiveVersion(canvases.length)
+      }
+      toast.success(manual ? 'Manual canvas saved.' : 'Lean Canvas generated.')
+      try {
+        const updated = await fetch('/api/lean-canvas?ideaId=' + encodeURIComponent(selectedIdeaId))
+        if (!updated.ok) throw new Error('History unavailable')
+        const history = await updated.json()
+        if (Array.isArray(history.canvases)) {
+          setCanvases(history.canvases)
+          setActiveVersion(Math.max(0, history.canvases.length - 1))
+        }
+      } catch { toast.info('Canvas saved. Refresh the page to reload the full version history.') }
+    } catch { toast.error('The request could not complete. Check the version history before trying again.') }
+    finally { setGenerating(false); setSaving(false) }
   }
+
+  async function handleGenerate() { await saveCanvas(false) }
 
   const currentCanvas = canvases[activeVersion]
   const overallConfidenceScore =
@@ -186,17 +201,29 @@ export default function LeanCanvasPage() {
               : 'Manual Lean Canvas editor. Upgrade to Premium for AI automation.'}
           </p>
         </div>
-        <ExportToolbar
-          ideaId={selectedIdeaId}
-          formats={['pdf', 'csv']}
-        />
+        {currentCanvas && (
+          <ExportToolbar
+            ideaId={selectedIdeaId}
+            canvasId={currentCanvas.id}
+            formats={['pdf', 'csv']}
+          />
+        )}
       </div>
 
       <div className="card-angular p-6">
-        <label className="block text-xs font-medium text-[#96792b] uppercase tracking-wider mb-2">Select Idea</label>
+        <label htmlFor="canvas-idea" className="block text-xs font-medium text-[#96792b] uppercase tracking-wider mb-2">Select Idea</label>
         <select
+          id="canvas-idea" disabled={generating || saving || reportLoading}
           value={selectedIdeaId}
-          onChange={e => setSelectedIdeaId(e.target.value)}
+          onChange={event => {
+            setSelectedIdeaId(event.target.value);
+            setCanvases([]);
+            setActiveVersion(0);
+            setCanvasReport(null);
+            setManualBlocks({});
+            setIntakeAnswers({});
+            setLoading(Boolean(event.target.value));
+          }}
           className="w-full px-4 py-2 border border-[#E8E0D0] rounded bg-[#FAFAF7] text-sm focus:outline-none focus:border-[#C8A860] mb-4"
         >
           <option value="">— Select an idea —</option>
@@ -229,6 +256,8 @@ export default function LeanCanvasPage() {
                   {/* FIX-13: Controlled input — value bound to intakeAnswers[i], onChange updates state */}
                   <input
                     type="text"
+                    maxLength={4000}
+                    aria-label={q}
                     className="w-full px-3 py-1.5 border border-[#E8E0D0] rounded bg-white text-sm focus:border-[#C8A860] focus:outline-none"
                     placeholder="Enter details..."
                     value={intakeAnswers[i] ?? ''}
@@ -239,7 +268,7 @@ export default function LeanCanvasPage() {
             </div>
             <button
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
               className="px-4 py-2 bg-[#0A1628] text-white rounded text-sm disabled:opacity-50"
             >
               {generating ? 'Generating AI Canvas...' : 'Submit & Generate New Canvas'}
@@ -249,13 +278,42 @@ export default function LeanCanvasPage() {
 
       </div>
 
+      {selectedIdeaId && (
+        <details className="card-angular p-6" open={!canvases.length}>
+          <summary className="cursor-pointer font-medium text-[#0A1628]">Write a manual canvas</summary>
+          <p className="mt-3 text-sm text-[#1C1C1C]/70">Save your own assumptions as a new version. Manual saves use no AI credits. Each idea can have four versions.</p>
+          <fieldset disabled={generating || saving || loading || nextCanvasVersion(canvases) === null} className="mt-4">
+            <legend className="sr-only">Manual canvas blocks</legend>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {BLOCKS.map(({ key, label }) => (
+                <div key={key}>
+                  <label htmlFor={'manual-' + key} className="block mb-2 text-sm font-medium text-[#0A1628]">{label}</label>
+                  <textarea id={'manual-' + key} rows={4} maxLength={4000}
+                    value={manualBlocks[key] ?? ''}
+                    onChange={event => setManualBlocks(previous => ({ ...previous, [key]: event.target.value }))}
+                    placeholder={'Describe your ' + label.toLowerCase()}
+                    className="w-full resize-y border border-[#E8E0D0] bg-white p-3 text-sm disabled:opacity-60" />
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => saveCanvas(true)}
+              className="mt-4 px-5 py-2.5 bg-[#0A1628] text-white text-sm disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save manual version'}
+            </button>
+          </fieldset>
+          {nextCanvasVersion(canvases) === null && <p className="mt-3 text-sm text-[#96792b]">All four versions are saved. You can review and export them below.</p>}
+        </details>
+      )}
+
       {canvases.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex gap-2">
             {canvases.map((c, idx) => (
               <button
                 key={c.id}
-                onClick={() => setActiveVersion(idx)}
+                onClick={() => { setActiveVersion(idx); setCanvasReport(null) }}
+                disabled={reportLoading || generating || saving}
+                aria-pressed={activeVersion === idx}
                 className={`px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
                   activeVersion === idx
                     ? 'text-[#0A1628] border-b-2 border-[#C8A860] font-semibold'
@@ -305,11 +363,11 @@ export default function LeanCanvasPage() {
           {isPremium ? (
             <button
               onClick={handleGenerate}
-              disabled={generating || canvases.length >= 4}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
               className="px-6 py-2.5 text-sm font-medium text-[#0A1628] disabled:opacity-50 transition-all cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 10px 2px 10px' }}
             >
-              {generating ? '⏳ Generating AI Canvas…' : canvases.length >= 4 ? '✓ Max 4 versions reached' : '✦ Generate with AI'}
+              {generating ? '⏳ Generating AI Canvas…' : nextCanvasVersion(canvases) === null ? 'Max 4 versions reached' : '✦ Generate with AI'}
             </button>
           ) : (
             <div className="card-angular px-6 py-3 flex items-center gap-3">
@@ -319,7 +377,7 @@ export default function LeanCanvasPage() {
                 <p className="text-xs text-[#1C1C1C] opacity-60">Upgrade to Premium ($29/mo) to unlock AI-powered canvas generation</p>
               </div>
               <a
-                href="/auth/signup?plan=premium"
+                href="/dashboard/settings"
                 className="ml-auto px-4 py-2 text-xs font-medium text-[#0A1628]"
                 style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 8px 2px 8px' }}
               >
@@ -476,7 +534,7 @@ export default function LeanCanvasPage() {
           )}
 
           {/* New Sections for Phase 3 */}
-          {currentCanvas?.analysisData?.assumptionRegister && (
+          {Array.isArray(currentCanvas?.analysisData?.assumptionRegister) && (
              <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
                <h3 className="text-sm font-semibold mb-4">Assumption Register</h3>
                <div className="overflow-x-auto">
@@ -491,7 +549,7 @@ export default function LeanCanvasPage() {
                </div>
              </div>
           )}
-          {currentCanvas?.analysisData?.buildMeasureLearnCycles && (
+          {Array.isArray(currentCanvas?.analysisData?.buildMeasureLearnCycles) && (
             <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
                <h3 className="text-sm font-semibold mb-4">Build-Measure-Learn Cycles</h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -513,7 +571,7 @@ export default function LeanCanvasPage() {
                <p><strong>Recommendation:</strong> {currentCanvas.analysisData.pivotAnalysis.recommendation}</p>
             </div>
           )}
-          {currentCanvas?.analysisData?.ifThenRules && (
+          {Array.isArray(currentCanvas?.analysisData?.ifThenRules) && (
             <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
                <h3 className="text-sm font-semibold mb-4">IF→THEN Rules</h3>
                <div className="grid grid-cols-1 gap-2">
@@ -525,7 +583,7 @@ export default function LeanCanvasPage() {
                </div>
             </div>
           )}
-          {currentCanvas?.analysisData?.pricingVsVolumeMatrix && (
+          {Array.isArray(currentCanvas?.analysisData?.pricingVsVolumeMatrix) && (
             <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
                <h3 className="text-sm font-semibold mb-4">Pricing vs Volume Matrix</h3>
                <table className="w-full text-xs text-left">
@@ -541,7 +599,7 @@ export default function LeanCanvasPage() {
           {currentCanvas?.analysisData?.businessModelCanvas && (
              <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
                <h3 className="text-sm font-semibold mb-4">Business Model Canvas</h3>
-               <div className="grid grid-cols-5 gap-2 text-xs border p-2">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs border p-2 break-words">
                  <div className="col-span-1 border p-2"><b>Key Partners:</b> {currentCanvas.analysisData.businessModelCanvas.keyPartners?.join(', ')}</div>
                  <div className="col-span-1 flex flex-col gap-2">
                     <div className="border p-2"><b>Key Activities:</b> {currentCanvas.analysisData.businessModelCanvas.keyActivities?.join(', ')}</div>
@@ -553,8 +611,8 @@ export default function LeanCanvasPage() {
                     <div className="border p-2"><b>Channels:</b> {currentCanvas.analysisData.businessModelCanvas.channels?.join(', ')}</div>
                  </div>
                  <div className="col-span-1 border p-2"><b>Segments:</b> {currentCanvas.analysisData.businessModelCanvas.customerSegments?.join(', ')}</div>
-                 <div className="col-span-2 border p-2 mt-2"><b>Cost Structure:</b> {currentCanvas.analysisData.businessModelCanvas.costStructure?.join(', ')}</div>
-                 <div className="col-span-3 border p-2 mt-2"><b>Revenue Streams:</b> {currentCanvas.analysisData.businessModelCanvas.revenueStreams?.join(', ')}</div>
+                 <div className="lg:col-span-2 border p-2 mt-2"><b>Cost Structure:</b> {currentCanvas.analysisData.businessModelCanvas.costStructure?.join(', ')}</div>
+                 <div className="lg:col-span-3 border p-2 mt-2"><b>Revenue Streams:</b> {currentCanvas.analysisData.businessModelCanvas.revenueStreams?.join(', ')}</div>
                </div>
              </div>
           )}
@@ -576,7 +634,7 @@ export default function LeanCanvasPage() {
             <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold text-[#0A1628]">Customer Interview Questions</h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">VERIFIED</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">PROPOSED_STRATEGY</span>
               </div>
               <ol className="list-decimal list-inside space-y-2 text-sm text-[#1C1C1C]">
                 {currentCanvas.analysisData.interviewQuestions.map((q: any, i: number) => (
@@ -629,7 +687,7 @@ export default function LeanCanvasPage() {
             <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm overflow-x-auto">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold text-[#0A1628]">Existing Alternatives Comparison</h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">VERIFIED</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">PROPOSED_STRATEGY</span>
               </div>
               <table className="w-full text-xs text-left">
                 <thead>
@@ -659,11 +717,14 @@ export default function LeanCanvasPage() {
                 <h3 className="text-sm font-semibold text-[#0A1628]">RAT Matrix Dashboard</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800">ASSUMPTION</span>
               </div>
-              <ScatterPlot2x2 
-                data={currentCanvas.analysisData.ratMatrix.map((r: any) => ({ name: r.assumption, x: r.evidence || r.evidenceScore || 50, y: r.impact || r.impactScore || 50 }))} 
-                xLabel="Evidence" 
-                yLabel="Impact" 
-              />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-left text-xs">
+                  <thead><tr className="border-b"><th className="p-2">Assumption</th><th className="p-2">Experiment</th><th className="p-2">Metric</th><th className="p-2">Success criteria</th></tr></thead>
+                  <tbody>{currentCanvas.analysisData.ratMatrix.map((item: any, index: number) => (
+                    <tr key={index} className="border-b"><td className="p-2">{item.assumption}</td><td className="p-2">{item.experiment}</td><td className="p-2">{item.metric}</td><td className="p-2">{item.criteria}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -699,7 +760,7 @@ export default function LeanCanvasPage() {
           {isPremium && (
             <button
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
               className="px-6 py-2.5 text-sm font-medium text-[#0A1628] cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 10px 2px 10px' }}
             >
@@ -719,16 +780,17 @@ export default function LeanCanvasPage() {
           <button
             className="w-full flex items-center justify-between p-4 bg-[#FAFAF7] border border-[#E8E0D0] rounded-lg hover:bg-[#F5F0E8] text-left"
             onClick={async () => {
+              if (reportLoading) return
               if (canvasReport) {
                 setCanvasReport(null)
                 return
               }
               setReportLoading(true)
               try {
-                const res = await fetch(`/api/lean-canvas/report?ideaId=${currentCanvas.id || selectedIdeaId}`)
+                const res = await fetch(`/api/lean-canvas/report?ideaId=${encodeURIComponent(selectedIdeaId)}&canvasId=${encodeURIComponent(currentCanvas.id)}`)
                 if (res.ok) {
                   const data = await res.json()
-                  setCanvasReport(data.reportSections || [])
+                  setCanvasReport(Array.isArray(data.reportSections) ? data.reportSections : [])
                 } else {
                   toast.error('Failed to load report')
                 }
@@ -760,7 +822,7 @@ export default function LeanCanvasPage() {
                       </span>
                     </div>
                     {(() => {
-                      const content = section.content || ''
+                      const content = typeof section.content === 'string' ? section.content : ''
                       const trimmed = content.trim()
                       if (trimmed.startsWith('[{') || trimmed.startsWith('["')) {
                         try {

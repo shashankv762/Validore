@@ -27,7 +27,8 @@ export function ScorecardGrid({
   badge,
   className = '',
 }: ScorecardGridProps) {
-  if (!scores || scores.length === 0) return null
+  const rows = Array.isArray(scores) ? scores.filter(item => item && typeof item === 'object') : []
+  if (rows.length === 0) return null
 
   const gridColsClass =
     columns === 2
@@ -55,9 +56,10 @@ export function ScorecardGrid({
       )}
 
       <div className={`grid ${gridColsClass} gap-3`}>
-        {scores.map((item, idx) => {
-          const max = item.maxScore || (item.score <= 15 ? 15 : item.score <= 20 ? 20 : 100)
-          const pct = Math.min(100, Math.max(0, (item.score / max) * 100))
+        {rows.map((item, idx) => {
+          const max = item.maxScore ?? (item.score <= 15 ? 15 : item.score <= 20 ? 20 : 100)
+          const valid = Number.isFinite(max) && max > 0 && Number.isFinite(item.score) && item.score >= 0 && item.score <= max
+          const pct = valid ? (item.score / max) * 100 : 0
           const color =
             pct >= 75 ? '#22c55e' : pct >= 50 ? '#C8A860' : '#ef4444'
 
@@ -74,9 +76,9 @@ export function ScorecardGrid({
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-xl font-light" style={{ color }}>
-                  {item.score}
+                  {valid ? item.score : '—'}
                 </span>
-                <span className="text-[10px] text-stone-400 font-mono">/{max}</span>
+                <span className="text-[10px] text-stone-400 font-mono">/{Number.isFinite(max) && max > 0 ? max : '—'}</span>
               </div>
               <div className="mt-2 h-1 w-full bg-[#E8E0D0] rounded-full overflow-hidden">
                 <div

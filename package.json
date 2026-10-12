@@ -8,14 +8,17 @@
     "start": "next start",
     "lint": "eslint",
     "lint:ci": "eslint --max-warnings 0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:ci": "cross-env CI=true VITE_CONFIG_NATIVE_IGNORE_WARNING=true vitest run --reporter=default --reporter=junit --outputFile.junit=reports/junit.xml",
     "test:watch": "vitest",
     "ci": "npm run lint:ci && npm run typecheck && npm run test:ci",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed-tiers-and-counter.ts && tsx scripts/seed-crowdfunding-data.ts",
-    "db:verify": "tsx scripts/verify-db-setup.ts"
+    "db:verify": "tsx scripts/verify-db-setup.ts",
+    "smoke:production": "node scripts/smoke-production.mjs",
+    "build:deploy": "next build && node scripts/prepare-standalone.mjs",
+    "start:standalone": "node .next/standalone/server.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.68",
@@ -64,5 +67,8 @@
     "typescript": "^5",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "engines": {
+    "node": "^22.12.0 || >=24.0.0"
   }
 }

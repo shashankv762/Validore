@@ -42,6 +42,7 @@ Other agents handle customers, competitors, financials, and the final decision â
 
 export async function runMarketAgent(idea: IdeaInput, search: AgentSearchCtx, opts?: AgentOpts) {
   return generateWithFallback({
+    agentRole: 'market',
     prompt: buildMarketPrompt(idea, search),
     schema: MarketAgentSchema,
     temperature: 0,

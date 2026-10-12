@@ -1,476 +1,97 @@
-# Validore — Jenkins CI/CD Setup, Triggers & Demo Guide
+# Jenkins setup and classroom demonstration
 
-> **For Teacher Presentation** — Step-by-step instructions on how to install Jenkins,
-> connect it to the GitHub repository, configure all three automated triggers,
-> run the pipeline, and demonstrate the complete CI/CD workflow live.
+For tomorrow's localhost presentation using the current uncommitted working tree, start with [Classroom demo](docs/CLASSROOM_DEMO.md) and Jenkinsfile.classroom. The instructions below describe the normal Git-based pipeline used after committing/pushing the source.
 
----
+This guide matches the current Jenkinsfile. Classroom CI runs on Windows or Linux without Docker, live service keys, a registry, or a deployment host. The release profile adds configurable delivery and staging deployment.
 
-## Table of Contents
+## 1. Prepare Jenkins and its build agent
 
-1. [GitHub Repository Interface](#1-github-repository-interface)
-2. [Jenkins Installation (Local)](#2-jenkins-installation-local)
-3. [Jenkins Initial Configuration](#3-jenkins-initial-configuration)
-4. [Connect Jenkins to GitHub Repo](#4-connect-jenkins-to-github-repo)
-5. [Configure Build Triggers](#5-configure-build-triggers)
-6. [GitHub Webhook Setup](#6-github-webhook-setup)
-7. [Where Project Files Are Deployed Locally](#7-where-project-files-are-deployed-locally)
-8. [Live Demo — Step-by-Step Script](#8-live-demo--step-by-step-script)
-9. [Pipeline Stage Reference](#9-pipeline-stage-reference)
-10. [Trigger Explanation for Teacher](#10-trigger-explanation-for-teacher)
+Install a supported Jenkins LTS from [Jenkins downloads](https://www.jenkins.io/download/) and follow its current Java requirements. The controller and agent are separate responsibilities: the machine executing the pipeline needs Git, Node.js 24, npm, outbound access to the package registry, and enough disk/RAM for a Next.js build.
 
----
+Install the Pipeline/Declarative Pipeline, Git, Credentials Binding, Pipeline: Input Step, Pipeline: Build Step, JUnit, and Timestamper plugins. Add GitHub Branch Source for a GitHub multibranch job. Docker Pipeline and AnsiColor are not required by this Jenkinsfile.
 
-## 1. GitHub Repository Interface
+Use dedicated agents for builds. Do not expose an unauthenticated controller or attach host Docker access to untrusted pull requests. The standard Jenkins controller image does not supply the project's Node.js, Docker, and Trivy toolchain automatically.
 
-**Repository URL:** https://github.com/shashankv762/Validore
+## 2. Connect the repository
 
-### What to show on GitHub:
+Create a Multibranch Pipeline named validore. Add the repository as a GitHub or Git branch source and use Jenkinsfile as the script path. Public checkout can use anonymous read access; private checkout needs a credential restricted to reading this repository.
 
-| Screen | What to demonstrate |
-|--------|-------------------|
-| **Code tab** | `Jenkinsfile` at root — the pipeline definition |
-| **Code tab** | `Dockerfile` — multi-stage container build |
-| **Code tab** | `docker-compose.yml` — local stack orchestration |
-| **Code tab** | `CICD.md` — architecture documentation |
-| **Settings → Webhooks** | The webhook URL pointing to Jenkins |
-| **Commits** | Every commit triggers the pipeline automatically |
+A simple Pipeline from SCM job also works for classroom CI, but release publishing requires the multibranch main/master identity. Keep credentials off fork/PR jobs: a PR can change its own Jenkinsfile, so the branch guard alone is not a credential boundary.
 
-### Show teacher this:
-1. Open https://github.com/shashankv762/Validore
-2. Click on `Jenkinsfile` — explain each section
-3. Go to **Settings → Webhooks** — show the webhook configured to Jenkins
-4. Go to **Commits** — every commit hash can be traced to a build
+Configure the GitHub Branch Source webhook according to the installed plugin/controller URL. Jenkins localhost is not reachable by GitHub. The checked-in pipeline also uses pollSCM('H/5 * * * *') as a fallback that builds when SCM changes; there is no checked-in nightly cron or githubPush() trigger.
 
----
+## 3. First classroom build
 
-## 2. Jenkins Installation (Local)
+Run once to initialize the job's parameters, then select Build with Parameters:
 
-### Option A — Run Jenkins with Docker (Recommended for demo)
+| Parameter | Classroom value |
+| --- | --- |
+| BUILD_PROFILE | demo |
+| SKIP_DOCKER | true |
+| PUBLISH_IMAGE | false |
+| DEPLOY_STAGING | false |
+| PUBLIC_SUPABASE_URL | Keep the demo URL |
+| PUBLIC_SUPABASE_ANON_KEY | Keep demo-anon-key |
+| PUBLIC_APP_URL | http://localhost:3000 |
 
-```bash
-# Pull and run Jenkins with Docker pre-installed inside
-docker run -d \
-  --name jenkins \
-  --restart unless-stopped \
-  -p 8080:8080 \
-  -p 50000:50000 \
-  -v jenkins_home:/var/jenkins_home \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  jenkins/jenkins:lts-jdk21
-```
+These demo public values are only build fixtures. They do not create a working Supabase login, AI provider, or payment integration. Never use a service-role/secret key for PUBLIC_SUPABASE_ANON_KEY.
 
-Then open: **http://localhost:8080**
+Use a clean Jenkins checkout. scripts/prepare-ci.mjs rejects private .env files and removes only five fixed stale generated report files. Do not copy the developer's .env.local into Jenkins. On the first build, Jenkins may display Build Now before the parameters have been materialized.
 
-### Option B — Windows installer
+## 4. Show the pipeline to your teacher
 
-1. Download from: https://www.jenkins.io/download/
-2. Run the `.msi` installer
-3. Open: **http://localhost:8080**
+1. Open the version-controlled Jenkinsfile and explain checkout, installation, quality gates, build, and smoke stages.
+2. Start a demo build. Show that Windows uses bat with call npm, and Linux uses sh.
+3. Open the stage view and Console Output. A nonzero gate stops subsequent stages.
+4. Open Test Result to show JUnit test names, failures, and trends. Report the actual count from that run; skipped database suites are visible limitations.
+5. Show the archived .next/BUILD_ID and explain that the smoke stage starts the built app, checks HTTP routes/assets, and shuts it down.
+6. On a temporary demo branch, introduce a real TypeScript or test assertion error, commit it, and demonstrate the failed stage. Revert that deliberate demo change afterward.
+7. Explain that the default run demonstrates CI. Delivery and deployment become active only after a registry and staging job have been configured.
 
-### Get the initial admin password:
+## 5. Enable Linux container releases
 
-```bash
-# If using Docker:
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+The selected agent must have a working Docker daemon and Trivy executable. Configure these parameters:
 
-# If installed natively on Windows:
-type "C:\ProgramData\Jenkins\.jenkins\secrets\initialAdminPassword"
-```
+| Parameter | Release setting |
+| --- | --- |
+| BUILD_PROFILE | release |
+| SKIP_DOCKER | false |
+| PUBLIC_SUPABASE_URL | Real HTTPS Supabase URL |
+| PUBLIC_SUPABASE_ANON_KEY | Real public anon JWT or publishable key |
+| PUBLIC_APP_URL | Real HTTPS app origin |
+| REGISTRY | Registry host/namespace, such as ghcr.io/your-org |
+| PUBLISH_IMAGE | true when ready to publish |
 
----
+Create a username/password credential with ID validore-registry on the trusted release job. Use a scoped registry token as its password. CI passes only public configuration into the Docker build. Private database, Redis, billing, encryption, and Inngest keys belong in the deployment environment.
 
-## 3. Jenkins Initial Configuration
+The image tag includes the full commit SHA and build number. Trivy blocks publication for HIGH/CRITICAL vulnerabilities; FORCE_TRIVY_FAIL=true blocks all severities. Scan execution failures also fail the stage. No latest tag is pushed. reports/image-digest.txt records the immutable registry digest.
 
-After logging in with the initial password:
+## 6. Configure staging delivery
 
-| Step | Action |
-|------|--------|
-| **1** | Click **"Install suggested plugins"** |
-| **2** | Wait for plugins to install (~3-5 minutes) |
-| **3** | Create first admin user: `admin` / `your-password` |
-| **4** | Set Jenkins URL: `http://localhost:8080` |
-| **5** | Click **"Save and Finish"** |
+Create a separate deployment job accepting a String parameter IMAGE_REF. Give it credentials scoped to staging, and implement target-specific pull/rollout, health checks, and rollback. The current project has no selected host or cluster, so this downstream job is intentionally required rather than simulated.
 
-### Install additional required plugins:
+Set STAGING_DEPLOY_JOB to that job's full Jenkins name and DEPLOY_STAGING=true. Jenkins asks for approval, then invokes the job with the scanned image digest, waits for its result, and propagates failure. Restrict who can build, approve, and configure trusted release jobs using Jenkins access controls.
 
-Go to: **Manage Jenkins → Plugins → Available plugins**
+Before public deployment, complete [Production setup](docs/PRODUCTION_SETUP.md). The included Compose stack exposes HTTP on localhost:8081; it is not a public TLS deployment.
 
-Search and install each:
+## Troubleshooting
 
-```
-GitHub plugin          — GitHub webhook triggers
-GitHub Integration     — githubPush() trigger support
-Pipeline               — Declarative pipeline support
-Docker Pipeline        — Docker build/push inside pipeline
-JUnit                  — Test result graph and reporting
-AnsiColor              — Colored build logs
-Timestamper            — Timestamps in every log line
-NodeJS                 — Node.js tool integration
-```
+| Symptom | Resolution |
+| --- | --- |
+| node/npm not found | Install/configure Node on the executing agent and restart its service to refresh PATH |
+| Private environment file rejected | Use an isolated SCM checkout and inject runtime secrets only at deployment |
+| No junit.xml | Diagnose the install/test failure; do not mark empty results successful |
+| Production audit or Trivy fails | Review the advisory/report, update or remediate, and rerun; do not bypass the gate |
+| Registry publishing rejected | Use a trusted main/master multibranch job with release profile and Docker enabled |
+| Stripe/AI/login unavailable in demo build | Demo public values do not configure live services; use a separate configured development/staging environment |
+| Staging job missing | Configure an actual deployment job and IMAGE_REF contract before selecting deployment |
 
-After installing → **Restart Jenkins**
+The pipeline has not yet been exercised on a live Jenkins controller in this workspace. The controller's [Declarative Pipeline linter](https://www.jenkins.io/doc/book/pipeline/development/#linter) and a successful demo build are required release evidence.
 
----
+## Render live releases alongside the college demo
 
-## 4. Connect Jenkins to GitHub Repo
+Keep the demo parameters for classroom builds. For a Render release, first finish the [free beta setup](docs/GO_LIVE.md), then use BUILD_PROFILE=release, DEPLOY_RENDER=true, RENDER_SERVICE_ID from the Render service, and real public settings with PUBLIC_APP_URL=https://validore.tech. SKIP_DOCKER may stay true, PUBLISH_IMAGE/DEPLOY_STAGING stay false.
 
-### Step A — Configure Git credentials in Jenkins
+Store the Render API token as a Secret text credential with ID validore-render-api in the trusted release job's credential scope. The pipeline deploys the exact checked-out commit after approval, waits for live status, verifies the public revision and landing page, and records reports/render-deploy.json. Optional guarded rollback restores the previous live release after a failed public check while keeping CI failed. Never expose that credential to pull-request jobs or enable unchecked Render auto-deploys.
 
-Go to: **Manage Jenkins → Credentials → System → Global credentials → Add Credentials**
-
-```
-Kind     : Username with password
-Username : shashankv762
-Password : <your GitHub Personal Access Token>
-ID       : validore-git-token
-Description: GitHub token for Validore repo
-```
-
-> **How to create a GitHub PAT:**
-> GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
-> Scopes: `repo`, `admin:repo_hook`
-
-### Step B — Create a new Pipeline job
-
-1. Jenkins Dashboard → **New Item**
-2. Name: `Validore-CI-CD`
-3. Type: **Pipeline**
-4. Click **OK**
-
-### Step C — Configure the Pipeline job
-
-Under **Pipeline section**:
-
-```
-Definition  : Pipeline script from SCM
-SCM         : Git
-Repository  : https://github.com/shashankv762/Validore.git
-Credentials : validore-git-token
-Branch      : */main
-Script Path : Jenkinsfile
-```
-
-Click **Save**
-
----
-
-## 5. Configure Build Triggers
-
-In the Pipeline job configuration, under **Build Triggers**:
-
-### Trigger 1 — GitHub webhook (push events)
-
-Check: **"GitHub hook trigger for GITScm polling"**
-
-> This enables `githubPush()` in the Jenkinsfile.
-> When anyone pushes to the GitHub repo, Jenkins starts a build instantly.
-
-### Trigger 2 — Poll SCM (safety net)
-
-Check: **"Poll SCM"**
-
-Schedule:
-```
-H/5 * * * *
-```
-
-> Jenkins checks GitHub every 5 minutes. If a push was missed by the webhook,
-> this catches it within 5 minutes maximum.
-
-### Trigger 3 — Nightly build
-
-Check: **"Build periodically"**
-
-Schedule:
-```
-30 20 * * *
-```
-
-> Runs the full pipeline every night at 01:30 IST (20:30 UTC),
-> regardless of whether anyone pushed code that day.
-
-Click **Save**
-
----
-
-## 6. GitHub Webhook Setup
-
-This is what makes the pipeline fire **automatically** on every `git push`.
-
-### Step-by-step in GitHub:
-
-1. Open https://github.com/shashankv762/Validore
-2. Go to **Settings** → **Webhooks**
-3. Click **"Add webhook"**
-4. Fill in:
-
-```
-Payload URL    : http://<your-jenkins-ip>:8080/github-webhook/
-Content type   : application/json
-Secret         : (leave blank for demo, or add a secret)
-Events         : Pushes  (check box)
-                 Pull requests (check box)
-```
-
-5. Click **"Add webhook"**
-6. GitHub will send a ping — check for a green checkmark
-
-> **If Jenkins is on localhost (not publicly reachable):**
-> Use **ngrok** to expose Jenkins:
-> ```bash
-> ngrok http 8080
-> ```
-> Then use the ngrok URL as the webhook payload URL:
-> `https://abc123.ngrok.io/github-webhook/`
-
-### Verify webhook works:
-
-1. Make a small change to any file (e.g., add a blank line to README.md)
-2. Push to GitHub
-3. Watch Jenkins — a new build starts **automatically within seconds**
-
----
-
-## 7. Where Project Files Are Deployed Locally
-
-### Jenkins workspace (where code is built):
-
-```
-Windows (native Jenkins):
-  C:\ProgramData\Jenkins\.jenkins\workspace\Validore-CI-CD\
-
-Docker Jenkins:
-  /var/jenkins_home/workspace/Validore-CI-CD/
-  (inside the jenkins container)
-```
-
-### Build artifacts (JUnit XML report):
-
-```
-Jenkins Workspace:
-  workspace/Validore-CI-CD/reports/junit.xml
-
-Visible in Jenkins UI:
-  Job -> Build #N -> Test Results -> All Tests
-```
-
-### Docker image (built locally during pipeline):
-
-```bash
-# After Stage 8 (Docker Build) runs:
-docker images | grep validore
-
-# Output example:
-# validore    abc1234     <image-id>    ~150MB
-# validore    latest      <image-id>    ~150MB
-```
-
-### Running the app locally with docker-compose:
-
-```bash
-cd "C:\Users\2025\IIT DELHI\entrepreneur\Validore"
-
-# Fill .env.local with real Supabase keys, then:
-docker-compose up -d
-
-# App available at:
-#   http://localhost:80    (via Nginx reverse proxy)
-#   http://localhost:3000  (direct Next.js port)
-```
-
-### Project directory structure:
-
-```
-C:\Users\2025\IIT DELHI\entrepreneur\Validore\
-|-- Jenkinsfile             <- Pipeline definition (11 stages + 3 triggers)
-|-- Dockerfile              <- Multi-stage container build
-|-- docker-compose.yml      <- Full stack (app + nginx)
-|-- CICD.md                 <- Architecture documentation
-|-- JENKINS_SETUP.md        <- This guide
-|-- infra/
-|   `-- nginx/
-|       `-- default.conf    <- Nginx reverse proxy config
-|-- reports/
-|   `-- junit.xml           <- Generated by npm run test:ci
-|-- src/                    <- Next.js application source
-|-- tests/                  <- 191 automated test cases
-`-- package.json            <- npm scripts: lint, typecheck, test:ci, build
-```
-
----
-
-## 8. Live Demo — Step-by-Step Script
-
-### Demo sequence (10 minutes):
-
-#### Step 1 — Show GitHub Repository (1 min)
-```
-1. Open: https://github.com/shashankv762/Validore
-2. Show: Jenkinsfile at root — explain it's the pipeline definition
-3. Show: triggers block inside it — githubPush(), pollSCM, cron
-4. Show: Settings -> Webhooks -> the configured endpoint
-```
-
-#### Step 2 — Open Jenkins Dashboard (1 min)
-```
-Open: http://localhost:8080
-Show: The "Validore-CI-CD" job exists
-Show: Last build status (green checkmark or build history)
-```
-
-#### Step 3 — Trigger a build manually (1 min)
-```
-Click: "Build Now"
-Watch: Pipeline starts immediately
-Click: The running build -> "Console Output"
-```
-
-#### Step 4 — Watch the pipeline execute stage by stage (3 min)
-```
-Live stages in console:
-  Stage 1: Checkout  -> shows git commit, branch, author
-  Stage 2: Env Info  -> shows Node 20.x, npm, Docker versions
-  Stage 3: Install   -> npm ci installs exact lockfile deps
-  Stage 4: Lint      -> ESLint -> 0 errors, 0 warnings
-  Stage 5: Typecheck -> tsc --noEmit -> 0 type errors
-  Stage 6: Tests     -> 188 passed | 3 skipped
-  Stage 7: Build     -> next build standalone
-```
-
-#### Step 5 — Show the Test Results graph (1 min)
-```
-Click: The build -> "Test Results"
-Show: 188 tests passed, 3 skipped, 0 failed
-Show: Individual test names and durations
-```
-
-#### Step 6 — Demonstrate webhook trigger (2 min)
-```
-In terminal:
-  > Open README.md, add a comment line
-  > git add . && git commit -m "demo: webhook trigger test"
-  > git push origin main
-
-Watch Jenkins: A new build starts AUTOMATICALLY (within 5 seconds)
-Explain: "GitHub sent an HTTP POST to Jenkins the moment I pushed"
-```
-
-#### Step 7 — Show trigger configuration (1 min)
-```
-Jenkins -> Validore-CI-CD -> Configure -> Build Triggers
-Show:
-  [x] GitHub hook trigger for GITScm polling  (webhook)
-  [x] Poll SCM: H/5 * * * *                   (every 5 min fallback)
-  [x] Build periodically: 30 20 * * *          (nightly at 01:30 IST)
-```
-
----
-
-## 9. Pipeline Stage Reference
-
-| # | Stage | Command | Purpose |
-|---|-------|---------|---------|
-| 1 | **Checkout** | `checkout scm` | Pull exact git revision, log author + commit |
-| 2 | **Env Info** | `node --version` | Validate Node.js >= 20 on agent |
-| 3 | **Install** | `npm ci` | Lockfile-exact install, no version drift |
-| 4 | **Lint** | `npm run lint` | ESLint — 0 errors, 0 warnings allowed |
-| 5 | **Typecheck** | `npm run typecheck` | TypeScript `tsc --noEmit` — no type errors |
-| 6 | **Unit Tests** | `npm run test:ci` | 188 tests, JUnit XML -> Jenkins report |
-| 7 | **Build** | `npm run build` | Next.js standalone production bundle |
-| 8 | **Docker Build** | `docker build` | Multi-stage image tagged with commit SHA |
-| 9 | **Trivy Scan** | `trivy image` | CVE scan — HIGH/CRITICAL = pipeline fail |
-| 10 | **Publish** | `docker push` | Push to registry (main branch only) |
-| 11 | **Deploy** | `docker-compose up` | Staging deploy with manual approval gate |
-
----
-
-## 10. Trigger Explanation for Teacher
-
-### What is a Jenkins Trigger?
-
-A **trigger** is an event that automatically starts the Jenkins pipeline
-without any human clicking "Build Now".
-
-### The Three Triggers in Jenkinsfile:
-
-```groovy
-triggers {
-    githubPush()            // Trigger 1: GitHub push webhook
-    pollSCM('H/5 * * * *') // Trigger 2: Poll every 5 minutes
-    cron('30 20 * * *')    // Trigger 3: Nightly at 01:30 IST
-}
-```
-
----
-
-### Trigger 1: `githubPush()` — GitHub Webhook
-
-| Property | Detail |
-|----------|--------|
-| **When** | Instantly when a developer does `git push` |
-| **How** | GitHub sends HTTP POST to Jenkins `/github-webhook/` endpoint |
-| **Delay** | Seconds — near-instant |
-| **Industry use** | Used by Google, Amazon, Meta, Netflix in production |
-
-**Flow:**
-```
-Developer: git push  ->  GitHub  ->  HTTP POST  ->  Jenkins  ->  Build starts
-```
-
----
-
-### Trigger 2: `pollSCM('H/5 * * * *')` — Poll SCM
-
-| Property | Detail |
-|----------|--------|
-| **When** | Every 5 minutes, Jenkins checks GitHub for new commits |
-| **How** | Jenkins polls the git remote, compares commit hashes |
-| **Delay** | Up to 5 minutes after a push |
-| **Purpose** | Safety net — catches pushes if webhook missed |
-
-**Cron syntax breakdown:**
-```
-H/5  *  *  *  *
- |   |  |  |  |
- |   |  |  |  +-- Any day of the week
- |   |  |  +----- Any month
- |   |  +-------- Any day of the month
- |   +----------- Any hour
- +--------------- Every 5 minutes (H = hash-distributed start)
-```
-
----
-
-### Trigger 3: `cron('30 20 * * *')` — Nightly Build
-
-| Property | Detail |
-|----------|--------|
-| **When** | Every day at 20:30 UTC = 02:00 IST |
-| **How** | Jenkins internal scheduler |
-| **Purpose** | Detects broken dependencies, security CVEs, environment drift |
-
-**Cron syntax breakdown:**
-```
-30  20  *  *  *
- |   |  |  |  |
- |   |  |  |  +-- Any day of the week
- |   |  |  +----- Any month
- |   |  +-------- Any day of the month
- |   +----------- Hour 20 (UTC) = 01:30 IST
- +--------------- Minute 30
-```
-
----
-
-### Quick answer to "What happens when you push code?":
-
-> "The moment I run `git push`, GitHub sends a signal to Jenkins via a webhook.
-> Jenkins receives that signal, checks out the latest code, and immediately
-> starts running all 11 pipeline stages — lint, typecheck, 188 unit tests,
-> Docker build, security scan — all automatically.
-> I don't click anything. The pipeline is fully automated."
-
----
-
-*Validore CI/CD — Shashank V | 1dt24cy038@dsatm.edu.in*
+Find the controller URL by opening Jenkins and copying its browser address. Manage Jenkins → System → Jenkins Location shows the configured Jenkins URL. A local installation often uses http://localhost:8080. If Jenkins has not been installed or started, that address will not open yet.

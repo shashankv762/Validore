@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { decryptApiKey } from '@/lib/byok-crypto'
+import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, pricingSimulations } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { checkCredits, deductCredits } from '@/lib/credits'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
@@ -83,6 +86,7 @@ const PricingAiSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -95,6 +99,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
 
+  if (!await canUserAccess(user.id, 'canPricingSimulator')) return NextResponse.json({ error: 'This module requires an eligible plan' }, { status: 403 })
   const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.PRICING)
   if (!creditCheck.allowed) {
     return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
@@ -112,32 +117,13 @@ export async function POST(request: NextRequest) {
   }
 
   // GAP-2: Decrypt custom OpenRouter key if stored
-  let customOpenRouterKey: string | null = null
-  const encryptedKey = (dbUser as any).encryptedOpenrouterKey as string | null
-  if (encryptedKey) {
-    if (encryptedKey.includes(':') && process.env.ENCRYPTION_KEY) {
-      try {
-        const crypto = await import('crypto')
-        const [ivHex, encryptedHex] = encryptedKey.split(':')
-        const iv = Buffer.from(ivHex, 'hex')
-        const decipher = crypto.createDecipheriv(
-          'aes-256-cbc',
-          Buffer.from(process.env.ENCRYPTION_KEY, 'hex'),
-          iv
-        )
-        let decrypted = decipher.update(encryptedHex, 'hex', 'utf8')
-        decrypted += decipher.final('utf8')
-        customOpenRouterKey = decrypted
-      } catch {
-        console.warn('[BYOK] Failed to decrypt custom key, using platform default')
-      }
-    } else {
-      customOpenRouterKey = encryptedKey // Unencrypted fallback (dev)
-    }
-  }
-
   try {
-    const body = await request.json()
+    let customOpenRouterKey: string | null = null
+    if (dbUser.encryptedOpenrouterKey) {
+      try { customOpenRouterKey = decryptApiKey(dbUser.encryptedOpenrouterKey) }
+      catch { return NextResponse.json({ error: 'Your custom AI key could not be loaded. Save it again in settings.' }, { status: 503 }) }
+    }
+    const body = await request.json().catch(() => null)
     const parsed = PricingInputSchema.safeParse(body)
     if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
 
@@ -298,20 +284,28 @@ CRITICAL RULES:
       pricingScore,
     }
 
-    await deductCredits(dbUser.id, CREDIT_COSTS.PRICING, 'PRICING', i.ideaId)
-    const [saved] = await db.insert(pricingSimulations).values({
-      ideaId: i.ideaId,
-      userId: dbUser.id,
-      pricingScore,
-      scenarios,
-      sensitivityMatrix,
-      competitorPrices: ai.competitorPrices,
-      recommendedPrice: ai.recommendedPriceToTest,
-      validationPlan: ai.thirtyDayValidationPlan,
-      reportData: fullResult,
-    }).returning()
+    const saved = await db.transaction(async tx => {
+      const charged = await deductCredits(dbUser.id, CREDIT_COSTS.PRICING, 'PRICING', i.ideaId, undefined, tx)
+      if (!charged) return null
+      const [created] = await tx.insert(pricingSimulations).values({
+        ideaId: i.ideaId,
+        userId: dbUser.id,
+        pricingScore,
+        scenarios,
+        sensitivityMatrix,
+        competitorPrices: ai.competitorPrices,
+        recommendedPrice: ai.recommendedPriceToTest,
+        validationPlan: ai.thirtyDayValidationPlan,
+        reportData: fullResult,
+      }).returning()
+      return created
+    })
+    if (!saved) return NextResponse.json({ error: 'Insufficient credits. Refresh your balance and try again.' }, { status: 402 })
 
     return NextResponse.json({ simulationId: saved.id, result: fullResult })
+  } catch (error) {
+    console.error('[pricing] Analysis failed:', error)
+    return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {
     await decrementConcurrency(dbUser.id)
   }

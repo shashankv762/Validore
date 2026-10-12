@@ -21,15 +21,16 @@ export interface RiskRegisterTableProps {
   className?: string
 }
 
-function resolveRiskLevel(item: RiskItem): 'critical' | 'high' | 'medium' | 'low' {
-  if (item.riskLevel) {
+function resolveRiskLevel(item: RiskItem): 'critical' | 'high' | 'medium' | 'low' | 'unassessed' {
+  if (typeof item.riskLevel === 'string') {
     const lvl = item.riskLevel.toLowerCase()
     if (lvl === 'critical' || lvl === 'high' || lvl === 'medium' || lvl === 'low') {
       return lvl as 'critical' | 'high' | 'medium' | 'low'
     }
   }
-  const prob = (item.probability || '').toLowerCase()
-  const imp = (item.impact || '').toLowerCase()
+  const prob = typeof item.probability === 'string' ? item.probability.toLowerCase() : ''
+  const imp = typeof item.impact === 'string' ? item.impact.toLowerCase() : ''
+  if (!['low', 'medium', 'high'].includes(prob) || !['low', 'medium', 'high'].includes(imp)) return 'unassessed'
 
   if (prob === 'high' && imp === 'high') return 'critical'
   if (prob === 'high' || imp === 'high') return 'high'
@@ -46,8 +47,9 @@ function getBadgeStyle(level: string) {
     case 'medium':
       return 'bg-amber-100 text-amber-800 border-amber-300'
     case 'low':
-    default:
       return 'bg-emerald-100 text-emerald-800 border-emerald-300'
+    default:
+      return 'bg-stone-100 text-stone-700 border-stone-300'
   }
 }
 
@@ -59,7 +61,8 @@ export function RiskRegisterTable({
   showOwner = false,
   className = '',
 }: RiskRegisterTableProps) {
-  if (!risks || risks.length === 0) {
+  const rows = Array.isArray(risks) ? risks.filter(item => item && typeof item === 'object') : []
+  if (rows.length === 0) {
     return (
       <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
         <div className="flex items-center justify-between mb-2">
@@ -102,7 +105,7 @@ export function RiskRegisterTable({
             </tr>
           </thead>
           <tbody>
-            {risks.map((item, idx) => {
+            {rows.map((item, idx) => {
               const level = resolveRiskLevel(item)
               const levelBadgeClass = getBadgeStyle(level)
               return (
@@ -145,13 +148,13 @@ export function RiskRegisterTable({
                   </td>
                   {showOwner && (
                     <td className="py-3 px-3 align-top whitespace-nowrap text-stone-600">
-                      {item.owner || 'Founder'}
+                      {item.owner || 'Not assigned'}
                     </td>
                   )}
                   <td className="py-3 px-3 text-[#1C1C1C] opacity-90 leading-relaxed align-top">
                     <div className="flex items-start gap-1.5">
                       <span className="text-[#C8A860] font-bold mt-0.5 select-none">↳</span>
-                      <span>{item.mitigation}</span>
+                      <span>{item.mitigation || 'Mitigation not provided'}</span>
                     </div>
                   </td>
                 </tr>

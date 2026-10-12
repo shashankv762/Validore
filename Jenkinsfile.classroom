@@ -1,0 +1,57 @@
+// Windows classroom job: paste into Pipeline -> Pipeline script.
+// The normal Jenkinsfile remains the Git-based release pipeline.
+pipeline {
+  agent any
+  options {
+    skipDefaultCheckout(true)
+    disableConcurrentBuilds()
+    skipStagesAfterUnstable()
+    timestamps()
+    timeout(time: 45, unit: 'MINUTES')
+    buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '5'))
+  }
+  parameters { string(name: 'SOURCE_DIR', defaultValue: '', description: 'Absolute Validore folder containing the current local source. Local classroom job only.') }
+  environment {
+    APP_DIR = "source-${BUILD_NUMBER}"
+    CI = 'true'
+    BUILD_PROFILE = 'demo'
+    NEXT_TELEMETRY_DISABLED = '1'
+    VITE_CONFIG_NATIVE_IGNORE_WARNING = 'true'
+    NODE_OPTIONS = '--max-old-space-size=4096'
+    NEXT_PUBLIC_SUPABASE_URL = 'https://example.supabase.co'
+    NEXT_PUBLIC_SUPABASE_ANON_KEY = 'demo-anon-key'
+    NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+  }
+  stages {
+    stage('Local Source Snapshot') {
+      steps { script {
+        if (isUnix()) { error('This local-source classroom job uses Windows PowerShell. Use the normal Jenkinsfile on Linux.') }
+        if (!params.SOURCE_DIR.trim()) { error('Set SOURCE_DIR to the Validore project folder.') }
+        env.CLASSROOM_SOURCE_DIR = params.SOURCE_DIR.trim()
+        powershell '''
+$ErrorActionPreference = 'Stop'
+$helper = Join-Path $env:CLASSROOM_SOURCE_DIR 'scripts/Copy-ClassroomSource.ps1'
+& $helper -Source $env:CLASSROOM_SOURCE_DIR -Destination (Join-Path $env:WORKSPACE $env:APP_DIR)
+'''
+      } }
+    }
+    stage('Validate Environment') { steps { dir(env.APP_DIR) { bat 'node scripts/prepare-ci.mjs && node scripts/ci-config.mjs && call npm --version' } } }
+    stage('Install Dependencies') { steps { dir(env.APP_DIR) { bat 'call npm ci --include=dev --no-fund --prefer-offline' } } }
+    stage('Lint') { steps { dir(env.APP_DIR) { bat 'call npm run lint:ci' } } }
+    stage('Typecheck') { steps { dir(env.APP_DIR) { bat 'call npm run typecheck' } } }
+    stage('Unit and Regression Tests') {
+      steps { dir(env.APP_DIR) { bat 'call npm run test:ci' } }
+      post { always { dir(env.APP_DIR) { junit testResults: 'reports/junit.xml', allowEmptyResults: false } } }
+    }
+    stage('Dependency Security') { steps { dir(env.APP_DIR) { bat 'call npm audit --omit=dev --audit-level=high' } } }
+    stage('Production Build') { steps { dir(env.APP_DIR) { bat 'call npm run build' } } }
+    stage('Local Deployment and Smoke') {
+      // Start the built standalone artifact, check HTTP/assets, then stop it.
+      steps { dir(env.APP_DIR) { bat 'call npm run smoke:production' } }
+    }
+  }
+  post { always {
+    archiveArtifacts artifacts: "${env.APP_DIR}/classroom-source-manifest.json,${env.APP_DIR}/reports/junit.xml,${env.APP_DIR}/reports/production-smoke.json,${env.APP_DIR}/.next/BUILD_ID", allowEmptyArchive: true, fingerprint: true
+    echo "Classroom result: ${currentBuild.currentResult}. Source is a local working-tree snapshot, not a Git release."
+  } }
+}

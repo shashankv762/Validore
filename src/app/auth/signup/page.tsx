@@ -1,12 +1,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import AuthNotice from '@/components/auth/AuthNotice'
 
 export const metadata = {
   title: 'Sign Up | Validore',
   description: 'Create your free Validore account.',
 }
 
-export default function SignUpPage() {
+export default async function SignUpPage({ searchParams }: { searchParams: Promise<{ error?: string; message?: string; next?: string }> }) {
+  const params = await searchParams
   return (
     <div className="min-h-screen flex">
       {/* Left side - Branding */}
@@ -42,7 +44,7 @@ export default function SignUpPage() {
       </div>
       
       {/* Right side - Form */}
-      <div className="flex-1 flex flex-col justify-center items-center p-8 bg-[#F5F0E8]">
+      <div className="flex-1 flex flex-col justify-center items-center p-4 sm:p-8 bg-[#F5F0E8]">
         <div className="w-full max-w-md">
           <div className="lg:hidden mb-8">
             <Link href="/" className="inline-flex items-center gap-3">
@@ -51,9 +53,10 @@ export default function SignUpPage() {
             </Link>
           </div>
           
-          <div className="card-angular p-8 shadow-sm">
+          <div className="card-angular p-6 sm:p-8 shadow-sm">
             <h2 className="text-2xl font-light text-[#0A1628] mb-6">Create your free account</h2>
             
+            <AuthNotice error={params.error} message={params.message} />
             <form action="/api/auth/signup" method="POST" className="space-y-4">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-[#1C1C1C] mb-1">Email</label>
@@ -61,6 +64,8 @@ export default function SignUpPage() {
                   type="email" 
                   id="email" 
                   name="email" 
+                  autoComplete="email"
+                  maxLength={320}
                   required 
                   className="w-full px-3 py-2 border border-[#E8E0D0] rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]"
                 />
@@ -72,6 +77,9 @@ export default function SignUpPage() {
                   type="password" 
                   id="password" 
                   name="password" 
+                  autoComplete="new-password"
+                  minLength={8}
+                  maxLength={128}
                   required 
                   className="w-full px-3 py-2 border border-[#E8E0D0] rounded focus:outline-none focus:ring-2 focus:ring-[#C8A860] bg-white text-[#1C1C1C]"
                 />

@@ -5,7 +5,10 @@
  * security perimeters, escaping integrity, and tenant isolation.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// These boundary cases use an absent user, independent of any local database.
+vi.mock('@/db', () => ({ db: { query: { users: { findFirst: vi.fn().mockResolvedValue(undefined) } } } }))
 import { parseCsvRows, TIER_CONFIG_SPECS, createMockUser, createMockReport, createMockPitchDeck } from './helpers/test-fixtures'
 import { canUserAccess, canUserAccessWithCredits } from '@/lib/tier-gate'
 import { calculateBreakEvenUnits, calculateCAC, calculateARPU, calculateCACPaybackPeriod } from '@/lib/financial'
