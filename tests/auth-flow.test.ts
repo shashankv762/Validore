@@ -28,6 +28,7 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.stubEnv('NODE_ENV', 'test')
   vi.stubEnv('NEXT_PUBLIC_APP_URL', 'http://localhost:3000')
+  vi.stubEnv('AUTH_ALLOWED_ORIGINS', '')
   vi.stubEnv('UPSTASH_REDIS_REST_URL', '')
   vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '')
   mocks.signin.mockResolvedValue({ data: identity, error: null })
@@ -41,6 +42,18 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('Auth origins and native form redirects', () => {
+  it('supports an explicitly configured HTTPS alias behind Render TLS termination', () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://validore.tech')
+    vi.stubEnv('AUTH_ALLOWED_ORIGINS', 'https://validore.onrender.com')
+    const callbackRequest = new NextRequest('http://localhost:10000/auth/callback', { headers: { host: 'validore.onrender.com' } })
+    expect(authOrigin(callbackRequest)).toBe('https://validore.onrender.com')
+    const form = new NextRequest('http://localhost:10000/api/auth/signin', { headers: { host: 'validore.onrender.com', origin: 'https://validore.onrender.com' } })
+    expect(validAuthOrigin(form)).toBe(true)
+    const untrusted = new NextRequest(form.url, { headers: { host: 'validore.onrender.com', origin: 'https://attacker.example', 'x-forwarded-host': 'attacker.example' } })
+    expect(validAuthOrigin(untrusted)).toBe(false)
+    expect(authOrigin(untrusted)).toBe('https://validore.onrender.com')
+  })
   it('supports the loopback browser host when Next dev normalizes request.url', () => {
     const request = new NextRequest('http://localhost:3001/auth/callback', { headers: { host: '127.0.0.1:3001' } })
     expect(authOrigin(request)).toBe('http://127.0.0.1:3001')

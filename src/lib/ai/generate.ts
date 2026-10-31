@@ -184,7 +184,9 @@ export async function generateWithFallback<T>(options: GenerateOptions<T>): Prom
   // free_models  → gateways (free only)  → openrouter free chain
   // default      → gateways (all)        → openrouter free → paid direct
   const result =
-    options.preferredAiProvider === 'paid_models'
+    process.env.AI_DIRECT_FIRST === 'true' && options.preferredAiProvider !== 'free_models'
+      ? await paidChain() ?? await gatewayChain(false) ?? await freeChain()
+      : options.preferredAiProvider === 'paid_models'
       ? await gatewayChain(false) ?? await paidChain() ?? await freeChain()
       : options.preferredAiProvider === 'free_models'
         ? await gatewayChain(true) ?? await freeChain()

@@ -13,7 +13,7 @@ export function authFormResponse(request: NextRequest, path: string, kind: 'erro
 }
 export function validAuthOrigin(request: NextRequest) {
   const origin = request.headers.get('origin')
-  return !origin || origin === servedOrigin(request) || origin === configuredOrigin()
+  return !origin || origin === servedOrigin(request) || configuredOrigins().includes(origin)
 }
 
 function servedOrigin(request: NextRequest) {
@@ -25,6 +25,12 @@ function servedOrigin(request: NextRequest) {
       const host = new URL(url.protocol + '//' + request.headers.get('host'))
       if (['localhost', '127.0.0.1', '[::1]'].includes(host.hostname) && host.port === url.port) return host.origin
     } catch {}
+  } else {
+    // Render terminates TLS before Next.js. Resolve the public scheme only for
+    // explicitly configured app hosts, never from arbitrary forwarding headers.
+    const host = (request.headers.get('host') || url.host).toLowerCase()
+    const publicOrigin = configuredOrigins().find(origin => new URL(origin).host === host)
+    if (publicOrigin) return publicOrigin
   }
   return url.origin
 }
@@ -37,9 +43,19 @@ function configuredOrigin() {
   }
 }
 
+function configuredOrigins() {
+  return [configuredOrigin(), ...(process.env.AUTH_ALLOWED_ORIGINS || '').split(',').map(value => {
+    try {
+      const url = new URL(value.trim())
+      return url.protocol === 'https:' && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash ? url.origin : undefined
+    } catch { return undefined }
+  })].filter((origin): origin is string => Boolean(origin))
+}
+
 export function authOrigin(request: NextRequest) {
   const origin = request.headers.get('origin')
   if (origin && validAuthOrigin(request)) return origin
   const requestOrigin = servedOrigin(request)
-  return process.env.NODE_ENV === 'production' ? configuredOrigin() || requestOrigin : requestOrigin
+  if (process.env.NODE_ENV === 'production') return configuredOrigins().includes(requestOrigin) ? requestOrigin : configuredOrigin() || requestOrigin
+  return requestOrigin
 }

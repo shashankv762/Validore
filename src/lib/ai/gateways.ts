@@ -105,8 +105,10 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
       prune()
       const env = environment()
       const order = modelList(env.AI_GATEWAY_ORDER)
+      const enabled = env.AI_GATEWAY_ENABLED?.trim() ? new Set(modelList(env.AI_GATEWAY_ENABLED)) : null
 
       const configs = profiles.flatMap((profile) => {
+        if (enabled && !enabled.has(profile.id)) return []
         const apiKey = env[profile.prefix + '_API_KEY']?.trim()
         if (!apiKey || apiKey === 'no-key') return []
         try {
@@ -173,7 +175,7 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
     },
 
     // Records a failure and sets an appropriate cooldown based on error type.
-    //   401/403  → entire gateway cooldown (5 min) — key invalid / quota exhausted
+    //   401/402/403 → entire gateway cooldown (5 min) — key invalid / billing unavailable
     //   429/503/529 → model cooldown (2 min) — rate-limited / capacity
     //   empty/timeout → model cooldown (15 s) — transient, retry quickly on next model
     //   other errors → model cooldown (30 s)
@@ -184,7 +186,7 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
           : undefined
       const msg = error instanceof Error ? error.message : ''
 
-      if (status === 401 || status === 403) {
+      if (status === 401 || status === 402 || status === 403) {
         failures.set(candidate.fingerprint, now() + 300_000)
         return
       }

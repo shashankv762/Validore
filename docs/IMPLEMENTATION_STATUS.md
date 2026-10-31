@@ -1,21 +1,23 @@
 # Implementation and verification status
 
-Updated 2026-10-31. Current target: a Render beta at validore.tech. This session uses GPT-6 Astra and runs local servers, tests, builds, caches and temporary files in `R:\Validore-Astra-20261031`. Existing source changes were preserved. No release has been deployed yet.
+Updated 2026-10-31. The Render beta is deployed at https://validore.onrender.com; validore.tech and www.validore.tech are attached but DNS routing remains pending. This session uses GPT-6 Astra and runs local servers, tests, builds, caches and temporary files in `R:\Validore-Astra-20261031`. Existing source changes were preserved.
 
 ## Current repair and verification checkpoint
 
 - Auth repairs cover deferred session cookies, profile provisioning, local origins, confirmation/recovery callbacks, Google-provider availability and clear weak-password/SMTP errors.
 - Credit reservation and job creation share a transaction; monthly allowances renew under a row lock; bounded, idempotent refunds recover abandoned jobs, including historical null update timestamps. Progress writes are awaited.
 - Exports use owned saved records instead of fabricated fallback businesses/market claims, escape portfolio HTML, and retain downloads after creation credits are consumed. Financial edge cases have explicit nulls and explanations. Report loading has an error/retry state.
-- Strict ESLint, generated Next types and TypeScript passed. The full suite has **299 passed, 8 skipped**. Five skipped DB release tests were separately run against real PostgreSQL and **all 5 passed**; three legacy DB tests remain skipped.
+- Strict ESLint, generated Next types and TypeScript passed. The full suite has **307 passed, 8 skipped**. Five skipped DB release tests were separately run against real PostgreSQL and **all 5 passed**; three legacy DB tests remain skipped.
 - Both reviewed SQL deltas were applied. All **14 application tables** have RLS; effective anon/authenticated privileges are denied, direct queries as both roles fail, and owner reads and row counts were preserved. Tests used an isolated schema that was removed afterward.
-- Redis PONG verified. Inngest keys are present. User reports Resend/SMTP configured. Signup returned **HTTP 200** for the authorized test address; inbox delivery and confirmation/signin/reset remain under test. Google is still disabled at last check.
+- Redis PONG verified. Inngest registration against the hosted endpoint succeeded. Confirmation/reset emails arrived; email sign-in and the 100-credit initial profile were verified. A fresh recovery callback, password update and login with the changed password passed. The original test password was restored. Old PKCE flows expired during delayed manual testing; use the newest link promptly. Google is enabled and its OAuth initiation redirects correctly; interactive Google completion remains unverified.
+- Live testing found Render TLS termination needed an explicit HTTPS auth-origin alias. Normal password changes also need Supabase's current_password field; both cases now have fixes and regressions.
+- All six agents completed a real report in **96.5 seconds** using `google/gemini-3.5-flash`. Original gateway routing failed or degraded: APINEX generation returned billing HTTP 402, ORCA HTTP 429, AgentRouter HTTP 401, and SeekAI timed out. Native-provider priority is enabled for automatic/paid mode; explicit free-only mode is preserved. KIOS remains a configured fallback, but its complex-report reliability is not established. Model catalog availability alone is not treated as generation readiness.
 - Next.js is upgraded to **16.4.3**. Production dependency audit has **zero high/critical findings**, with five moderate transitive findings remaining.
 - Final production build and standalone smoke passed with real public Supabase build configuration: liveness, landing, demo, static logo and cache policy. Webpack/SWC WASM and the callback filesystem resolver support the RAM drive without removing path checks.
 
 Evidence is under the R-drive `reports` directory: `final-ci.log`, `junit.xml`, `database-release-final.log`, `database-access-before.json`, `database-access-after.json`, `production-audit.log`, and `final-build.log`. R is volatile. The database access snapshots contain grants/index metadata, not personal account records.
 
-Remaining: complete auth/provider acceptance, review/push the tested revision and verify GitHub CI, create the free Render service, verify deployment, apply only its supplied DNS records, verify HTTPS, and sync/test live Inngest validation. Billing stays unconfigured. Live AI generation is not yet verified. Public launch is pending, not certified error-free.
+Remaining: release the final auth/routing fixes and verify hosted sign-in/queued validation, apply the supplied domain DNS records, and verify custom-domain HTTPS. DNS dashboard automation is blocked because Computer Use reports an Escape-key stop and the browser host is unavailable. Billing stays unconfigured. The beta is not certified error-free.
 
 ## Archived checkpoint (2026-10-12)
 

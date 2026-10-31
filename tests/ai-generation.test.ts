@@ -20,6 +20,7 @@ const schema = z.object({ score: z.number().min(0).max(10) })
 beforeEach(() => {
   vi.resetAllMocks()
   for (const name of ['OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'ANTHROPIC_API_KEY']) vi.stubEnv(name, '')
+  vi.stubEnv('AI_DIRECT_FIRST', 'false')
   mocks.create.mockImplementation(() => ({ chat: (modelId: string) => modelId }))
   mocks.candidates.mockResolvedValue([first, second])
   mocks.canTry.mockReturnValue(true)
@@ -27,6 +28,14 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('gateway generation fallback', () => {
+  it('can prefer a verified native provider without waiting for failing gateways', async () => {
+    vi.stubEnv('AI_DIRECT_FIRST', 'true')
+    vi.stubEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'test-key')
+    vi.stubEnv('GOOGLE_AI_MODEL', 'test-native-model')
+    mocks.text.mockResolvedValue({ output: { score: 7 }, usage: { totalTokens: 20 } })
+    expect((await generateWithFallback({ prompt: 'Validate', schema })).provider).toBe('google/test-native-model')
+    expect(mocks.candidates).not.toHaveBeenCalled()
+  })
   it('falls back after invalid structured output and keeps each key with its host', async () => {
     mocks.text.mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 20 } })
       .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 30 } })
@@ -40,6 +49,8 @@ describe('gateway generation fallback', () => {
     expect(mocks.text.mock.calls[0][0]).not.toHaveProperty('output')
   })
   it('requests only free gateway candidates in free-only mode', async () => {
+    vi.stubEnv('AI_DIRECT_FIRST', 'true')
+    vi.stubEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'test-key')
     mocks.candidates.mockResolvedValue([first])
     mocks.text.mockResolvedValue({ text: '{"score":5}', usage: {} })
     await generateWithFallback({ prompt: 'Validate', schema, preferredAiProvider: 'free_models', agentRole: 'market' })

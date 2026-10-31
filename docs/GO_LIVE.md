@@ -11,12 +11,12 @@ The proposed first host is Render Free, keeping the existing Node.js/Next.js arc
 | Item | What to provide/configure |
 | --- | --- |
 | GitHub | Repository is https://github.com/shashankv762/Validore; connect the owner account to Render. CI runs from .github/workflows/ci.yml |
-| Render | API access verified; no service exists yet. Create the free web service after final release checks |
+| Render | Free service created: https://validore.onrender.com; service ID srv-dbipj6142hec73b5bor0; automatic deployments off |
 | Supabase | Rotate the exposed DB password/private key; configure the server connection, schema/grants and Auth redirects |
-| AI | Three gateway profiles and 13 model candidates configured in ignored .env.local; availability unverified; future host secrets pending |
+| AI | Native Google model gemini-3.5-flash completed all six agents; direct-provider priority enabled, with KIOS as fallback |
 | Upstash | REST credentials configured; PONG verified |
-| Inngest | Event/signing keys configured locally; hosted endpoint sync pending |
-| Email | User reports Resend/custom SMTP configured; signup accepted, inbox delivery and confirmation still being tested |
+| Inngest | Event/signing keys configured; hosted endpoint registered successfully |
+| Email | Confirmation and reset delivery verified; fresh recovery session and password change tested |
 
 Upstash and Inngest publish free tiers with usage caps: [Redis pricing](https://upstash.com/pricing/redis), [Inngest pricing](https://www.inngest.com/pricing). Supabase's default SMTP restricts recipients to project-team addresses, so it is insufficient for public onboarding: [SMTP setup](https://supabase.com/docs/guides/auth/auth-smtp).
 
@@ -51,7 +51,9 @@ Create a Web application OAuth client in [Google Auth Platform](https://console.
 
 The Google redirect URI points to Supabase; the Supabase redirect URL points back to this app. Keep the Google client secret in Supabase's provider settings, never in source control or a `NEXT_PUBLIC_` variable. The Google AI API key is unrelated to Google OAuth. See [Supabase Google provider setup](https://supabase.com/docs/guides/auth/social-sign-in/auth-google).
 
-Create the Render service before editing DNS. In the [domain dashboard](https://namify.get.tech/dashboard/manage-domain), open the domain's DNS Service and use the records supplied by Render. Keep unrelated mail and verification records. Verify HTTPS before changing the production Supabase Site URL and testing Google sign-in on the public domain.
+The service and both custom domains now exist in Render. In the [domain dashboard](https://namify.get.tech/dashboard/manage-domain), open DNS Service and add an A record for `@` pointing to `216.24.57.1`, plus a CNAME for `www` pointing to `validore.onrender.com`. The apex IP is documented by [Render](https://render.com/docs/configure-other-dns). Preserve Resend mail and verification records. DNS and custom-domain HTTPS have not yet been verified.
+
+Set `AUTH_ALLOWED_ORIGINS=https://validore.onrender.com` to support the service hostname while DNS propagates. Set `INNGEST_SERVE_ORIGIN=https://validore.onrender.com` so registration uses a reachable HTTPS endpoint behind Render's proxy. The canonical public origin remains `https://validore.tech`.
 
 ## Live release
 

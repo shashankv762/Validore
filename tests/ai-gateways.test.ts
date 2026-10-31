@@ -37,7 +37,7 @@ describe('configured gateway routing', () => {
     const router = createGatewayRouter({ environment, fetcher })
     expect((await router.candidates()).map(model => model.modelId)).toEqual(['missing', 'flash', 'other'])
   })
-  it('recovers after model cooldown and applies credential failure to the whole host', async () => {
+  it.each([401, 402, 403])('recovers after model cooldown and applies HTTP %s to the whole host', async (statusCode) => {
     let clock = 0
     const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
     const router = createGatewayRouter({ environment, fetcher, now: () => clock })
@@ -48,8 +48,15 @@ describe('configured gateway routing', () => {
     expect((await router.candidates()).some(model => model.modelId === first.modelId)).toBe(false)
     clock = 30_001
     expect(router.canTry(first)).toBe(true)
-    router.failed(first, { statusCode: 401 })
+    router.failed(first, { statusCode })
     expect((await router.candidates()).every(model => model.id !== first.id)).toBe(true)
+  })
+  it('does not call gateways excluded by the operational allowlist', async () => {
+    const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
+    const router = createGatewayRouter({ environment: () => ({ ...environment(), AI_GATEWAY_ENABLED: 'kios' }), fetcher })
+    expect((await router.candidates()).every(model => model.id === 'kios')).toBe(true)
+    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledWith('https://kios.example/v1/models', expect.anything())
   })
   it('rejects unsafe URLs without sending the configured key', async () => {
     const fetcher: typeof fetch = vi.fn(async () => json({ data: [] }))
