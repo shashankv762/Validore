@@ -8,7 +8,7 @@ The original Validore logo, navy/gold/cream palette, and product modules are pre
 
 ## Classroom presentation
 
-For the local app demonstration using the current working tree, follow [Classroom demo](docs/CLASSROOM_DEMO.md). Start-ClassroomApp.ps1 runs the real app on localhost; /demo is a clearly labeled read-only sample. The current release target is a Render beta at validore.tech.
+For the local app demonstration using the current working tree, follow [Classroom demo](docs/CLASSROOM_DEMO.md). Start-ClassroomApp.ps1 runs the real app on localhost; /demo is a clearly labeled read-only sample. The public beta is live at https://validore.onrender.com; validore.tech awaits DNS routing.
 
 ## Start locally
 
@@ -66,7 +66,7 @@ Before pushing, review the staged diff and confirm it contains only intended fil
 
 ## Deployment and current evidence
 
-Render deployment is in preparation. Provider setup and live acceptance remain necessary; consult the current status below.
+The public beta is live at **https://validore.onrender.com**, running application commit `6538a6bad5c612290cf6b3e027e759c22c314208`. Hosted email sign-in, password recovery, queued lite validation, credit charging and report history passed; a full six-agent report also passed locally on R. Custom-domain DNS/TLS and interactive Google completion remain pending; billing is unconfigured. See the [release evidence](docs/RELEASE_EVIDENCE_2026-10-31.md) for results and limits.
 
 - [Free beta launch on validore.tech](docs/GO_LIVE.md)
 - [Production setup and remaining release requirements](docs/PRODUCTION_SETUP.md)
