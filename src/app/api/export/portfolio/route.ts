@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import JSZip from 'jszip'
+import { z } from 'zod'
+import { escapeHtml } from '@/lib/html'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { db } from '@/db'
-import { users, ideas, validationReports, pitchDecks } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { ideas, validationReports, pitchDecks } from '@/db/schema'
+import { eq, and, desc } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
 
 export async function GET(request: NextRequest) {
@@ -14,26 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    if (!dbUser && user.email) {
-      try {
-        const [inserted] = await db
-          .insert(users)
-          .values({
-            email: user.email,
-            supabaseId: user.id,
-            tier: 'free',
-          })
-          .onConflictDoNothing()
-          .returning()
-        dbUser = inserted || (await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) }))
-      } catch {
-        // fallback
-      }
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -51,10 +35,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const specificIdeaId = searchParams.get('ideaId')
     const specificReportId = searchParams.get('reportId')
+    const specificDeckId = searchParams.get('deckId')
+    if ([specificIdeaId, specificReportId, specificDeckId].some(id => id && !z.uuid().safeParse(id).success)) return NextResponse.json({ error: 'Invalid export reference' }, { status: 400 })
 
     let userIdeas: Array<typeof ideas.$inferSelect> = []
 
-    if (specificReportId) {
+    if (specificDeckId) {
+      const deck = await db.query.pitchDecks.findFirst({ where: and(eq(pitchDecks.id, specificDeckId), eq(pitchDecks.userId, dbUser.id)) })
+      if (deck) {
+        const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, deck.ideaId), eq(ideas.userId, dbUser.id)) })
+        if (idea) userIdeas = [idea]
+      }
+    } else if (specificReportId) {
       const rep = await db.query.validationReports.findFirst({
         where: and(eq(validationReports.id, specificReportId), eq(validationReports.userId, dbUser.id)),
       })
@@ -69,6 +61,7 @@ export async function GET(request: NextRequest) {
       if (matchIdea) userIdeas = [matchIdea]
     }
 
+    if (!userIdeas.length && (specificDeckId || specificReportId || specificIdeaId)) return NextResponse.json({ error: 'Requested export not found' }, { status: 404 })
     if (userIdeas.length === 0) {
       userIdeas = await db.query.ideas.findMany({
         where: eq(ideas.userId, dbUser.id),
@@ -76,68 +69,31 @@ export async function GET(request: NextRequest) {
     }
 
     const userReports = await db.query.validationReports.findMany({
-      where: eq(validationReports.userId, dbUser.id),
+      where: eq(validationReports.userId, dbUser.id), orderBy: [desc(validationReports.createdAt)],
     })
 
     const userDecks = await db.query.pitchDecks.findMany({
-      where: eq(pitchDecks.userId, dbUser.id),
+      where: eq(pitchDecks.userId, dbUser.id), orderBy: [desc(pitchDecks.createdAt)],
     })
 
-    // Select primary idea or fallback
-    const primaryIdea = userIdeas[0] || {
-      id: 'demo-idea',
-      name: 'Autonomous Startup Venture',
-      industry: 'Software / SaaS',
-      product: 'AI-Powered Business Intelligence Platform',
-      targetCustomer: 'High-growth tech founders and venture studios',
-      location: 'Global',
-      businessModel: 'B2B Subscription SaaS',
-      coreProblem: 'Founders spend months building products without customer and market validation.',
-      proposedSolution: 'Continuous automated validation simulating real market demand and financial feasibility in seconds.',
-    }
+    const primaryIdea = userIdeas[0]
+    if (!primaryIdea) return NextResponse.json({ error: 'Create an idea before exporting a portfolio' }, { status: 404 })
+    const primaryReport = userReports.find(r => r.ideaId === primaryIdea.id && (!specificReportId || r.id === specificReportId))
+    const primaryDeck = userDecks.find(d => d.ideaId === primaryIdea.id && (!specificDeckId || d.id === specificDeckId))
 
-    // Find report and deck for primary idea
-    const primaryReport = userReports.find((r) => r.ideaId === primaryIdea.id) || userReports[0]
-    const primaryDeck = userDecks.find((d) => d.ideaId === primaryIdea.id) || userDecks[0]
-
-    const overallScore = primaryReport?.overallScore ?? primaryDeck?.qualityScore ?? 84
-    const decision = primaryReport?.decision ?? 'GO'
+    const overallScore = primaryReport?.overallScore ?? primaryDeck?.qualityScore ?? 'Not available'
+    const decision = primaryReport?.decision ?? 'Not available'
     const reportData = (primaryReport?.reportData || {}) as Record<string, unknown>
     const tamSamSom = reportData.tamSamSom as Record<string, unknown> | undefined
     const tamObj = tamSamSom?.tam as Record<string, unknown> | undefined
     const samObj = tamSamSom?.sam as Record<string, unknown> | undefined
     const somObj = tamSamSom?.som as Record<string, unknown> | undefined
-    const tam = (tamObj?.value || reportData.tamEstimate || '$14B') as string
-    const sam = (samObj?.value || reportData.samEstimate || '$3.2B') as string
-    const som = (somObj?.value || reportData.somEstimate || '$480M') as string
+    const tam = (tamObj?.value || reportData.tamEstimate || 'Not available') as string
+    const sam = (samObj?.value || reportData.samEstimate || 'Not available') as string
+    const som = (somObj?.value || reportData.somEstimate || 'Not available') as string
 
     // Roadmap items
-    const rawRoadmap = (primaryDeck?.roadmap as Array<Record<string, unknown>> | undefined) || [
-      {
-        phase: 'Phase 1: Foundation',
-        timeframe: 'Month 1-3',
-        milestones: [
-          { milestone: 'Customer Problem Validation & Waitlist Launch', status: 'ACHIEVED' },
-          { milestone: 'Interactive MVP Architecture & Prototype', status: 'ACHIEVED' },
-        ],
-      },
-      {
-        phase: 'Phase 2: Market Launch',
-        timeframe: 'Month 4-6',
-        milestones: [
-          { milestone: 'Public Beta with First 100 Paying Teams', status: 'PLANNED' },
-          { milestone: 'Self-serve Export Engine & Integrations', status: 'PLANNED' },
-        ],
-      },
-      {
-        phase: 'Phase 3: Scale',
-        timeframe: 'Month 7-12',
-        milestones: [
-          { milestone: 'Enterprise Security & Multi-tenant Workspaces', status: 'PLANNED' },
-          { milestone: '$1M ARR Milestone', status: 'PLANNED' },
-        ],
-      },
-    ]
+    const rawRoadmap = (Array.isArray(primaryDeck?.roadmap) ? primaryDeck.roadmap : []) as Array<Record<string, unknown>>
 
     const roadmapHtml = rawRoadmap
       .map((item) => {
@@ -150,7 +106,7 @@ export async function GET(request: NextRequest) {
             const isAchieved = m.status === 'ACHIEVED'
             return `<li class="milestone-item ${isAchieved ? 'achieved' : 'planned'}">
               <span class="status-indicator">${isAchieved ? '✓' : '○'}</span>
-              <span class="milestone-title">${mText}</span>
+              <span class="milestone-title">${escapeHtml(mText)}</span>
               <span class="status-badge">${isAchieved ? 'Achieved' : 'Planned'}</span>
             </li>`
           })
@@ -158,8 +114,8 @@ export async function GET(request: NextRequest) {
 
         return `<div class="roadmap-card">
           <div class="roadmap-header">
-            <h3>${phaseName}</h3>
-            ${timeframe ? `<span class="timeframe">${timeframe}</span>` : ''}
+            <h3>${escapeHtml(phaseName)}</h3>
+            ${timeframe ? `<span class="timeframe">${escapeHtml(timeframe)}</span>` : ''}
           </div>
           <ul class="milestones-list">${milestonesList}</ul>
         </div>`
@@ -170,22 +126,22 @@ export async function GET(request: NextRequest) {
     const ideasGalleryHtml = userIdeas.length > 1
       ? `<section id="ventures" class="ventures-section">
           <div class="container">
-            <h2 class="section-title">Validated Ventures Portfolio</h2>
+            <h2 class="section-title">Venture Portfolio</h2>
             <div class="ideas-grid">
               ${userIdeas
                 .map((idea) => {
                   const rep = userReports.find((r) => r.ideaId === idea.id)
-                  const score = rep?.overallScore ?? 80
-                  const dec = rep?.decision ?? 'GO'
+                  const score = rep?.overallScore ?? 'Not available'
+                  const dec = rep?.decision ?? 'Not available'
                   return `<div class="venture-card">
                     <div class="venture-card-header">
-                      <h3>${idea.name}</h3>
+                      <h3>${escapeHtml(idea.name)}</h3>
                       <span class="score-pill">${score}/100</span>
                     </div>
-                    <p class="industry-tag">${idea.industry} • ${idea.businessModel}</p>
-                    <p class="venture-desc">${idea.proposedSolution}</p>
+                    <p class="industry-tag">${escapeHtml(idea.industry)} • ${escapeHtml(idea.businessModel)}</p>
+                    <p class="venture-desc">${escapeHtml(idea.proposedSolution)}</p>
                     <div class="venture-footer">
-                      <span class="decision-tag ${dec.toLowerCase()}">${dec}</span>
+                      <span class="decision-tag ${escapeHtml(dec.toLowerCase())}">${escapeHtml(dec)}</span>
                     </div>
                   </div>`
                 })
@@ -200,7 +156,7 @@ export async function GET(request: NextRequest) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${primaryIdea.name} — Startup Portfolio Showcase</title>
+  <title>${escapeHtml(primaryIdea.name)} — Startup Portfolio Showcase</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -211,7 +167,7 @@ export async function GET(request: NextRequest) {
   <nav class="navbar">
     <div class="container nav-container">
       <a href="#hero" class="brand-logo">
-        <span class="brand-accent">${primaryIdea.name}</span>
+        <span class="brand-accent">${escapeHtml(primaryIdea.name)}</span>
       </a>
       <div class="nav-links">
         <a href="#hero">Overview</a>
@@ -229,23 +185,23 @@ export async function GET(request: NextRequest) {
     <div class="container">
       <div class="hero-badge-wrap">
         <span class="badge score-badge">Validation Score: ${overallScore}/100</span>
-        <span class="badge decision-badge decision-${decision.toLowerCase()}">${decision} Recommendation</span>
+        <span class="badge decision-badge decision-${escapeHtml(decision.toLowerCase())}">${escapeHtml(decision)} Recommendation</span>
       </div>
-      <h1 class="hero-title">${primaryIdea.name}</h1>
-      <p class="hero-tagline">${primaryIdea.product}</p>
-      <p class="hero-description">${primaryIdea.proposedSolution}</p>
+      <h1 class="hero-title">${escapeHtml(primaryIdea.name)}</h1>
+      <p class="hero-tagline">${escapeHtml(primaryIdea.product)}</p>
+      <p class="hero-description">${escapeHtml(primaryIdea.proposedSolution)}</p>
       
       <div class="hero-metrics">
         <div class="metric-card">
-          <span class="metric-value">${tam}</span>
+          <span class="metric-value">${escapeHtml(tam)}</span>
           <span class="metric-label">Addressable Market (TAM)</span>
         </div>
         <div class="metric-card">
           <span class="metric-value">${overallScore}%</span>
-          <span class="metric-label">Validation Confidence</span>
+          <span class="metric-label">AI assessment score</span>
         </div>
         <div class="metric-card">
-          <span class="metric-value">${primaryIdea.businessModel}</span>
+          <span class="metric-value">${escapeHtml(primaryIdea.businessModel)}</span>
           <span class="metric-label">Monetization Model</span>
         </div>
       </div>
@@ -268,20 +224,20 @@ export async function GET(request: NextRequest) {
       <div class="problem-card">
         <div class="problem-content">
           <h3>Unaddressed Market Opportunity</h3>
-          <p>${primaryIdea.coreProblem}</p>
+          <p>${escapeHtml(primaryIdea.coreProblem)}</p>
           <div class="problem-points">
             <div class="point-item">
               <span class="point-icon">⚠</span>
               <div>
                 <strong>High Friction & Cost:</strong>
-                <p>Target customer (${primaryIdea.targetCustomer}) suffers from inefficient workflows and prohibitive costs.</p>
+                <p>Target customer (${escapeHtml(primaryIdea.targetCustomer)}) is the audience identified by the founder.</p>
               </div>
             </div>
             <div class="point-item">
               <span class="point-icon">⏱</span>
               <div>
                 <strong>Slow Decision Velocity:</strong>
-                <p>Lack of automation delays execution and hampers competitive market responsiveness.</p>
+                <p>Validate the problem through interviews with the intended customers.</p>
               </div>
             </div>
           </div>
@@ -296,23 +252,23 @@ export async function GET(request: NextRequest) {
       <div class="section-header">
         <span class="section-tag">Product Architecture</span>
         <h2 class="section-title">The Solution & Advantage</h2>
-        <p class="section-subtitle">Automated, verified, and architected for rapid scalability.</p>
+        <p class="section-subtitle">The founder's proposed solution and target audience.</p>
       </div>
       <div class="solution-grid">
         <div class="solution-card featured">
           <span class="feature-icon">⚡</span>
           <h3>Autonomous Delivery</h3>
-          <p>${primaryIdea.proposedSolution}</p>
+          <p>${escapeHtml(primaryIdea.proposedSolution)}</p>
         </div>
         <div class="solution-card">
           <span class="feature-icon">🎯</span>
           <h3>Target Precision</h3>
-          <p>Specifically engineered for <strong>${primaryIdea.targetCustomer}</strong> in the <strong>${primaryIdea.industry}</strong> sector.</p>
+          <p>Specifically engineered for <strong>${escapeHtml(primaryIdea.targetCustomer)}</strong> in the <strong>${escapeHtml(primaryIdea.industry)}</strong> sector.</p>
         </div>
         <div class="solution-card">
           <span class="feature-icon">📈</span>
           <h3>Defensible Economics</h3>
-          <p>High gross margin structure with rapid CAC recovery payback timeline.</p>
+          <p>Financial assumptions require independent customer and market testing.</p>
         </div>
       </div>
     </div>
@@ -324,22 +280,22 @@ export async function GET(request: NextRequest) {
       <div class="section-header">
         <span class="section-tag">Market Size [PROJECTION]</span>
         <h2 class="section-title">Total Addressable Market</h2>
-        <p class="section-subtitle">Significant market headroom supported by secular industry growth drivers.</p>
+        <p class="section-subtitle">AI-generated market estimates; verify the underlying assumptions independently.</p>
       </div>
       <div class="market-grid">
         <div class="market-card">
           <span class="market-tier">TAM</span>
-          <span class="market-number">${tam}</span>
+          <span class="market-number">${escapeHtml(tam)}</span>
           <p class="market-desc">Total Addressable Market worldwide</p>
         </div>
         <div class="market-card highlight">
           <span class="market-tier">SAM</span>
-          <span class="market-number">${sam}</span>
+          <span class="market-number">${escapeHtml(sam)}</span>
           <p class="market-desc">Serviceable Addressable Market in primary geography</p>
         </div>
         <div class="market-card">
           <span class="market-tier">SOM</span>
-          <span class="market-number">${som}</span>
+          <span class="market-number">${escapeHtml(som)}</span>
           <p class="market-desc">Realistic Obtainable Market over 36-month horizon</p>
         </div>
       </div>
@@ -369,11 +325,11 @@ export async function GET(request: NextRequest) {
         <h2>Inquire / Connect With The Founder</h2>
         <p>Interested in partnerships, pilot opportunities, or investment?</p>
         <div class="contact-details">
-          <span class="contact-badge">${primaryIdea.industry}</span>
-          <span class="contact-badge">${primaryIdea.location}</span>
-          <span class="contact-badge">Status: Validated (${decision})</span>
+          <span class="contact-badge">${escapeHtml(primaryIdea.industry)}</span>
+          <span class="contact-badge">${escapeHtml(primaryIdea.location)}</span>
+          <span class="contact-badge">AI assessment (${escapeHtml(decision)})</span>
         </div>
-        <a href="mailto:founder@example.com?subject=Inquiry%20regarding%20${encodeURIComponent(primaryIdea.name)}" class="btn btn-primary btn-lg">Send Founder Inquiry</a>
+        <a href="mailto:${encodeURIComponent(dbUser.email)}?subject=Inquiry%20regarding%20${encodeURIComponent(primaryIdea.name)}" class="btn btn-primary btn-lg">Send Founder Inquiry</a>
       </div>
     </div>
   </section>
@@ -381,7 +337,7 @@ export async function GET(request: NextRequest) {
   <!-- Footer -->
   <footer class="footer">
     <div class="container footer-content">
-      <p>&copy; ${new Date().getFullYear()} ${primaryIdea.name}. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} ${escapeHtml(primaryIdea.name)}. All rights reserved.</p>
       <p class="footer-note">Autonomous Venture Portfolio • Independent Commercial Validation</p>
     </div>
   </footer>
@@ -957,9 +913,9 @@ body {
 }
 `
 
-    const readmeMd = `# ${primaryIdea.name} — Startup Portfolio Showcase
+    const readmeMd = `# ${escapeHtml(primaryIdea.name)} — Startup Portfolio Showcase
 
-This repository contains a standalone, fully responsive static portfolio website showcasing the validated business model, market opportunity, and strategic milestones for **${primaryIdea.name}**.
+This repository contains a standalone, fully responsive static portfolio website showcasing the validated business model, market opportunity, and strategic milestones for **${escapeHtml(primaryIdea.name)}**.
 
 ## Package Structure
 \`\`\`
@@ -970,9 +926,9 @@ startup-portfolio/
 \`\`\`
 
 ## Key Highlights
-- **Validation Score**: ${overallScore}/100 (${decision} Recommendation)
-- **Target Market (TAM)**: ${tam}
-- **Business Model**: ${primaryIdea.businessModel}
+- **Validation Score**: ${overallScore}/100 (${escapeHtml(decision)} Recommendation)
+- **Target Market (TAM)**: ${escapeHtml(tam)}
+- **Business Model**: ${escapeHtml(primaryIdea.businessModel)}
 - **Responsive Architecture**: Optimized for desktop, tablet, and mobile browsers
 
 ---
@@ -1022,7 +978,7 @@ npx serve .
       },
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal Server Error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[export] Failed', { name: err instanceof Error ? err.name : 'UnknownError' })
+    return NextResponse.json({ error: 'Unable to export this report. Please try again.' }, { status: 500 })
   }
 }

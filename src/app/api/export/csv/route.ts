@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { db } from '@/db'
-import { users, ideas, validationReports } from '@/db/schema'
+import { ideas, validationReports } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
 import { z } from 'zod'
@@ -48,26 +49,7 @@ export async function GET(request: NextRequest) {
     const ideaId = parsedQuery.data.ideaId
     const canvasId = parsedQuery.data.canvasId
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    if (!dbUser && user.email) {
-      try {
-        const [inserted] = await db
-          .insert(users)
-          .values({
-            email: user.email,
-            supabaseId: user.id,
-            tier: 'free',
-          })
-          .onConflictDoNothing()
-          .returning()
-        dbUser = inserted || (await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) }))
-      } catch {
-        // fallback to query
-      }
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })

@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { topUpMonthlyCredits } from '@/lib/credits'
 import { lt, or, isNull } from 'drizzle-orm'
+import { reapStaleValidationJobs } from '@/lib/validation/jobs'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,7 @@ export async function GET(req: Request) {
     }
 
     const now = new Date()
+    await reapStaleValidationJobs()
     const expiredUsers = await db.query.users.findMany({
       where: or(lt(users.creditResetAt, now), isNull(users.creditResetAt)),
       columns: { id: true }, limit: 500

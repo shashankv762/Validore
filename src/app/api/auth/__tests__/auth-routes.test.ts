@@ -6,13 +6,13 @@ import { GET as callbackHandler } from '@/app/auth/callback/route'
 import { POST as signoutHandler } from '@/app/api/auth/signout/route'
 
 vi.mock('@/lib/supabase/server', () => {
-  return {
+  const factory = {
     createClient: vi.fn().mockImplementation(async () => {
       return {
         auth: {
           signInWithPassword: vi.fn().mockImplementation(async ({ email, password }) => {
             if (password === 'wrongpassword') {
-              return { data: { user: null, session: null }, error: { message: 'Invalid login credentials' } }
+              return { data: { user: null, session: null }, error: { status: 400, message: 'Invalid login credentials' } }
             }
             return {
               data: {
@@ -51,6 +51,7 @@ vi.mock('@/lib/supabase/server', () => {
       }
     }),
   }
+  return { ...factory, createClientWithDeferredCookies: async () => ({ client: await factory.createClient(), commitCookies: vi.fn() }) }
 })
 
 vi.mock('@/lib/auth-sync', () => {

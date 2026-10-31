@@ -11,6 +11,7 @@ export async function deployRender(options, dependencies = {}) {
   const sleep = dependencies.sleep ?? (ms => new Promise(done => setTimeout(done, ms)))
   const now = dependencies.now ?? Date.now
   const apiRoot = 'https://api.render.com/v1/services/' + serviceId
+  /** @type {{ serviceId: string, commit: string, status: string, deployId?: string, rollbackDeployId?: string, rollbackStatus?: string }} */
   const record = { serviceId, commit, status: 'starting' }
   const api = async (path, method = 'GET', body) => {
     const response = await fetcher(apiRoot + path, { method, redirect: 'error', signal: AbortSignal.timeout(15_000),
@@ -113,7 +114,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
     console.error(error.message)
     process.exitCode = 1
   }
-  // Jenkins prepares this fixed generated directory before deployment.
+  // CI prepares this fixed generated directory before deployment.
   try { await writeFile(resolve('reports/render-deploy.json'), JSON.stringify(result, null, 2) + '\n') }
   catch { console.error('Unable to write Render deployment report'); process.exitCode = 1 }
 }

@@ -39,7 +39,7 @@ describe('Validation job lifecycle', () => {
   it('reserves credits before accepting work and holds concurrency through completion', async () => {
     const res = await POST(request())
     expect(res.status).toBe(202)
-    expect(mocks.deduct).toHaveBeenCalledWith('db-user', expect.any(Number), 'VALIDATION', expect.any(String), 2)
+    expect(mocks.deduct).toHaveBeenCalledWith('db-user', expect.any(Number), 'VALIDATION', expect.any(String), 2, expect.objectContaining({ select: expect.any(Function), insert: expect.any(Function) }))
     expect(mocks.run).not.toHaveBeenCalled()
     expect(mocks.release).not.toHaveBeenCalled()
     await mocks.after.mock.calls[0][0]()

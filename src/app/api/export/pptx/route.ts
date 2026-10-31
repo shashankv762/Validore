@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import PptxGenJS from 'pptxgenjs'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { db } from '@/db'
-import { users, ideas, pitchDecks, validationReports, crowdfundingAnalyses, leanCanvases, pricingSimulations } from '@/db/schema'
+import { ideas, pitchDecks, validationReports, crowdfundingAnalyses, leanCanvases, pricingSimulations } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { getUserWithTierConfig } from '@/lib/tier-gate'
 import { z } from 'zod'
@@ -56,41 +57,10 @@ export async function GET(request: NextRequest) {
 
     const { ideaId, deckId, reportId } = parsedQuery.data
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    if (!dbUser && user.email) {
-      try {
-        const [inserted] = await db
-          .insert(users)
-          .values({
-            email: user.email,
-            supabaseId: user.id,
-            tier: 'free',
-          })
-          .onConflictDoNothing()
-          .returning()
-        dbUser = inserted || (await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) }))
-      } catch {
-        // fallback
-      }
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Tier / Credit check: canExportPptx (Max tier) OR dbUser.pitchDeckCredits > 0
-    const userTier = await getUserWithTierConfig(user.id)
-    const canExportPptx = Boolean(userTier?.config?.canExportPptx)
-    const hasPitchCredits = dbUser.pitchDeckCredits > 0
-
-    if (!canExportPptx && !hasPitchCredits) {
-      return NextResponse.json(
-        { error: 'PPTX export requires Max tier or pitch deck credits' },
-        { status: 403 }
-      )
     }
 
     let pitchDeckRecord = null
@@ -141,17 +111,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    const userTier = await getUserWithTierConfig(user.id)
+    if (!userTier?.config?.canExportPptx && !pitchDeckRecord) {
+      return NextResponse.json({ error: 'PPTX export requires Max tier or an owned pitch deck' }, { status: 403 })
+    }
+
     const startupName = ideaRecord?.name || 'Venture'
     const industry = ideaRecord?.industry || 'Technology / SaaS'
     const product = ideaRecord?.product || 'Autonomous Business Platform'
-    const targetCustomer = ideaRecord?.targetCustomer || 'High-Growth Startups & Founders'
     const businessModel = ideaRecord?.businessModel || 'B2B Subscription SaaS'
     const coreProblem = ideaRecord?.coreProblem || 'Founders waste 6+ months building products without customer validation.'
-    const proposedSolution = ideaRecord?.proposedSolution || 'AI-driven multi-agent simulations that stress-test business assumptions in 60 seconds.'
 
     // PPTX Setup
     const pptx = new PptxGenJS()
-    pptx.layout = 'LAYOUT_16x9'
+    pptx.layout = 'LAYOUT_WIDE'
     pptx.author = 'Validore'
     pptx.company = startupName
     pptx.title = `${startupName} Investor Pitch Deck`
@@ -219,98 +192,8 @@ export async function GET(request: NextRequest) {
       rawSlides.push(...pricingSlides);
     }
 
-    const slidesToRender: SlideData[] = rawSlides.length >= 8
-      ? rawSlides
-      : [
-          {
-            title: 'Title & Pitch Deck',
-            headline: startupName,
-            content: product,
-            keyPoints: [
-              `Industry: ${industry}`,
-              `Target Market: ${targetCustomer}`,
-              `Prepared for Investor Evaluation • ${new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`,
-            ],
-            speakerNotes: `Welcome investors. Today we are presenting ${startupName}, an innovative approach to ${industry.toLowerCase()}.`,
-          },
-          {
-            title: 'The Problem',
-            headline: 'Critical Pain Point in Current Market Workflows',
-            content: coreProblem,
-            keyPoints: [
-              `Target Customer Impact: ${targetCustomer} faces severe friction and wasted capital.`,
-              'Legacy Alternatives: Manual consulting and ad-hoc spreadsheets are too slow and expensive.',
-              'Urgency: Decision velocity is paramount in today\'s competitive landscape.',
-            ],
-            speakerNotes: 'Address market failure rates and explain why existing approaches do not solve this problem efficiently.',
-          },
-          {
-            title: 'The Solution',
-            headline: 'Autonomous, Rapid & Defensible Value Delivery',
-            content: proposedSolution,
-            keyPoints: [
-              `Core Product: ${product}`,
-              '10x Faster: Delivers high-fidelity insights in minutes rather than weeks.',
-              'Data Moat: Proprietary benchmarking engine strengthens defensibility over time.',
-            ],
-            speakerNotes: 'Walk through product workflow and demonstrate the customer value proposition.',
-          },
-          {
-            title: 'Target Market & Opportunity',
-            headline: '$14B Global Addressable Market Headroom',
-            content: 'Rapid market expansion driven by digital transformation and entrepreneurship growth.',
-            keyPoints: [
-              'TAM (Total Addressable Market): $14B global market spend [PROJECTION]',
-              'SAM (Serviceable Addressable Market): $3.2B in primary target segments [PROJECTION]',
-              'SOM (Obtainable Market): $480M over 36-month horizon [PROJECTION]',
-            ],
-            speakerNotes: 'Highlight bottom-up and top-down market sizing and growth CAGR.',
-          },
-          {
-            title: 'Business Model & Pricing',
-            headline: 'Predictable, High-Margin B2B SaaS Economics',
-            content: businessModel,
-            keyPoints: [
-              'Subscription SaaS: Free tier for viral acquisition, $49/mo Pro, $99/mo Max.',
-              'Unit Economics: Estimated LTV/CAC ratio of 4.2x with 7-month CAC payback.',
-              'Gross Margin Profile: 80%+ gross margins with scalable cloud infrastructure.',
-            ],
-            speakerNotes: 'Walk through revenue architecture, pricing tiers, and expansion paths.',
-          },
-          {
-            title: 'Competitive Advantage',
-            headline: 'Defensible Technical Moat & Speed Advantage',
-            content: 'Significantly faster and more comprehensive than fragmented consulting solutions.',
-            keyPoints: [
-              'Proprietary Synthetic Telemetry: High-accuracy predictive models.',
-              'Continuous Learning Flywheel: Product insights compound with platform usage.',
-              'Cost Asymmetry: 10x lower cost structure compared to bespoke agencies.',
-            ],
-            speakerNotes: 'Emphasize defensibility against both incumbents and generic LLM wrappers.',
-          },
-          {
-            title: 'Go-To-Market & Traction',
-            headline: 'Product-Led Growth + Targeted Enterprise Outbound',
-            content: 'Self-reinforcing distribution flywheels driving sustainable low CAC.',
-            keyPoints: [
-              'Organic Flywheel: Viral validation reports and founder benchmark sharing.',
-              'Community Partnerships: Direct distribution via accelerator programs and incubators.',
-              'Traction Signals: Strong early customer validation and high willingness to pay.',
-            ],
-            speakerNotes: 'Detail organic distribution channels and initial milestone accomplishments.',
-          },
-          {
-            title: 'Financials & Ask',
-            headline: '$1.5M Seed Financing to Accelerate Growth',
-            content: '18 months runway to scale ARR and expand enterprise features.',
-            keyPoints: [
-              'Use of Funds: 60% Engineering & Product, 30% Go-To-Market, 10% Operations.',
-              'Key Milestones: Reach $1M ARR and onboard 500 active teams within 12 months.',
-              'Break-Even Horizon: Projected operational break-even within 18 months.',
-            ],
-            speakerNotes: 'Close with fund allocation breakdown, milestone targets, and founder contact.',
-          },
-        ]
+    if (!rawSlides.length) return NextResponse.json({ error: 'Generate a report or pitch deck before exporting.' }, { status: 404 })
+    const slidesToRender = rawSlides
 
     // Render each slide
     slidesToRender.forEach((s, idx) => {
@@ -458,7 +341,7 @@ export async function GET(request: NextRequest) {
     })
   } catch (err: unknown) {
     console.error('PPTX Export Error:', err)
-    const message = err instanceof Error ? err.message : 'Internal Server Error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[export] Failed', { name: err instanceof Error ? err.name : 'UnknownError' })
+    return NextResponse.json({ error: 'Unable to export this report. Please try again.' }, { status: 500 })
   }
 }

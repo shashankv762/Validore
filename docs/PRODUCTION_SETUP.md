@@ -4,7 +4,7 @@ The source now has configurable CI, durable validation jobs, billing endpoints, 
 
 ## Configuration
 
-Use .env.example as the field reference. Keep .env.local ignored and never include it in a Docker context or Jenkins checkout. The screenshot-supplied Supabase private key/database password have been exposed; rotate them in Supabase and replace the local values before public use. A public publishable/anon key is intended for the browser; a service-role/secret key and DB credentials are server-only.
+Use .env.example as the field reference. Keep .env.local ignored and never include it in a Docker context or CI checkout. The screenshot-supplied Supabase private key/database password have been exposed; rotate them in Supabase and replace the local values before public use. A public publishable/anon key is intended for the browser; a service-role/secret key and DB credentials are server-only.
 
 | Setting | Requirement |
 | --- | --- |
@@ -77,8 +77,8 @@ Configure a cron scheduler to request /api/cron/reset-credits with Authorization
 
 ## Release evidence
 
-Require successful strict lint, types, the full CI suite, production build/smoke, dependency/container audits, Jenkins controller validation and a demo run, and live staging acceptance. Check mobile/desktop layout, keyboard focus, form error recovery, report history, account preferences, billing, and credit balances using a real staging account.
+Require successful strict lint, types, the full CI suite, production build/smoke, dependency/container audits, a passing CI workflow run, and live staging acceptance. Check mobile/desktop layout, keyboard focus, form error recovery, report history, account preferences, billing, and credit balances using a real staging account.
 
 Record backup/restore evidence and monitor failed/stale jobs, provider errors/costs, Redis outages, webhook failures, DB connections, and cron backlog. /api/health is a DB-free liveness endpoint; it does not prove database/queue readiness. Separate uptime from dependency monitoring.
 
-The selected domain is validore.tech. A Render Free beta blueprint is prepared; the hosting account, DNS routing, Jenkins controller, and production integrations are not configured yet. [Implementation status](IMPLEMENTATION_STATUS.md) lists completed changes and checks still pending.
+The selected domain is validore.tech. A Render Free beta blueprint is prepared and Render API access works. Supabase database access restrictions and Redis are verified; Inngest keys are present and the user reports SMTP configured. Service creation, DNS routing and live integration acceptance remain pending. [Implementation status](IMPLEMENTATION_STATUS.md) records completed checks.

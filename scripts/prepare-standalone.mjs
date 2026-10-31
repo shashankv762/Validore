@@ -1,5 +1,9 @@
-import { cp, lstat, realpath } from 'node:fs/promises'
+import { cp, lstat } from 'node:fs/promises'
+import { realpath as resolveRealpath } from 'node:fs'
+import { promisify } from 'node:util'
 import { resolve, join, sep } from 'node:path'
+// The callback resolver also supports Windows RAM disks that reject native realpath.
+const realpath = promisify(resolveRealpath)
 const root = await realpath(process.cwd())
 const assertDirectory = async path => {
   const stat = await lstat(path)

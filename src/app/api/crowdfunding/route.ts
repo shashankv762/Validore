@@ -12,13 +12,14 @@ import { consumeModulePack } from '@/lib/module-credits'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
+import { toDatabaseInteger } from '@/lib/numbers'
 import * as fin from '@/lib/financial'
 import { CAMPAIGN_WEIGHTS, clampScore, getCampaignClassificationBand } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
 
 const CrowdfundingInputSchema = z.object({
   ideaId: z.string().uuid(),
-  fundingGoal: z.number().positive(),
+  fundingGoal: z.number().int().positive().max(2_147_483_647),
   projectDescription: z.string().trim().min(20).max(8000),
   category: z.string().trim().min(1).max(120),
   country: z.string().trim().min(1).max(120),
@@ -103,6 +104,8 @@ const CrowdfundingAiSchema = z.object({
   integrityNote: z.string(),
 })
 
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
@@ -112,7 +115,7 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const rl = await rateLimitCheck(dbUser.id)
+  const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
@@ -144,7 +147,7 @@ export async function POST(request: NextRequest) {
     }
     const body = await request.json().catch(() => null)
     const parsed = CrowdfundingInputSchema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    if (!parsed.success) return NextResponse.json({ error: 'Please check the form fields and try again.', details: parsed.error.flatten() }, { status: 400 })
 
     const i = parsed.data
     const idea = await db.query.ideas.findFirst({
@@ -258,8 +261,8 @@ CRITICAL RULES:
         performanceScore,
         classificationBand: `${band} — ${classLabel}`,
         fundingGoal: i.fundingGoal,
-        expectedFunding: ai.scenarios.base.amountRaised,
-        expectedBackers: ai.scenarios.base.backers,
+        expectedFunding: toDatabaseInteger(ai.scenarios.base.amountRaised),
+        expectedBackers: toDatabaseInteger(ai.scenarios.base.backers),
         conversionRate: `${estimatedConversionRate}% (ASSUMPTION)`,
         rewardTiers: ai.rewardTierAnalysis,
         scenarioAnalysis: { ...ai.scenarios, disclaimer: 'ASSUMPTION — not guaranteed outcomes' },

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { validationReports, validationJobs, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
+import { z } from 'zod'
+import { isStaleValidationJob, reapStaleValidationJobs } from '@/lib/validation/jobs'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -16,12 +18,19 @@ export async function GET(request: NextRequest) {
   const reportId = request.nextUrl.searchParams.get('reportId')
 
   if (!jobId && !reportId) return NextResponse.json({ error: 'jobId or reportId required' }, { status: 400 })
+  if ((jobId && !z.uuid().safeParse(jobId).success) || (reportId && !z.uuid().safeParse(reportId).success)) {
+    return NextResponse.json({ error: 'A valid jobId or reportId is required' }, { status: 400 })
+  }
 
   if (jobId) {
-    const job = await db.query.validationJobs.findFirst({
+    let job = await db.query.validationJobs.findFirst({
       where: and(eq(validationJobs.id, jobId), eq(validationJobs.userId, dbUser.id)),
     })
     if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+    if (isStaleValidationJob(job)) {
+      await reapStaleValidationJobs(job.id)
+      job = (await db.query.validationJobs.findFirst({ where: and(eq(validationJobs.id, job.id), eq(validationJobs.userId, dbUser.id)) })) ?? job
+    }
 
     // When the job is done, include the reportId so the client can redirect.
     let reportId: string | null = null
@@ -56,8 +65,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Handle missing column gracefully
-  const status = (report as any).status ?? 'complete'
+  const status = report.status ?? 'complete'
 
   return NextResponse.json({ status })
 }

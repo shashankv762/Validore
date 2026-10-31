@@ -1,12 +1,31 @@
 # Implementation and verification status
 
-Updated 2026-10-12. Current priority: the local application and Jenkins classroom presentation; public deployment is deferred. Changes are in the working tree, authored by Sol. They have not been committed, pushed, or deployed. Luna performed discovery and earlier bounded verification. The latest source is not yet verified.
+Updated 2026-10-31. Current target: a Render beta at validore.tech. This session uses GPT-6 Astra and runs local servers, tests, builds, caches and temporary files in `R:\Validore-Astra-20261031`. Existing source changes were preserved. No release has been deployed yet.
+
+## Current repair and verification checkpoint
+
+- Auth repairs cover deferred session cookies, profile provisioning, local origins, confirmation/recovery callbacks, Google-provider availability and clear weak-password/SMTP errors.
+- Credit reservation and job creation share a transaction; monthly allowances renew under a row lock; bounded, idempotent refunds recover abandoned jobs, including historical null update timestamps. Progress writes are awaited.
+- Exports use owned saved records instead of fabricated fallback businesses/market claims, escape portfolio HTML, and retain downloads after creation credits are consumed. Financial edge cases have explicit nulls and explanations. Report loading has an error/retry state.
+- Strict ESLint, generated Next types and TypeScript passed. The full suite has **299 passed, 8 skipped**. Five skipped DB release tests were separately run against real PostgreSQL and **all 5 passed**; three legacy DB tests remain skipped.
+- Both reviewed SQL deltas were applied. All **14 application tables** have RLS; effective anon/authenticated privileges are denied, direct queries as both roles fail, and owner reads and row counts were preserved. Tests used an isolated schema that was removed afterward.
+- Redis PONG verified. Inngest keys are present. User reports Resend/SMTP configured. Signup returned **HTTP 200** for the authorized test address; inbox delivery and confirmation/signin/reset remain under test. Google is still disabled at last check.
+- Next.js is upgraded to **16.4.3**. Production dependency audit has **zero high/critical findings**, with five moderate transitive findings remaining.
+- Final production build and standalone smoke passed with real public Supabase build configuration: liveness, landing, demo, static logo and cache policy. Webpack/SWC WASM and the callback filesystem resolver support the RAM drive without removing path checks.
+
+Evidence is under the R-drive `reports` directory: `final-ci.log`, `junit.xml`, `database-release-final.log`, `database-access-before.json`, `database-access-after.json`, `production-audit.log`, and `final-build.log`. R is volatile. The database access snapshots contain grants/index metadata, not personal account records.
+
+Remaining: complete auth/provider acceptance, review/push the tested revision and verify GitHub CI, create the free Render service, verify deployment, apply only its supplied DNS records, verify HTTPS, and sync/test live Inngest validation. Billing stays unconfigured. Live AI generation is not yet verified. Public launch is pending, not certified error-free.
+
+## Archived checkpoint (2026-10-12)
+
+The remainder records earlier classroom work and blockers; the current checkpoint above supersedes its execution and deployment status.
 
 ## Source work completed
 
 | Area | Principal files |
 | --- | --- |
-| Classroom CI, container release, Render live release | Jenkinsfile, Jenkinsfile.classroom, scripts/Start-ClassroomApp.ps1, Start-ClassroomJenkins.ps1, Copy-ClassroomSource.ps1, Dockerfile, docker-compose.yml, render.yaml, scripts/ci-config.mjs, prepare-ci.mjs, prepare-standalone.mjs, smoke-production.mjs, render-deployment.mjs |
+| CI, container release, Render live release | .github/workflows/ci.yml, scripts/Start-ClassroomApp.ps1, Dockerfile, docker-compose.yml, render.yaml, scripts/ci-config.mjs, prepare-ci.mjs, prepare-standalone.mjs, smoke-production.mjs, render-deployment.mjs |
 | Brand-preserving UI and history | src/app/page.tsx, src/app/demo/page.tsx, dashboard/page.tsx, dashboard/Sidebar.tsx, dashboard/reports, dashboard/report/ReportView.tsx, dashboard/settings/page.tsx, dashboard/credits/page.tsx, components/ui, globals.css, local Geist fonts |
 | Identity/session/recovery | src/proxy.ts, auth pages/callback, api/auth routes, lib/auth-sync.ts, auth-form.ts, auth-redirect.ts |
 | Credit/payment consistency | lib/credits.ts, credit-fulfillment.ts, module-credits.ts, credit-packages.ts, api/credits, billing and webhook routes |
@@ -14,15 +33,15 @@ Updated 2026-10-12. Current priority: the local application and Jenkins classroo
 | Canvas persistence and selected-version downloads | lib/canvas-versions.ts, canvas-store.ts, api/lean-canvas/manual, api/lean-canvas/report, api/export/pdf and csv, components/ui/ExportToolbar.tsx |
 | DB access and scale | src/db/index.ts, schema.ts, drizzle/0000_credit_payment_idempotency.sql, 0001_application_access_and_indexes.sql |
 | Regression coverage | New auth, BYOK, fulfillment, job/refund, evidence, CI config, Render deployment, gateway routing/generation, canvas/manual/export and module-pack tests; updated existing stress/API/contracts |
-| Operator guidance | README.md, DESIGN.md, JENKINS_SETUP.md, CICD.md, PRODUCTION_SETUP.md, GO_LIVE.md, AI_AGENTS.md, CLASSROOM_DEMO.md |
+| Operator guidance | README.md, DESIGN.md, PRODUCTION_SETUP.md, GO_LIVE.md, AI_AGENTS.md, CLASSROOM_DEMO.md |
 
 Logo assets and brand palette were preserved. Screenshot-supplied Supabase values and three supplied AI gateway keys/model lists are in ignored .env.local; unconfigured integrations remain empty. All 13 gateway models are unverified after catalog connection failures. The user confirmed the exposed private credentials have not yet been rotated.
 
 ## Latest classroom source work
 
-The ordinary developer launchers run the app and a portable loopback Jenkins controller in separate foreground terminals. Jenkins needs Java 21/25; the pinned WAR download checksum comes from the official Jenkins download page. Java, Jenkins and the new launchers have not been run. node.exe/npm.cmd resolve on the inherited Windows PATH.
+The ordinary developer launcher runs the app in a foreground terminal. node.exe/npm.cmd resolve on the inherited Windows PATH. The launcher has not been run.
 
-Jenkinsfile.classroom copies the current local source allowlist into a new build folder, excludes private environment files/generated artifacts, records source hashes, and runs strict CI plus an ephemeral local deployment/smoke stage. This is a local working-tree demonstration, not a Git release. The normal Jenkinsfile retains the later Git/public release path.
+The GitHub Actions workflow runs strict CI on push and pull request: environment/secret-file guard, public build configuration validation, npm ci from the lockfile, lint, Next route type generation and TypeScript, unit/regression tests with actual JUnit output, production dependency audit, production build, and an ephemeral standalone deployment/smoke stage. Container publishing and the Render release remain operator-run and are not given credentials by CI.
 
 Typecheck now generates Next route types before tsc for fresh checkouts. Manual Lean Canvas saves are implemented, with user locking and a four-version cap shared with AI writes. The selected canvas version is used in its narrative/PDF/CSV exports. CSV missing financial/competitor data is labeled unavailable, and string formula cells are neutralized. The public /demo page is explicitly fictional and requires no service calls.
 
@@ -32,7 +51,7 @@ The earlier baseline passed lint and TypeScript, then found an unexpected databa
 
 At the first backend checkpoint, TypeScript passed; seven focused test files passed with 60 tests; the production Next.js build passed. That checkpoint covered BYOK crypto, purchase fulfillment, validation lifecycle, credit purchase API, anti-abuse, agent orchestration and tier2 tests. Evidence is in ignored reports/verification-checkpoint1/typecheck.log, targeted-vitest.log and build.log.
 
-These results predate the later UI, billing, module transaction, RLS/index, Render deployment, gateway, canvas, classroom pipeline and documentation changes. They are not final acceptance of the current working tree. No latest full lint/types/suite/build/smoke/audit or git diff --check has run.
+These results predate the later UI, billing, module transaction, RLS/index, Render deployment, gateway, canvas, CI workflow and documentation changes. They are not final acceptance of the current working tree. No latest full lint/types/suite/build/smoke/audit or git diff --check has run.
 
 ## Current execution blocker
 
@@ -47,8 +66,8 @@ The previous C: checkpoint evidence is recorded above as historical evidence; th
 
 ## Pending acceptance
 
-- Strict lint, TypeScript, full CI suite, production build and standalone smoke for current source, including gateway/canvas/classroom regressions; relevant security/dependency checks and diff --check.
-- New PowerShell launcher/snapshot integrity checks, Jenkins Declarative controller linter and actual classroom/release runs. Jenkins/Docker/Trivy were unavailable in the earlier environment inspection.
+- Strict lint, TypeScript, full CI suite, production build and standalone smoke for current source, including gateway/canvas regressions; relevant security/dependency checks and diff --check.
+- New PowerShell launcher checks and an actual GitHub Actions workflow run. Docker/Trivy were unavailable in the earlier environment inspection.
 - Render Blueprint/schema validation and the real release/rollback workflow are deferred. Accounts exist; no live service has been connected or deployed.
 - Apply/verify SQL on staging with backups, browser-role access denial and actual transactional concurrency tests. No live migration or DB seed was applied in this session.
 - Provider generation, Inngest delivery/retries, Redis outage behavior, SMTP and Supabase confirmation/recovery, billing test events and responsive browser journeys.

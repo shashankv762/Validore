@@ -1,7 +1,10 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
-export async function rateLimitCheck(userId: string) {
+export type RateLimitScope = 'validate' | 'ai-module' | 'canvas-manual' | 'recovery'
+const limits: Record<RateLimitScope, number> = { validate: 1, 'ai-module': 3, 'canvas-manual': 10, recovery: 1 }
+
+export async function rateLimitCheck(userId: string, scope: RateLimitScope = 'validate') {
   try {
     if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
       if (process.env.NODE_ENV === 'production') {
@@ -13,7 +16,8 @@ export async function rateLimitCheck(userId: string) {
     const redis = Redis.fromEnv()
     const ratelimit = new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(1, '60 s'),
+      limiter: Ratelimit.slidingWindow(limits[scope], '60 s'),
+      prefix: 'validore:rate:' + scope,
     })
     return await ratelimit.limit(userId)
   } catch (error) {

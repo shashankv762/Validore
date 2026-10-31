@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { authFormResponse, authOrigin, validAuthOrigin } from '@/lib/auth-form'
+import { getAuthSettings } from '@/lib/supabase/auth-settings'
 
 export async function POST(req: NextRequest) {
   try {
+    if (!validAuthOrigin(req)) return authFormResponse(req, '/auth/signin', 'error', 'Invalid request origin', 403)
+    const settings = await getAuthSettings()
+    if (!settings?.external?.google) {
+      return authFormResponse(req, '/auth/signin', 'error', 'Google sign-in is not available yet. Please sign in with email.', 503)
+    }
     const supabase = await createClient()
-    const origin = new URL(req.url).origin
+    const origin = authOrigin(req)
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -14,20 +21,17 @@ export async function POST(req: NextRequest) {
     })
 
     if (error) {
-      const errorUrl = new URL('/auth/signin', req.url)
-      errorUrl.searchParams.set('error', error.message)
-      return NextResponse.redirect(errorUrl, 303)
+      console.error('[auth/google] Provider rejected sign-in', { status: error.status, code: error.code })
+      return authFormResponse(req, '/auth/signin', 'error', 'Google sign-in is temporarily unavailable. Please use email or try again later.', 503)
     }
 
     if (data?.url) {
       return NextResponse.redirect(data.url, 303)
     }
 
-    return NextResponse.redirect(new URL('/auth/signin?error=oauth_failed', req.url), 303)
+    return authFormResponse(req, '/auth/signin', 'error', 'Google sign-in is temporarily unavailable. Please use email or try again later.', 503)
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'OAuth initiation failed'
-    const errorUrl = new URL('/auth/signin', req.url)
-    errorUrl.searchParams.set('error', message)
-    return NextResponse.redirect(errorUrl, 303)
+    console.error('[auth/google] Sign-in failed', { name: err instanceof Error ? err.name : 'UnknownError' })
+    return authFormResponse(req, '/auth/signin', 'error', 'Google sign-in is temporarily unavailable. Please use email or try again later.', 503)
   }
 }

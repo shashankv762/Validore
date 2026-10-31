@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
     if (!owner) return NextResponse.json({ error: 'User not found' }, { status: 404 })
     if (!await canUserAccess(user.id, 'canLeanCanvas')) return NextResponse.json({ error: 'Canvas editing is unavailable for this plan.' }, { status: 403 })
-    if (!(await rateLimitCheck(owner.id)).success) return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 })
+    if (!(await rateLimitCheck(owner.id, 'canvas-manual')).success) return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 })
     const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, parsed.data.ideaId), eq(ideas.userId, owner.id)) })
     if (!idea) return NextResponse.json({ error: 'Idea not found' }, { status: 404 })
     const blocks = Object.fromEntries(Object.entries(parsed.data.blocks).map(([key, content]) => [key, {

@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
-const mocks = vi.hoisted(() => ({ signin: vi.fn(), signup: vi.fn(), sync: vi.fn() }))
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { signInWithPassword: mocks.signin, signUp: mocks.signup } }) }))
+const mocks = vi.hoisted(() => ({ signin: vi.fn(), signup: vi.fn(), sync: vi.fn(), commit: vi.fn() }))
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: async () => ({ auth: { signInWithPassword: mocks.signin, signUp: mocks.signup } }),
+  createClientWithDeferredCookies: async () => ({ client: { auth: { signInWithPassword: mocks.signin, signUp: mocks.signup } }, commitCookies: mocks.commit }),
+}))
 vi.mock('@/lib/auth-sync', () => ({ syncUserToDatabase: mocks.sync }))
 import { POST as signin } from '@/app/api/auth/signin/route'
 import { POST as signup } from '@/app/api/auth/signup/route'

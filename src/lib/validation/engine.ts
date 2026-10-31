@@ -175,7 +175,7 @@ export type FullReportWithComputed = FullReport & {
   overallScore: number
   provider: string
   tokensUsed: number
-  computedUnitEconomics: Record<string, number | string>
+  computedUnitEconomics: Record<string, number | string | null>
   financialProjection: Array<{ month: number; customers: number; revenue: number; costs: number; profitLoss: number; label: string }>
 }
 
@@ -191,7 +191,7 @@ export async function runFullValidation(
     // Update job: started
     await db
       .update(validationJobs)
-      .set({ totalSections: 6, completedSections: 0 })
+      .set({ totalSections: 6, completedSections: 0, updatedAt: new Date() })
       .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
 
     // ─── Primary path: multi-agent pipeline ──────────────────────────────────
@@ -200,7 +200,7 @@ export async function runFullValidation(
       onProgress: async (completed: number, _total: number, _label?: string) => {
         await db
           .update(validationJobs)
-          .set({ completedSections: completed })
+          .set({ completedSections: completed, updatedAt: new Date() })
           .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
           .catch(() => {})
       },
@@ -225,6 +225,7 @@ export async function runFullValidation(
         completedSections: 6,
         tokensUsed: totalTokens,
         aiProvider: provider,
+        updatedAt: new Date(),
       })
       .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
 
@@ -359,69 +360,13 @@ async function runMonolithicFull(
   const overallScore = ps + cs + ms + cds + ws + bs + fs + es
 
   // Compute unit economics from assumptions using verified formulas
-  let computedUnitEconomics: Record<string, number | string> = { label: 'ASSUMPTION' }
+  let computedUnitEconomics: Record<string, number | string | null> = { label: 'ASSUMPTION' }
   let financialProjection: Array<{ month: number; customers: number; revenue: number; costs: number; profitLoss: number; label: string }> = []
 
   try {
     const ua = d.unitEconomicsAssumptions
-    const contributionMargin = fin.calculateContributionMargin(
-      ua.estimatedSellingPrice,
-      ua.estimatedVariableCost
-    )
-    const breakEvenCustomers = fin.calculateBreakEvenUnits(
-      ua.estimatedFixedCostMonthly,
-      ua.estimatedSellingPrice,
-      ua.estimatedVariableCost
-    )
-    const breakEvenRevenue = fin.calculateBreakEvenRevenue(
-      breakEvenCustomers,
-      ua.estimatedSellingPrice
-    )
-    const cac = ua.estimatedCACMonthly
-    const avgLifetimeMonths = ua.estimatedChurnRate > 0 ? 1 / ua.estimatedChurnRate : 24
-    const ltv = fin.calculateLTV(contributionMargin, avgLifetimeMonths)
-    const ltvCacRatio = fin.calculateLTVCACRatio(ltv, cac)
-    const cacPaybackMonths = fin.calculateCACPaybackPeriod(cac, contributionMargin)
-    const grossMarginPercent = fin.calculateGrossMarginPercent(
-      ua.estimatedSellingPrice,
-      ua.estimatedVariableCost
-    )
-    const contributionMarginPercent = fin.calculateContributionMarginPercent(
-      contributionMargin,
-      ua.estimatedSellingPrice
-    )
-
-    computedUnitEconomics = {
-      contributionMargin,
-      contributionMarginPercent,
-      breakEvenCustomers: Math.ceil(breakEvenCustomers),
-      breakEvenRevenue: Math.round(breakEvenRevenue),
-      cac,
-      ltv,
-      ltvCacRatio,
-      cacPaybackMonths,
-      grossMarginPercent,
-      label: 'ASSUMPTION',
-    }
-
-    // Build 12-month projection (PROJECTION label, not real)
-    financialProjection = Array.from({ length: 12 }, (_, i) => {
-      const month = i + 1
-      const customers = Math.round(
-        ua.estimatedMonthlyCustomers * Math.pow(1.1, i) // 10% MoM growth assumption
-      )
-      const revenue = customers * ua.estimatedSellingPrice
-      const variableCosts = customers * ua.estimatedVariableCost
-      const totalCosts = ua.estimatedFixedCostMonthly + variableCosts + cac * customers * 0.1
-      return {
-        month,
-        customers,
-        revenue: Math.round(revenue),
-        costs: Math.round(totalCosts),
-        profitLoss: Math.round(revenue - totalCosts),
-        label: 'PROJECTION' as const,
-      }
-    })
+    computedUnitEconomics = fin.computeUnitEconomics(ua)
+    financialProjection = fin.buildFinancialProjection(ua)
   } catch (err) {
     console.error('[ENGINE] Financial computation failed, using safe defaults:', err)
     partialFailures.push('financial_computation')

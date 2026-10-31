@@ -3,7 +3,11 @@ import { createServer } from 'node:net'
 import { once } from 'node:events'
 import assert from 'node:assert/strict'
 import { resolve, join, sep } from 'node:path'
-import { mkdir, lstat, realpath, writeFile } from 'node:fs/promises'
+import { mkdir, lstat, writeFile } from 'node:fs/promises'
+import { realpath as resolveRealpath } from 'node:fs'
+import { promisify } from 'node:util'
+
+const realpath = promisify(resolveRealpath)
 
 await import('./prepare-standalone.mjs')
 const reservation = createServer()

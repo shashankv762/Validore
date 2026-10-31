@@ -111,7 +111,7 @@ export function ExportToolbar({
 
   const handleExport = async (format: ExportFormat) => {
     const config = FORMAT_CONFIG[format]
-    const eligible = isTierEligible(config.minTier)
+    const eligible = isTierEligible(config.minTier) || (format === 'pptx' && Boolean(deckId))
 
     if (!eligible) {
       toast.info(
@@ -233,7 +233,7 @@ export function ExportToolbar({
 
       {formats.map(format => {
         const config = FORMAT_CONFIG[format]
-        const eligible = isTierEligible(config.minTier)
+        const eligible = isTierEligible(config.minTier) || (format === 'pptx' && Boolean(deckId))
         const isLoading = loadingFormat === format
         const Icon = config.icon
 

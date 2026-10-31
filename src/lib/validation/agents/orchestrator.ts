@@ -26,7 +26,7 @@ import * as fin from '@/lib/financial'
 // complete — the UI and exports must never crash on a missing section.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type AgentProgress = (completed: number, total: number, label?: string) => void
+export type AgentProgress = (completed: number, total: number, label?: string) => void | Promise<void>
 
 export type OrchestratorOpts = {
   customOpenRouterKey?: string | null
@@ -57,7 +57,7 @@ export type MultiAgentResult = {
     overallScore: number
     provider: string
     tokensUsed: number
-    computedUnitEconomics: Record<string, number | string>
+    computedUnitEconomics: Record<string, number | string | null>
     financialProjection: FinancialProjectionRow[]
     agentTrail: AgentTrail
   }
@@ -75,9 +75,9 @@ export async function runMultiAgentValidation(
 ): Promise<MultiAgentResult | null> {
   let completed = 0
   const agentTrail: AgentTrail = { agents: {}, totalTokens: 0, providers: [] }
-  const progress = (label: AgentName) => {
+  const progress = async (label: AgentName) => {
     completed += 1
-    opts?.onProgress?.(completed, TOTAL_AGENTS, label)
+    await opts?.onProgress?.(completed, TOTAL_AGENTS, label)
   }
 
   let lastProvider = 'unknown'
@@ -110,16 +110,16 @@ export async function runMultiAgentValidation(
   // ─── Phase 2: parallel research agents ─────────────────────────────────────
   const [marketRes, customerRes, competitorRes] = await Promise.all([
     runMarketAgent(idea, marketSearch, agentOpts).then(
-      (r) => { recordResult('market', r); progress('market'); return r },
-      (err) => { console.error('[AGENT:market] failed:', err); recordResult('market', null); progress('market'); return null }
+      async (r) => { recordResult('market', r); await progress('market'); return r },
+      async (err) => { console.error('[AGENT:market] failed:', err); recordResult('market', null); await progress('market'); return null }
     ),
     runCustomerAgent(idea, agentOpts).then(
-      (r) => { recordResult('customer', r); progress('customer'); return r },
-      (err) => { console.error('[AGENT:customer] failed:', err); recordResult('customer', null); progress('customer'); return null }
+      async (r) => { recordResult('customer', r); await progress('customer'); return r },
+      async (err) => { console.error('[AGENT:customer] failed:', err); recordResult('customer', null); await progress('customer'); return null }
     ),
     runCompetitorAgent(idea, competitorSearch, agentOpts).then(
-      (r) => { recordResult('competitor', r); progress('competitor'); return r },
-      (err) => { console.error('[AGENT:competitor] failed:', err); recordResult('competitor', null); progress('competitor'); return null }
+      async (r) => { recordResult('competitor', r); await progress('competitor'); return r },
+      async (err) => { console.error('[AGENT:competitor] failed:', err); recordResult('competitor', null); await progress('competitor'); return null }
     ),
   ])
 
@@ -127,12 +127,12 @@ export async function runMultiAgentValidation(
   const researchDigest = buildResearchDigest(marketRes, customerRes, competitorRes, problemSearch)
   const [financeRes, riskRes] = await Promise.all([
     runFinanceAgent(idea, researchDigest, agentOpts).then(
-      (r) => { recordResult('finance', r); progress('finance'); return r },
-      (err) => { console.error('[AGENT:finance] failed:', err); recordResult('finance', null); progress('finance'); return null }
+      async (r) => { recordResult('finance', r); await progress('finance'); return r },
+      async (err) => { console.error('[AGENT:finance] failed:', err); recordResult('finance', null); await progress('finance'); return null }
     ),
     runRiskAgent(idea, researchDigest, agentOpts).then(
-      (r) => { recordResult('risk', r); progress('risk'); return r },
-      (err) => { console.error('[AGENT:risk] failed:', err); recordResult('risk', null); progress('risk'); return null }
+      async (r) => { recordResult('risk', r); await progress('risk'); return r },
+      async (err) => { console.error('[AGENT:risk] failed:', err); recordResult('risk', null); await progress('risk'); return null }
     ),
   ])
 
@@ -144,7 +144,7 @@ export async function runMultiAgentValidation(
     return null
   })
   recordResult('synthesis', synthesisRes)
-  progress('synthesis')
+  await progress('synthesis')
 
   if (Object.values(agentTrail.agents).every(status => status === 'failed')) return null
 
@@ -169,49 +169,14 @@ export async function runMultiAgentValidation(
     clamped.competitiveScore + clamped.financialScore + clamped.businessModelScore + clamped.executionScore
 
   // ─── Phase 5: deterministic math from finance agent assumptions ────────────
-  const computedUnitEconomics: Record<string, number | string> = { label: 'ASSUMPTION' }
+  const computedUnitEconomics: Record<string, number | string | null> = { label: 'ASSUMPTION' }
   let financialProjection: FinancialProjectionRow[] = []
 
   const ua = financeRes?.data.unitEconomicsAssumptions
   if (ua) {
     try {
-      const contributionMargin = fin.calculateContributionMargin(ua.estimatedSellingPrice, ua.estimatedVariableCost)
-      const breakEvenCustomers = fin.calculateBreakEvenUnits(ua.estimatedFixedCostMonthly, ua.estimatedSellingPrice, ua.estimatedVariableCost)
-      const breakEvenRevenue = fin.calculateBreakEvenRevenue(breakEvenCustomers, ua.estimatedSellingPrice)
-      const cac = ua.estimatedCACMonthly
-      const avgLifetimeMonths = ua.estimatedChurnRate > 0 ? 1 / ua.estimatedChurnRate : 24
-      const ltv = fin.calculateLTV(contributionMargin, avgLifetimeMonths)
-      const ltvCacRatio = fin.calculateLTVCACRatio(ltv, cac)
-      const cacPaybackMonths = fin.calculateCACPaybackPeriod(cac, contributionMargin)
-      const grossMarginPercent = fin.calculateGrossMarginPercent(ua.estimatedSellingPrice, ua.estimatedVariableCost)
-      const contributionMarginPercent = fin.calculateContributionMarginPercent(contributionMargin, ua.estimatedSellingPrice)
-
-      computedUnitEconomics.contributionMargin = contributionMargin
-      computedUnitEconomics.contributionMarginPercent = contributionMarginPercent
-      computedUnitEconomics.breakEvenCustomers = Math.ceil(breakEvenCustomers)
-      computedUnitEconomics.breakEvenRevenue = Math.round(breakEvenRevenue)
-      computedUnitEconomics.cac = cac
-      computedUnitEconomics.ltv = ltv
-      computedUnitEconomics.ltvCacRatio = ltvCacRatio
-      computedUnitEconomics.cacPaybackMonths = cacPaybackMonths
-      computedUnitEconomics.grossMarginPercent = grossMarginPercent
-
-      // 12-month projection (PROJECTION label — same model as the monolith)
-      financialProjection = Array.from({ length: 12 }, (_, i) => {
-        const month = i + 1
-        const customers = Math.round(ua.estimatedMonthlyCustomers * Math.pow(1.1, i)) // 10% MoM growth assumption
-        const revenue = customers * ua.estimatedSellingPrice
-        const variableCosts = customers * ua.estimatedVariableCost
-        const totalCosts = ua.estimatedFixedCostMonthly + variableCosts + cac * customers * 0.1
-        return {
-          month,
-          customers,
-          revenue: Math.round(revenue),
-          costs: Math.round(totalCosts),
-          profitLoss: Math.round(revenue - totalCosts),
-          label: 'PROJECTION' as const,
-        }
-      })
+      Object.assign(computedUnitEconomics, fin.computeUnitEconomics(ua))
+      financialProjection = fin.buildFinancialProjection(ua)
     } catch (err) {
       console.error('[ORCHESTRATOR] Financial computation failed:', err)
     }

@@ -11,6 +11,7 @@ import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
+import { finiteOrNull } from '@/lib/numbers'
 import * as fin from '@/lib/financial'
 import { PRICING_WEIGHTS, clampScore, validateWeightTable } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
@@ -85,6 +86,8 @@ const PricingAiSchema = z.object({
   pricingVsVolumeMatrix: z.array(z.object({ pricePoint: z.number(), estimatedVolume: z.number(), revenue: z.number(), contributionMargin: z.number() })).optional(),
 })
 
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
@@ -94,7 +97,7 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const rl = await rateLimitCheck(dbUser.id)
+  const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
@@ -125,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
     const body = await request.json().catch(() => null)
     const parsed = PricingInputSchema.safeParse(body)
-    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    if (!parsed.success) return NextResponse.json({ error: 'Please check the form fields and try again.', details: parsed.error.flatten() }, { status: 400 })
 
     const i = parsed.data
     const idea = await db.query.ideas.findFirst({
@@ -155,7 +158,7 @@ export async function POST(request: NextRequest) {
 
     // 5 pricing scenarios
     const scenarios = [0.6, 0.8, 1.0, 1.2, 1.5].map(multiplier => {
-      const scenarioPrice = Math.round(i.sellingPrice * multiplier)
+      const scenarioPrice = Math.round(i.sellingPrice * multiplier * 100) / 100
       const sCM = fin.calculateContributionMargin(scenarioPrice, i.variableCostPerUnit)
       const sCustomers = Math.round(i.expectedCustomers / Math.pow(multiplier, 1.5)) // demand elasticity assumption
       const sRevenue = scenarioPrice * sCustomers
@@ -168,7 +171,7 @@ export async function POST(request: NextRequest) {
         revenue: Math.round(sRevenue),
         contributionMargin: sCM,
         profit: Math.round(sProfit),
-        breakEvenUnits: Math.ceil(sBEUnits),
+        breakEvenUnits: finiteOrNull(Math.ceil(sBEUnits)),
         label2: 'ASSUMPTION' as const,
       }
     })
@@ -185,7 +188,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Web search for competitor pricing
-    const searchResp = await webSearch(`${idea.industry} pricing competitors ${idea.location} 2024 2025`, 5)
+    const searchResp = await webSearch(`${idea.industry} pricing competitors ${idea.location} ${new Date().getFullYear()}`, 5)
 
     // AI analysis
     const today = new Date().toISOString().split('T')[0]
@@ -268,14 +271,15 @@ CRITICAL RULES:
         grossMarginPct,
         markupPct,
         markupNote: 'Markup is calculated on cost (Price-Cost)/Cost. Gross Margin is calculated on revenue (Price-Cost)/Price. They are NOT the same.',
-        breakEvenUnits: Math.ceil(breakEvenUnits),
-        breakEvenRevenue: Math.round(breakEvenRevenue),
+        breakEvenUnits: finiteOrNull(Math.ceil(breakEvenUnits)),
+        breakEvenRevenue: finiteOrNull(Math.round(breakEvenRevenue)),
         revenue: Math.round(revenue),
         operatingProfit: Math.round(operatingProfit),
         ltv,
-        ltvCacRatio,
-        cacPayback,
-        discountBreakEven: Math.ceil(discountBreakEven),
+        ltvCacRatio: finiteOrNull(ltvCacRatio),
+        cacPayback: finiteOrNull(cacPayback),
+        discountBreakEven: finiteOrNull(Math.ceil(discountBreakEven)),
+        undefinedMetricsNote: 'A null metric is not meaningful for the supplied margin or acquisition cost; it is not zero.',
         label: 'ASSUMPTION' as const,
       },
       scenarios,

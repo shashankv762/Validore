@@ -13,6 +13,7 @@ import { inngest } from '@/inngest/client'
 
 export const maxDuration = 600
 const InputSchema = z.object({ ideaId: z.string().uuid() })
+class ReservationConflict extends Error {}
 
 export async function POST(request: NextRequest) {
   let releaseUser: string | null = null
@@ -54,12 +55,11 @@ export async function POST(request: NextRequest) {
       if (!current || !current.isActive || current.isReadOnly) throw new Error('Idea is no longer editable')
       const [created] = await tx.insert(validationJobs).values({ ideaId: idea.id, userId: dbUser.id,
         isLite, status: 'pending', totalSections: isLite ? 1 : 6, completedSections: 0 }).returning()
+      if (!await deductCredits(dbUser.id, cost, 'VALIDATION', created.id, config.monthlyValidationLimit, tx)) {
+        throw new ReservationConflict('Credit or monthly allowance changed')
+      }
       return created
     })
-    if (!await deductCredits(dbUser.id, cost, 'VALIDATION', job.id, config.monthlyValidationLimit)) {
-      await db.update(validationJobs).set({ status: 'failed', errorMessage: 'Unable to reserve credits or monthly allowance' }).where(eq(validationJobs.id, job.id))
-      return NextResponse.json({ error: 'Credits or monthly allowance were used by another request. Refresh and try again.' }, { status: 409 })
-    }
     reservedJob = job.id
     if (queued) {
       // Only references are sent to the queue; credentials stay in server-side storage.
@@ -75,6 +75,9 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ jobId: job.id, status: 'pending', message: 'Validation started.' }, { status: 202 })
   } catch (error) {
+    if (error instanceof ReservationConflict) {
+      return NextResponse.json({ error: 'Credits or monthly allowance were used by another request. Refresh and try again.' }, { status: 409 })
+    }
     console.error('[validate] Unable to start validation:', error)
     if (reservedJob) await failValidationJob(reservedJob).catch(refundError => console.error('[validate] Recovery failed:', refundError))
     return NextResponse.json({ error: 'Unable to start validation. Please try again.' }, { status: 503 })

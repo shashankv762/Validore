@@ -180,7 +180,7 @@ describe('runMultiAgentValidation', () => {
   it('runs all 6 agents and returns a complete report', async () => {
     const progress: Array<{ completed: number; total: number; label?: string }> = []
     const result = await runMultiAgentValidation(idea, {
-      onProgress: (completed, total, label) => progress.push({ completed, total, label }),
+      onProgress: (completed, total, label) => { progress.push({ completed, total, label }) },
     })
 
     expect(result).not.toBeNull()

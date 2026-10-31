@@ -424,7 +424,7 @@ describe('Export Endpoints Comprehensive Test Suite', () => {
       expect(res.status).toBe(400)
     })
 
-    it('returns 403 when user is free tier and has 0 pitch deck credits', async () => {
+    it('keeps an owned deck exportable after its pack credit was consumed', async () => {
       currentTierConfig.canExportPptx = false
       currentDbUser!.tier = 'free'
       currentDbUser!.pitchDeckCredits = 0
@@ -432,9 +432,10 @@ describe('Export Endpoints Comprehensive Test Suite', () => {
       const { GET } = await import('@/app/api/export/pptx/route')
       const req = new NextRequest('http://localhost:3000/api/export/pptx?ideaId=c8d0a3d4-1e2f-4a3b-9c5d-6e7f8a9b0c1d')
       const res = await GET(req)
-      expect(res.status).toBe(403)
-      const data = await res.json()
-      expect(data.error).toBe('PPTX export requires Max tier or pitch deck credits')
+      expect(res.status).toBe(200)
+      const zip = await JSZip.loadAsync(await res.arrayBuffer())
+      const presentation = await zip.file('ppt/presentation.xml')?.async('string')
+      expect(presentation).toContain('cx="12192000"')
     })
 
     it('returns 200 when user is free tier BUT possesses purchased pitchDeckCredits', async () => {

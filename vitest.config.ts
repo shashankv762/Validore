@@ -23,9 +23,9 @@ export default defineConfig({
     // Fail fast in CI: no point running all tests when one is broken.
     bail: isCI ? 1 : 0,
 
-    // JUnit output for Jenkins (enabled when CI=true).
+    // JUnit output for CI (enabled when CI=true).
     // The 'default' reporter keeps console output readable.
-    // The 'junit' reporter emits reports/junit.xml for Jenkins junit() step.
+    // The 'junit' reporter emits reports/junit.xml for CI test reporting.
     reporters: isCI
       ? ['default', 'junit']
       : ['default'],

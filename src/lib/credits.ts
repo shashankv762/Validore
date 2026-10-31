@@ -13,10 +13,12 @@ export async function checkCredits(userId: string, cost: number): Promise<{ allo
   assertAmount(cost, true)
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { creditBalance: true, purchasedCredits: true },
+    columns: { creditBalance: true, purchasedCredits: true, creditResetAt: true, tier: true },
   })
   if (!user) return { allowed: false, balance: 0 }
-  const balance = user.creditBalance + user.purchasedCredits
+  const monthlyBalance = !user.creditResetAt || user.creditResetAt <= new Date()
+    ? TIER_MONTHLY_CREDITS[user.tier] : user.creditBalance
+  const balance = monthlyBalance + user.purchasedCredits
   return { allowed: balance >= cost, balance }
 }
 
@@ -24,8 +26,10 @@ export async function deductCredits(userId: string, cost: number, action: string
   assertAmount(cost)
   const spend = async (tx: CreditTransaction) => {
     // Lock before reading balances: simultaneous requests must see the latest spend.
-    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
-    if (!user || user.creditBalance + user.purchasedCredits < cost) return false
+    const [lockedUser] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
+    if (!lockedUser) return false
+    const user = await applyDueCycleReset(tx, lockedUser)
+    if (user.creditBalance + user.purchasedCredits < cost) return false
     if (action === 'VALIDATION' && validationLimit !== undefined && user.validationsThisMonth >= validationLimit) return false
     const monthly = Math.min(user.creditBalance, cost)
     const purchased = cost - monthly
@@ -45,17 +49,22 @@ export async function deductCredits(userId: string, cost: number, action: string
 }
 
 /** Reset a due cycle once, using the current plan under the same user lock. */
+async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inferSelect) {
+  const now = new Date()
+  if (user.creditResetAt && user.creditResetAt > now) return user
+  const values = {
+    creditBalance: TIER_MONTHLY_CREDITS[user.tier], creditsUsedThisCycle: 0,
+    creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+  }
+  await tx.update(users).set(values).where(eq(users.id, user.id))
+  return { ...user, ...values }
+}
+
 export async function topUpMonthlyCredits(userId: string): Promise<boolean> {
   return db.transaction(async tx => {
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
     if (!user) return false
-    const now = new Date()
-    if (user.creditResetAt && user.creditResetAt > now) return false
-    await tx.update(users).set({
-      creditBalance: TIER_MONTHLY_CREDITS[user.tier], creditsUsedThisCycle: 0,
-      creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-    }).where(eq(users.id, userId))
-    return true
+    return await applyDueCycleReset(tx, user) !== user
   })
 }
 
@@ -95,7 +104,7 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
     assertAmount(sources.purchased, true)
     if (sources.monthly + sources.purchased !== -spend.amount) throw new Error('Refund ledger mismatch')
     await tx.update(users).set({
-      creditBalance: sql`${users.creditBalance} + ${sources.monthly}`,
+      creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${sources.monthly})`,
       purchasedCredits: sql`${users.purchasedCredits} + ${sources.purchased}`,
       creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${-spend.amount})`,
       validationsThisMonth: sql`greatest(0, ${users.validationsThisMonth} - 1)`,

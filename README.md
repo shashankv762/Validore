@@ -8,7 +8,7 @@ The original Validore logo, navy/gold/cream palette, and product modules are pre
 
 ## Classroom presentation
 
-For the local app and a Jenkins demonstration using the current working tree, follow [Classroom demo](docs/CLASSROOM_DEMO.md). Start-ClassroomApp.ps1 runs the real app on localhost; /demo is a clearly labeled read-only sample. Start-ClassroomJenkins.ps1 prepares a portable loopback controller after Java 21/25 is installed. Jenkinsfile.classroom copies source without private environment files, runs strict CI, and starts/checks/stops the built standalone artifact. Public deployment is deferred.
+For the local app demonstration using the current working tree, follow [Classroom demo](docs/CLASSROOM_DEMO.md). Start-ClassroomApp.ps1 runs the real app on localhost; /demo is a clearly labeled read-only sample. The current release target is a Render beta at validore.tech.
 
 ## Start locally
 
@@ -41,13 +41,13 @@ Open http://localhost:3000. These database commands modify the configured databa
 - Stripe checkout, customer portal, cancellation, and signed webhooks handle configured billing. Razorpay checkout is currently unavailable; its legacy webhook path must not be advertised as a complete purchase flow.
 - Crowdfunding benchmarks are synthetic data, not a dataset of verified historical campaigns.
 
-## Jenkins for the classroom and releases
+## Continuous integration
 
-The [Jenkinsfile](Jenkinsfile) supports a Windows or Linux classroom run using BUILD_PROFILE=demo and SKIP_DOCKER=true. It checks the environment, installs dependencies, runs strict lint/types/tests, audits production dependencies, builds the app, and smoke-tests the built server. It archives actual JUnit results.
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs on every push to main/master and on pull requests. It validates the environment and public build configuration, installs from the committed lockfile, runs strict lint/types/tests, audits production dependencies, builds the app, and smoke-tests the built standalone server. Actual JUnit results and the smoke report are uploaded as artifacts.
 
-A configured Linux release agent adds Docker and Trivy. Publishing is opt-in and limited to trusted main/master multibranch jobs. Container staging requires approval and an existing deployment job accepting the scanned image digest. The separate Render release stage deploys the tested Git commit and verifies the live revision, with guarded rollback.
+Demo defaults use nonfunctional public Supabase build fixtures and no live service keys. Override them with repository variables (NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_APP_URL), or run the workflow manually to select the release profile, which requires real HTTPS public origins and rejects a private Supabase key.
 
-Follow [Jenkins setup and demo](JENKINS_SETUP.md), then see [Pipeline stages and release contract](CICD.md). No live Jenkins controller, registry, or deployment target is configured by this repository alone.
+Container publishing and the Render release remain operator configuration. The workflow is never given registry or deployment credentials; scripts/render-deployment.mjs is available for an operator-run release and is documented in [Free beta launch](docs/GO_LIVE.md). No registry or deployment target is configured by this repository alone.
 
 ## Quality gates
 
@@ -60,13 +60,13 @@ npm run smoke:production
 npm audit --omit=dev --audit-level=high
 ~~~
 
-Tests in CI use mocks for external providers; database integration suites can be skipped without a configured test database. A passing mock suite does not establish live payment, email, queue, or database behavior. Codex Luna execution must use its configured R-only runner; these ordinary developer commands are not a workaround for that agent restriction.
+Tests in CI use mocks for external providers; database integration suites can be skipped without a configured test database. A passing mock suite does not establish live payment, email, queue, or database behavior. This session's local execution uses the R-drive workspace; see the implementation status for the RAM-disk compiler setup and actual verification results.
 
-Before pushing, review the staged diff and confirm it contains only intended files. Keep .env.local, credentials, local controller state, generated reports, and build output out of the commit. Run the CI checks, production build, production smoke check, and production dependency audit shown above; record any checks that could not run and why.
+Before pushing, review the staged diff and confirm it contains only intended files. Keep .env.local, credentials, generated reports, and build output out of the commit. Run the CI checks, production build, production smoke check, and production dependency audit shown above; record any checks that could not run and why.
 
 ## Deployment and current evidence
 
-Deployment work is deferred until after the classroom presentation.
+Render deployment is in preparation. Provider setup and live acceptance remain necessary; consult the current status below.
 
 - [Free beta launch on validore.tech](docs/GO_LIVE.md)
 - [Production setup and remaining release requirements](docs/PRODUCTION_SETUP.md)

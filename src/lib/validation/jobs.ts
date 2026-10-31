@@ -1,6 +1,7 @@
 import { db } from '@/db'
 import { ideas, users, validationJobs, validationReports } from '@/db/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or, lt, isNull } from 'drizzle-orm'
+import { NonRetriableError } from 'inngest'
 import { randomUUID } from 'node:crypto'
 import { runLiteValidation, runFullValidation } from './engine'
 import { decryptApiKey } from '@/lib/byok-crypto'
@@ -17,7 +18,7 @@ export async function generateValidationReport(jobId: string): Promise<Generated
   const [claimed] = await db.update(validationJobs).set({ status: 'running', updatedAt: new Date() }).where(and(
     eq(validationJobs.id, jobId), inArray(validationJobs.status, ['pending', 'running']),
   )).returning({ id: validationJobs.id })
-  if (!claimed) throw new Error('Validation job is no longer active')
+  if (!claimed) throw new NonRetriableError('Validation job is no longer active')
   const opts = { preferredAiProvider: user.preferredAiProvider,
     customOpenRouterKey: user.encryptedOpenrouterKey ? decryptApiKey(user.encryptedOpenrouterKey) : null }
   const report = job.isLite ? await runLiteValidation(idea, opts) : await runFullValidation(idea, jobId, opts)
@@ -51,10 +52,30 @@ export async function completeValidationJob(jobId: string, report: GeneratedRepo
   })
 }
 
-export async function failValidationJob(jobId: string): Promise<void> {
+export function isStaleValidationJob(job: Pick<typeof validationJobs.$inferSelect, 'status' | 'updatedAt' | 'createdAt'>, now = new Date()) {
+  if (job.status !== 'pending' && job.status !== 'running') return false
+  const timestamp = job.updatedAt ?? job.createdAt
+  const timeout = job.status === 'pending' && process.env.VALIDATION_RUNNER === 'inngest' ? 60 : 15
+  return Boolean(timestamp && timestamp.getTime() < now.getTime() - timeout * 60_000)
+}
+
+export async function reapStaleValidationJobs(jobId?: string): Promise<void> {
+  const now = new Date()
+  const runningCutoff = new Date(now.getTime() - 15 * 60_000)
+  const pendingCutoff = new Date(now.getTime() - (process.env.VALIDATION_RUNNER === 'inngest' ? 60 : 15) * 60_000)
+  const stale = await db.query.validationJobs.findMany({
+    where: and(jobId ? eq(validationJobs.id, jobId) : undefined, or(
+      and(eq(validationJobs.status, 'running'), or(lt(validationJobs.updatedAt, runningCutoff), and(isNull(validationJobs.updatedAt), lt(validationJobs.createdAt, runningCutoff)))),
+      and(eq(validationJobs.status, 'pending'), or(lt(validationJobs.updatedAt, pendingCutoff), and(isNull(validationJobs.updatedAt), lt(validationJobs.createdAt, pendingCutoff)))),
+    )), columns: { id: true }, limit: 100,
+  })
+  for (const job of stale) await failValidationJob(job.id, true)
+}
+
+export async function failValidationJob(jobId: string, onlyIfStale = false): Promise<void> {
   await db.transaction(async (tx) => {
     const [job] = await tx.select().from(validationJobs).where(eq(validationJobs.id, jobId)).for('update')
-    if (!job) return null
+    if (!job || job.status === 'failed' || (onlyIfStale && !isStaleValidationJob(job))) return null
     const [report] = await tx.select().from(validationReports).where(eq(validationReports.jobId, jobId)).limit(1)
     if (report) return null
     await refundValidationCredits(job.userId, jobId, tx)

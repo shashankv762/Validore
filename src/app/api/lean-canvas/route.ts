@@ -72,6 +72,8 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ canvases }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const supabase = await createClient()
@@ -81,7 +83,7 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
-  const rl = await rateLimitCheck(dbUser.id)
+  const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }

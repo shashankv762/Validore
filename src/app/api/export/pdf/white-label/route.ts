@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { renderToBuffer } from '@react-pdf/renderer'
 import { createElement } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { db } from '@/db'
-import { users, ideas, validationReports, pitchDecks } from '@/db/schema'
+import { ideas, validationReports, pitchDecks } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
 import { z } from 'zod'
@@ -31,26 +32,7 @@ export async function GET(request: NextRequest) {
     }
     const reportId = parsedQuery.data.reportId
 
-    let dbUser = await db.query.users.findFirst({
-      where: eq(users.supabaseId, user.id),
-    })
-
-    if (!dbUser && user.email) {
-      try {
-        const [inserted] = await db
-          .insert(users)
-          .values({
-            email: user.email,
-            supabaseId: user.id,
-            tier: 'free',
-          })
-          .onConflictDoNothing()
-          .returning()
-        dbUser = inserted || (await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) }))
-      } catch {
-        // fallback
-      }
-    }
+    const dbUser = await getOrCreateDbUser(user)
 
     if (!dbUser) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
@@ -96,41 +78,32 @@ export async function GET(request: NextRequest) {
     const ideaData = ((reportData.idea || {}) as Record<string, unknown>)
 
     const startupName = (idea?.name || ideaData.name || 'Startup') as string
-    const industry = (idea?.industry || ideaData.industry || 'Technology') as string
-    const product = (idea?.product || ideaData.product || 'Autonomous Startup Validator') as string
-    const location = (idea?.location || ideaData.location || 'United States') as string
-    const businessModel = (idea?.businessModel || ideaData.businessModel || 'B2B SaaS') as string
-    const coreProblem = (idea?.coreProblem || ideaData.coreProblem || 'Founders waste time without validation') as string
-    const proposedSolution = (idea?.proposedSolution || ideaData.proposedSolution || 'AI automated validation') as string
-    const targetCustomer = (idea?.targetCustomer || ideaData.targetCustomer || 'Founders & Product Teams') as string
+    const industry = (idea?.industry || ideaData.industry || 'Not available') as string
+    const product = (idea?.product || ideaData.product || 'Not available') as string
+    const location = (idea?.location || ideaData.location || 'Not available') as string
+    const businessModel = (idea?.businessModel || ideaData.businessModel || 'Not available') as string
+    const coreProblem = (idea?.coreProblem || ideaData.coreProblem || 'Not available') as string
+    const proposedSolution = (idea?.proposedSolution || ideaData.proposedSolution || 'Not available') as string
+    const targetCustomer = (idea?.targetCustomer || ideaData.targetCustomer || 'Not available') as string
 
-    const overallScore = report?.overallScore ?? pitchDeckRecord?.qualityScore ?? 80
-    const decision = report?.decision ?? 'GO'
-    const decisionReasons = (report?.decisionReasons as string[] | null) || [
-      'Strong product-market demand identified in target demographic',
-      'Defensible unit economics with rapid payback period',
-      'Clear differentiation against traditional manual alternatives',
-    ]
-
-    const keyRisks = (report?.keyRisks as string[] | null) || [
-      'Customer acquisition cost escalation in paid channels',
-      'Dependency on third-party API availability and pricing stability',
-    ]
+    const overallScore = report?.overallScore ?? pitchDeckRecord?.qualityScore ?? 'Not available'
+    const decision = report?.decision ?? 'Not available'
+    const decisionReasons = (report?.decisionReasons as string[] | null) || []
+    const keyRisks = (report?.keyRisks as string[] | null) || []
 
     const tamSamSom = reportData.tamSamSom as Record<string, unknown> | undefined
     const tamObj = tamSamSom?.tam as Record<string, unknown> | undefined
     const samObj = tamSamSom?.sam as Record<string, unknown> | undefined
     const somObj = tamSamSom?.som as Record<string, unknown> | undefined
-    const tam = (tamObj?.value || reportData.tamEstimate || '$10.0B') as string
-    const sam = (samObj?.value || reportData.samEstimate || '$2.5B') as string
-    const som = (somObj?.value || reportData.somEstimate || '$350M') as string
+    const tam = (tamObj?.value || reportData.tamEstimate || 'Not available') as string
+    const sam = (samObj?.value || reportData.samEstimate || 'Not available') as string
+    const som = (somObj?.value || reportData.somEstimate || 'Not available') as string
 
-    const finSummary = (reportData.financialSummary || {}) as Record<string, unknown>
-    const unitEcon = (reportData.unitEconomicsAssumptions || {}) as Record<string, unknown>
-    const cac = (typeof finSummary.cac === 'number' ? finSummary.cac : null) ??
-      (typeof unitEcon.estimatedCACMonthly === 'number' ? unitEcon.estimatedCACMonthly : 120)
-    const ltv = (typeof finSummary.ltv === 'number' ? finSummary.ltv : null) ?? 510
-    const payback = (typeof finSummary.breakEvenMonths === 'number' ? finSummary.breakEvenMonths : 7)
+    const computed = (reportData.computedUnitEconomics || {}) as Record<string, unknown>
+    const metric = (value: unknown, prefix = '', suffix = '') => typeof value === 'number' && Number.isFinite(value) ? `${prefix}${value.toFixed(2)}${suffix}` : 'Not available'
+    const cac = metric(computed.cac, '$')
+    const ltv = metric(computed.ltv, '$')
+    const payback = metric(computed.cacPaybackMonths, '', ' mo')
 
     const actionPlan = (Array.isArray(report?.actionPlan) ? report.actionPlan : []) as Array<Record<string, unknown>>
 
@@ -412,19 +385,19 @@ export async function GET(request: NextRequest) {
                 View,
                 { style: styles.grid3Card },
                 createElement(Text, { style: styles.grid3Label }, 'Estimated CAC'),
-                createElement(Text, { style: styles.grid3Value }, `$${cac}`)
+                createElement(Text, { style: styles.grid3Value }, cac)
               ),
               createElement(
                 View,
                 { style: styles.grid3Card },
                 createElement(Text, { style: styles.grid3Label }, 'Estimated LTV'),
-                createElement(Text, { style: styles.grid3Value }, `$${ltv}`)
+                createElement(Text, { style: styles.grid3Value }, ltv)
               ),
               createElement(
                 View,
                 { style: styles.grid3Card },
                 createElement(Text, { style: styles.grid3Label }, 'Payback Period'),
-                createElement(Text, { style: styles.grid3Value }, `${payback} mo`)
+                createElement(Text, { style: styles.grid3Value }, payback)
               )
             )
           ),
@@ -511,7 +484,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal Server Error'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('[export] Failed', { name: err instanceof Error ? err.name : 'UnknownError' })
+    return NextResponse.json({ error: 'Unable to export this report. Please try again.' }, { status: 500 })
   }
 }

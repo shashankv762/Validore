@@ -1,0 +1,105 @@
+#  Validore CI — strict quality gates on every push and pull request.
+#  Container publishing and Render releases stay operator-configured; this
+#  workflow never receives registry or deployment credentials.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_profile:
+        description: 'demo needs no live service credentials; release validates public configuration'
+        type: choice
+        options: [demo, release]
+        default: demo
+      public_app_url:
+        description: 'Public app origin. Release requires HTTPS.'
+        type: string
+        default: 'http://localhost:3000'
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    name: Quality gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+      VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
+      NODE_OPTIONS: '--max-old-space-size=4096'
+      BUILD_PROFILE: ${{ inputs.build_profile || 'demo' }}
+      # Next.js embeds public variables during the build. Demo fixtures are
+      # nonfunctional placeholders and are not suitable for deployment.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || 'https://example.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'demo-anon-key' }}
+      NEXT_PUBLIC_APP_URL: ${{ inputs.public_app_url || vars.NEXT_PUBLIC_APP_URL || 'http://localhost:3000' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      # Rejects a checkout carrying private environment files and clears
+      # stale generated reports. ci-config.mjs rejects a private Supabase key
+      # in public build configuration and enforces HTTPS for release.
+      - name: Validate environment
+        run: |
+          node scripts/prepare-ci.mjs
+          node scripts/ci-config.mjs
+
+      - name: Install dependencies
+        run: npm ci --include=dev --prefer-offline --no-fund
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit and regression tests
+        run: npm run test:ci
+
+      # Uploaded even on failure; a missing JUnit file is a reporting failure
+      # rather than a false green build.
+      - name: Upload test results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results
+          path: reports/junit.xml
+          if-no-files-found: error
+          retention-days: 10
+
+      - name: Dependency security
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Production build
+        run: npm run build
+
+      # Starts the built standalone artifact on a loopback port, checks
+      # health, landing, sample page, logo asset and cache policy, then stops it.
+      - name: Production smoke test
+        run: npm run smoke:production
+
+      - name: Upload smoke report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-smoke
+          path: reports/production-smoke.json
+          if-no-files-found: warn
+          retention-days: 10

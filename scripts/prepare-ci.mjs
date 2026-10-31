@@ -3,7 +3,7 @@ import { resolve, join, sep } from 'node:path'
 const root = await realpath(process.cwd())
 for (const file of ['.env', '.env.local', '.env.production', '.env.production.local']) {
   const exists = await lstat(join(root, file)).catch(error => { if (error.code === 'ENOENT') return null; throw error })
-  if (exists) throw new Error('Private environment files must not be present in the Jenkins checkout: ' + file)
+  if (exists) throw new Error('Private environment files must not be present in the CI checkout: ' + file)
 }
 for (const dir of ['reports', '.tmp']) {
   await mkdir(join(root, dir), { recursive: true })

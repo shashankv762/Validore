@@ -36,12 +36,11 @@
     "date-fns": "^4.4.0",
     "disposable-email-domains": "^1.0.62",
     "dotenv": "^18.0.4",
-    "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.3",
     "inngest": "^4.21.0",
     "jszip": "^3.10.2",
     "lucide-react": "^1.48.0",
-    "next": "16.3.7",
+    "next": "16.4.3",
     "postgres": "^3.4.9",
     "pptxgenjs": "^4.0.1",
     "razorpay": "^2.9.8",
@@ -52,21 +51,26 @@
     "stripe": "^22.6.2",
     "tailwind-merge": "^3.7.0",
     "uuid": "^14.0.2",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
     "cross-env": "^10.1.0",
     "eslint": "^9",
-    "eslint-config-next": "16.3.7",
+    "eslint-config-next": "16.4.3",
+    "drizzle-kit": "^0.31.11",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "overrides": {
+    "inngest": { "zod": "$zod" },
+    "pptxgenjs": { "image-size": "^2.0.4" }
   },
   "engines": {
     "node": "^22.12.0 || >=24.0.0"

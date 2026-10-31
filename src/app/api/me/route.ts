@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { syncUserToDatabase } from '@/lib/auth-sync'
+import { topUpMonthlyCredits } from '@/lib/credits'
 
 export async function GET() {
   const supabase = await createClient()
@@ -11,8 +12,12 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const foundUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
-  const dbUser = foundUser ?? (await syncUserToDatabase({ id: user.id, email: user.email }))
+  let dbUser = foundUser ?? (await syncUserToDatabase({ id: user.id, email: user.email }))
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (!dbUser.creditResetAt || dbUser.creditResetAt <= new Date()) {
+    await topUpMonthlyCredits(dbUser.id)
+    dbUser = (await db.query.users.findFirst({ where: eq(users.id, dbUser.id) })) ?? dbUser
+  }
 
   return NextResponse.json({
     user: {

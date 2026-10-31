@@ -1,13 +1,17 @@
 const [major, minor] = process.versions.node.split('.').map(Number)
 if (!((major === 22 && minor >= 12) || major >= 24)) throw new Error('Use Node 22.12+ or Node 24+ for this toolchain')
-const configuredKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-let role
-try { role = JSON.parse(Buffer.from(configuredKey.split('.')[1] || '', 'base64url').toString()).role } catch {}
-if (configuredKey.startsWith('sb_secret_') || role === 'service_role') throw new Error('A private Supabase key cannot be included in public build configuration')
+const publicKeys = [process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY]
+for (const candidate of publicKeys) {
+  const key = candidate || ''
+  let role
+  try { role = JSON.parse(Buffer.from(key.split('.')[1] || '', 'base64url').toString()).role } catch {}
+  if (key.startsWith('sb_secret_') || role === 'service_role') throw new Error('A private Supabase key cannot be included in public build configuration')
+}
+const configuredKey = publicKeys.find(Boolean) || ''
 if (process.env.BUILD_PROFILE === 'release') {
   const app = new URL(process.env.NEXT_PUBLIC_APP_URL || '')
   const supabase = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '')
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  const key = configuredKey
   if (app.protocol !== 'https:' || supabase.protocol !== 'https:' || /^(localhost|127\.0\.0\.1|example\.supabase\.co)$/.test(app.hostname) || supabase.hostname === 'example.supabase.co') {
     throw new Error('Release requires real HTTPS public origins')
   }

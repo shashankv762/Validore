@@ -3,9 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, validationReports } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { z } from 'zod'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ reportId: string }> }) {
   const { reportId } = await params
+  if (!z.uuid().safeParse(reportId).success) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
