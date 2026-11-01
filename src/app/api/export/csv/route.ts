@@ -7,12 +7,16 @@ import { eq, and } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
 import { z } from 'zod'
 import { STARTUP_WEIGHTS as W } from '@/lib/scoring'
+import { rateLimitCheck } from '@/lib/rate-limit'
+import { loadExportDocument } from '@/lib/exports/load-document'
 
 const QuerySchema = z.object({
   reportId: z.string().uuid().optional().nullable(),
   ideaId: z.string().uuid().optional().nullable(),
   canvasId: z.string().uuid().optional().nullable(),
-}).refine(data => (data.reportId || data.ideaId) && (!data.canvasId || (data.ideaId && !data.reportId)), {
+  deckId: z.uuid().optional().nullable(),
+  documentKind: z.enum(['validation', 'canvas', 'pricing', 'crowdfunding', 'pitch']).optional().nullable(),
+}).refine(data => (data.reportId || data.ideaId || data.deckId) && (!data.canvasId || (data.ideaId && !data.reportId)), {
   message: "Either reportId or ideaId is required"
 })
 
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const reportIdParam = searchParams.get('reportId')
     const ideaIdParam = searchParams.get('ideaId')
-    const parsedQuery = QuerySchema.safeParse({ reportId: reportIdParam, ideaId: ideaIdParam, canvasId: searchParams.get('canvasId') })
+    const parsedQuery = QuerySchema.safeParse({ reportId: reportIdParam, ideaId: ideaIdParam, canvasId: searchParams.get('canvasId'), deckId: searchParams.get('deckId'), documentKind: searchParams.get('module') })
     if (!parsedQuery.success) {
       return NextResponse.json(
         { error: 'Either reportId or ideaId parameter is required and must be a valid UUID' },
@@ -48,6 +52,9 @@ export async function GET(request: NextRequest) {
     const reportId = parsedQuery.data.reportId
     const ideaId = parsedQuery.data.ideaId
     const canvasId = parsedQuery.data.canvasId
+    const documentKind = parsedQuery.data.documentKind
+    if ((reportId && documentKind && documentKind !== 'validation') || (canvasId && documentKind && documentKind !== 'canvas') || (documentKind === 'canvas' && !ideaId))
+      return NextResponse.json({ error: 'Select one report or document to download.' }, { status: 400 })
 
     const dbUser = await getOrCreateDbUser(user)
 
@@ -64,13 +71,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    if (!(await rateLimitCheck(user.id, 'export')).success) return NextResponse.json({ error: 'Please wait a minute before downloading another report.' }, { status: 429 })
+
+    if (documentKind === 'pitch' || parsedQuery.data.deckId) {
+      const loaded = await loadExportDocument(searchParams, user.id)
+      if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
+      return new NextResponse(['Category,Metric,Score_Or_Value,Details', ...loaded.document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, '')))].join('\r\n'), {
+        headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'private, no-store', 'Content-Disposition': `attachment; filename="${loaded.filename}.csv"` },
+      })
+    }
+
     // Query validation report
     let report = null
     if (reportId) {
       report = await db.query.validationReports.findFirst({
         where: and(eq(validationReports.id, reportId), eq(validationReports.userId, dbUser.id)),
       })
-    } else if (ideaId && !canvasId) {
+    } else if (ideaId && !canvasId && (!documentKind || documentKind === 'validation')) {
       report = await db.query.validationReports.findFirst({
         where: and(eq(validationReports.ideaId, ideaId), eq(validationReports.userId, dbUser.id)),
         orderBy: (reports, { desc }) => [desc(reports.createdAt)]
@@ -78,12 +95,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (!report) {
-      if (ideaId) {
+      if (ideaId && documentKind !== 'validation') {
         // Try crowdfunding analysis
         const { crowdfundingAnalyses, pricingSimulations, leanCanvases } = await import('@/db/schema')
         const { desc: descOrder } = await import('drizzle-orm')
 
-        const cfAnalysis = canvasId ? null : await db.query.crowdfundingAnalyses.findFirst({
+        const cfAnalysis = canvasId || (documentKind && documentKind !== 'crowdfunding') ? null : await db.query.crowdfundingAnalyses.findFirst({
           where: and(eq(crowdfundingAnalyses.ideaId, ideaId), eq(crowdfundingAnalyses.userId, dbUser.id)),
           orderBy: [descOrder(crowdfundingAnalyses.createdAt)],
         })
@@ -110,7 +127,7 @@ export async function GET(request: NextRequest) {
           })
         }
 
-        const prSim = canvasId ? null : await db.query.pricingSimulations.findFirst({
+        const prSim = canvasId || (documentKind && documentKind !== 'pricing') ? null : await db.query.pricingSimulations.findFirst({
           where: and(eq(pricingSimulations.ideaId, ideaId), eq(pricingSimulations.userId, dbUser.id)),
           orderBy: [descOrder(pricingSimulations.createdAt)],
         })
@@ -131,7 +148,7 @@ export async function GET(request: NextRequest) {
           })
         }
 
-        const leanCanvas = await db.query.leanCanvases.findFirst({
+        const leanCanvas = documentKind && documentKind !== 'canvas' ? null : await db.query.leanCanvases.findFirst({
           where: and(eq(leanCanvases.ideaId, ideaId), eq(leanCanvases.userId, dbUser.id), canvasId ? eq(leanCanvases.id, canvasId) : undefined),
           orderBy: [descOrder(leanCanvases.createdAt)],
         })
@@ -168,7 +185,7 @@ export async function GET(request: NextRequest) {
 
     // Query idea metadata
     const idea = await db.query.ideas.findFirst({
-      where: eq(ideas.id, report.ideaId),
+      where: and(eq(ideas.id, report.ideaId), eq(ideas.userId, dbUser.id)),
     })
 
     const reportData = (report.reportData || {}) as Record<string, unknown>

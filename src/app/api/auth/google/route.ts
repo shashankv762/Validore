@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { authFormResponse, authOrigin, validAuthOrigin } from '@/lib/auth-form'
+import { authFormResponse, authOrigin, validAuthOrigin, readAuthBody } from '@/lib/auth-form'
+import { safeNextPath } from '@/lib/auth-redirect'
 import { getAuthSettings } from '@/lib/supabase/auth-settings'
+import { LEGAL } from '@/lib/legal'
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +14,19 @@ export async function POST(req: NextRequest) {
     }
     const supabase = await createClient()
     const origin = authOrigin(req)
+    const body = await readAuthBody(req)
+    if (body && typeof body === 'object' && 'intent' in body && body.intent === 'signup' &&
+      (!('consent' in body) || !['on', true].includes(body.consent as string | boolean) || !('policyVersion' in body) || body.policyVersion !== LEGAL.version)) {
+      return authFormResponse(req, '/auth/signup', 'error', 'Confirm you are 18 or over and accept the current terms before continuing.', 400)
+    }
+    const next = safeNextPath(body && typeof body === 'object' && 'next' in body ? body.next : undefined, origin)
+    const callback = new URL('/auth/callback', origin)
+    if (next !== '/dashboard') callback.searchParams.set('next', next)
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback`,
+        redirectTo: callback.toString(),
       },
     })
 

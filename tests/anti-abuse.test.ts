@@ -6,6 +6,7 @@ import { db } from '@/db'
 import { rateLimitCheck } from '@/lib/rate-limit'
 import { checkCredits } from '@/lib/credits'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(),
@@ -19,7 +20,8 @@ vi.mock('@/db', () => ({
       },
       ideas: {
         findFirst: vi.fn(),
-      }
+      },
+      validationJobs: { findFirst: vi.fn().mockResolvedValue(null) },
     }
   }
 }))
@@ -96,7 +98,7 @@ describe('Anti-abuse and Credit limits', () => {
       headers: {
         'content-type': 'application/json',
       },
-      body: JSON.stringify({ email: 'test@guerrillamail.com', password: 'password123' })
+      body: JSON.stringify({ email: 'test@guerrillamail.com', password: 'password123', consent: true, policyVersion: LEGAL.version })
     })
 
     const res = await signupRoute(req)

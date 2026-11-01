@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 
 const mocks = vi.hoisted(() => ({
   signin: vi.fn(), signup: vi.fn(), exchange: vi.fn(), verify: vi.fn(), signout: vi.fn(), sync: vi.fn(), commit: vi.fn(),
@@ -21,7 +22,7 @@ import { authOrigin, validAuthOrigin } from '@/lib/auth-form'
 const identity = { user: { id: 'auth-id', email: 'founder@example.com' }, session: { access_token: 'test-token' } }
 const formRequest = (path: string, next = '/dashboard/reports') => new NextRequest('http://localhost:3001/api/auth/' + path, {
   method: 'POST', headers: { origin: 'http://localhost:3001', 'content-type': 'application/x-www-form-urlencoded' },
-  body: new URLSearchParams({ email: 'founder@example.com', password: 'password123', next }),
+  body: new URLSearchParams({ email: 'founder@example.com', password: 'password123', next, consent: 'on', policyVersion: LEGAL.version }),
 })
 
 beforeEach(() => {
@@ -72,9 +73,9 @@ describe('Auth origins and native form redirects', () => {
   it('keeps signup confirmation and completion on the served app origin', async () => {
     const response = await signup(formRequest('signup'))
     expect(mocks.signup).toHaveBeenCalledWith(expect.objectContaining({
-      options: { emailRedirectTo: 'http://localhost:3001/auth/callback' },
+      options: expect.objectContaining({ emailRedirectTo: 'http://localhost:3001/auth/callback?next=%2Fdashboard%2Freports', data: { terms_version: LEGAL.version, terms_accepted_at: expect.any(String) } }),
     }))
-    expect(response.headers.get('location')).toBe('http://localhost:3001/dashboard')
+    expect(response.headers.get('location')).toBe('http://localhost:3001/dashboard/reports')
   })
 
   it('accepts a configured public origin behind a proxy and rejects other origins', () => {
@@ -124,7 +125,7 @@ describe('Provider failures', () => {
     provider.mockResolvedValue({ data: { user: null, session: null }, error: { status: 0 } })
     const response = await handler(new NextRequest('http://localhost:3001/api/auth/' + path, {
       method: 'POST', headers: { origin: 'http://localhost:3001', 'content-type': 'application/json' },
-      body: JSON.stringify({ email: 'founder@example.com', password: 'password123' }),
+      body: JSON.stringify({ email: 'founder@example.com', password: 'password123', consent: true, policyVersion: LEGAL.version }),
     }))
     expect(response.status).toBe(503)
     expect(mocks.sync).not.toHaveBeenCalled()

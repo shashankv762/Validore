@@ -1,48 +1,31 @@
 'use client'
 
+// A random, expiring identifier is enough for recent browser activity. It does
+// not combine hardware, screen, language, or timezone attributes into a fingerprint.
 export async function getDeviceFingerprint(): Promise<string> {
-  if (typeof window === 'undefined' || typeof crypto === 'undefined') return 'server-side'
-  const raw = [
-    navigator.userAgent,
-    screen.width,
-    screen.height,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    navigator.language,
-    navigator.hardwareConcurrency || 0,
-    navigator.maxTouchPoints || 0,
-  ].join('|')
+  if (typeof window === 'undefined' || !globalThis.crypto?.randomUUID) return ''
+  const key = 'validore:device:v1'
+  const now = Date.now()
   try {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(raw)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-  } catch {
-    // Fallback: use a simple hash
-    let hash = 0
-    for (let i = 0; i < raw.length; i++) {
-      hash = ((hash << 5) - hash) + raw.charCodeAt(i)
-      hash |= 0
-    }
-    return Math.abs(hash).toString(16)
-  }
+    const existing = JSON.parse(localStorage.getItem(key) || 'null')
+    if (typeof existing?.id === 'string' && /^[0-9a-f-]{36}$/i.test(existing.id) && typeof existing.createdAt === 'number' && existing.createdAt <= now && now - existing.createdAt < 30 * 86_400_000) return existing.id
+  } catch { /* Security registration is optional when browser storage is blocked. */ }
+  const id = crypto.randomUUID()
+  try { localStorage.setItem(key, JSON.stringify({ id, createdAt: now })) } catch {}
+  return id
 }
 
-export async function registerDevice(): Promise<void> {
-  if (typeof window === 'undefined') return
-  const SESSION_KEY = 'validore_device_registered'
-  if (sessionStorage.getItem(SESSION_KEY)) return
+export async function registerDevice(accountId: string): Promise<void> {
+  if (typeof window === 'undefined' || !accountId) return
+  const sessionKey = 'validore_device_registered:' + accountId
+  try { if (sessionStorage.getItem(sessionKey)) return } catch {}
   try {
     const fingerprintHash = await getDeviceFingerprint()
-    const res = await fetch('/api/auth/device', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fingerprintHash, userAgent: navigator.userAgent }),
+    if (!fingerprintHash) return
+    const response = await fetch('/api/auth/device', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fingerprintHash }), signal: AbortSignal.timeout(10_000),
     })
-    if (res.ok) {
-      sessionStorage.setItem(SESSION_KEY, '1')
-    }
-  } catch (err) {
-    console.warn('[DEVICE-FP] Failed to register device:', err)
-  }
+    if (response.ok) { try { sessionStorage.setItem(sessionKey, '1') } catch {} }
+  } catch { /* Do not block the workspace because activity registration failed. */ }
 }

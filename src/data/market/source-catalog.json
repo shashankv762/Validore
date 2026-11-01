@@ -1,0 +1,267 @@
+[
+  {
+    "id": "world-bank-wdi",
+    "title": "World Bank World Development Indicators",
+    "url": "https://api.worldbank.org/v2/source/2?format=json",
+    "source": "World Bank",
+    "recordType": "reference",
+    "geography": [
+      "Global",
+      "India"
+    ],
+    "updateCadence": "Annual observations for the selected indicators; release revisions vary.",
+    "intendedUses": [
+      "Cross-country macroeconomic context",
+      "Population and digital-access baselines"
+    ],
+    "limitations": "Annual observations can lag publication and may be estimates or revised. Dataset-specific and third-party terms may apply.",
+    "licenseUrl": "https://data.worldbank.org/summary-terms-of-use",
+    "licenseNote": "Consult linked source terms, including any third-party restrictions.",
+    "verifiedAt": "2026-10-31T19:11:26.232Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "application/json;charset=utf-8",
+      "bytes": 236,
+      "pageTitle": null,
+      "metadataExcerpt": "[{\"page\":\"1\",\"pages\":\"1\",\"per_page\":\"50\",\"total\":\"1\"},[{\"id\":\"2\",\"lastupdated\":\"2026-10-08\",\"name\":\"World Development Indicators\",\"code\":\"WDI\",\"description\":\"\",\"url\":\"\",\"dataavailability\":\"Y\",\"metadataavailability\":\"Y\",\"concepts\":\"3\"}]]",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "rbi-data-releases",
+    "title": "RBI Data Releases",
+    "url": "https://www.rbi.org.in/scripts/Statistics.aspx",
+    "source": "Reserve Bank of India",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Banking, credit, monetary and payment statistics discovery"
+    ],
+    "limitations": "Publication directory only. Select the actual dated table and its units before citing a number; release frequency varies.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:26.534Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 85004,
+      "pageTitle": "Data Releases | Official Website of Reserve Bank of India",
+      "metadataExcerpt": "Data Releases | Official Website of Reserve Bank of India Skip to main content Not Pressed Change Language हिंदी Search the Website Search Home About Us ▼ About Us Organisation & Functions ▶ Organisation Structure Departments Offices Training Establishment ▶ College of Agricultural Banking Reserve Bank Staff College College of Supervisors RBI's Functions and Working Governors Deputy Governors Executive Directors Media Kit Communication Policy of RBI Sources of Information ▶ Annual Publications H",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "npci-upi",
+    "title": "NPCI UPI product statistics entry point",
+    "url": "https://www.npci.org.in/what-we-do/upi/product-statistics",
+    "source": "National Payments Corporation of India",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Find official UPI transaction volume and value releases"
+    ],
+    "limitations": "Verified public NPCI route; its HTML is an application shell, not a verified numeric table. Transaction counts are not unique users, businesses, or customer demand.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:26.340Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html",
+      "bytes": 7110,
+      "pageTitle": "National Payments Corporation of India (NPCI) - Enabling digital payments in India",
+      "metadataExcerpt": "National Payments Corporation of India (NPCI) - Enabling digital payments in India You need to enable JavaScript to run this app.",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "mospi",
+    "title": "MoSPI statistics portal",
+    "url": "https://www.mospi.gov.in/",
+    "source": "Ministry of Statistics and Programme Implementation",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Find national accounts, CPI and official household or labor surveys"
+    ],
+    "limitations": "Verified ministry landing page, with dynamic content. No statistical tables or numbers were extracted; individual release definitions and dates must be checked.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:26.469Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 2644,
+      "pageTitle": "Ministry of Statistics and Program Implementation | Government Of India",
+      "metadataExcerpt": "Ministry of Statistics and Program Implementation | Government Of India",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "data-gov-in",
+    "title": "Open Government Data Platform India",
+    "url": "https://www.data.gov.in/",
+    "source": "Government of India",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Discover ministry and state datasets and documented APIs"
+    ],
+    "limitations": "Dataset directory, not a single dataset. API-key requirements, licensing, update dates, geographic coverage and units must be checked per resource.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:26.596Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 1367729,
+      "pageTitle": "Home | Open Government Data (OGD) Platform India",
+      "metadataExcerpt": "Home | Open Government Data (OGD) Platform India Ministry of Electronics and Information Technology Choose your theme Select default-theme Select blue-theme Select yellow-theme Select green-theme Facebook Twitter RSS Accessibility Dropdown A A + A A - Open Government Data Portal India Search Datasets Here Search Notifications 0 0 New Notification All(0) Unread(0) No Notification No records found View All Login | Register Dashboard User Logout HOME CATALOG APIs SECTOR CHIEF DATA OFFICER METRICS T",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "udyam",
+    "title": "Udyam registration official portal",
+    "url": "https://udyamregistration.gov.in/",
+    "source": "Ministry of Micro, Small and Medium Enterprises",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Find official MSME registration information and linked publications"
+    ],
+    "limitations": "Registration portal reference only. Registrations are not a census of operating firms, paying customers, or annual firm births; no count is imported here.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:28.518Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 53593,
+      "pageTitle": "Udyam Registration : Zero cost, No Fee and Free Registration of MSMEs. This is official website of Govt. of India, Ministry of MSME. No other website/portal/app is official. MSMEs are requested to do MSME Registration here only",
+      "metadataExcerpt": "Udyam Registration : Zero cost, No Fee and Free Registration of MSMEs. This is official website of Govt. of India, Ministry of MSME. No other website/portal/app is official. MSMEs are requested to do MSME Registration here only Government of India --> Home NIC Code Useful Documents Important Udyam Registration Benefits Circulars & Orders Udyam Registration Sample Form Udyam Registration Bulletin Udyam Registration Bulletin I Udyam Registration Bulletin II Udyam Registration Bulletin III Udyam Re",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "startup-india",
+    "title": "Startup India initiative",
+    "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+    "source": "Department for Promotion of Industry and Internal Trade",
+    "recordType": "reference",
+    "geography": [
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Find DPIIT recognition definitions, programs and official ecosystem releases"
+    ],
+    "limitations": "Program reference only. Recognized startups are an administrative subset; recognition counts are not total startups, active businesses, or addressable demand.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:26.837Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=UTF-8",
+      "bytes": 359996,
+      "pageTitle": "Startup India",
+      "metadataExcerpt": "Startup India --> About Startup India Initiative --> Login Login --> Dashboard --> Dashboard View Profile Edit Profile --> --> My Connections Notifications Settings Privacy Settings Change Email ID Change Password Create Password Switch to Startup --> Logout --> dipp-startups@nic.in --> Our Toll Free Number : 1800 115 565 (10:00 AM to 05:30 PM) --> English English हिन्दी मराठी বাঙালি ગુજરાતી ਪੰਜਾਬੀ ନୀୟ தமிழ் తెలుగు മലയാളം ಕನ್ನಡ অসমীয়া कोंकणी ᱥᱟᱱᱛᱟᱲᱤ मैथिली संस्कृतम् बड़ सिन्धी মণিপুরী नेपाली ار",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "ilo-data-explorer",
+    "title": "ILOSTAT Data Explorer",
+    "url": "https://rshiny.ilo.org/dataexplorer54/",
+    "source": "International Labour Organization",
+    "recordType": "reference",
+    "geography": [
+      "Global",
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Find labor-force, employment and unemployment data and definitions"
+    ],
+    "limitations": "Verified interactive explorer entry point only. No standalone ILO series was downloaded; distinguish modeled estimates from national survey measures.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:29.366Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html; charset=UTF-8",
+      "bytes": 27345,
+      "pageTitle": "ILOSTAT Data Explorer",
+      "metadataExcerpt": "ILOSTAT Data Explorer Toggle navigation ILOSTAT data explorer 19 Loading...",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "un-system-data",
+    "title": "UN System Data Commons",
+    "url": "https://data.un.org/",
+    "source": "United Nations",
+    "recordType": "reference",
+    "geography": [
+      "Global",
+      "India"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Discover UN statistical datasets and metadata"
+    ],
+    "limitations": "Directory reference only. Agency sources, indicator definitions, revision dates and licenses vary; no numeric series was imported from this page.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:27.353Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "text/html",
+      "bytes": 3769,
+      "pageTitle": "UN - Welcome to UN System Data Commons",
+      "metadataExcerpt": "--> UN - Welcome to UN System Data Commons You need to enable JavaScript to run this app.",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  },
+  {
+    "id": "oecd-sdmx-catalog",
+    "title": "OECD Short-Term Economic Statistics SDMX catalog",
+    "url": "https://sdmx.oecd.org/public/rest/v1/dataflow/OECD.SDD.STES/all/latest?references=none",
+    "source": "Organisation for Economic Co-operation and Development",
+    "recordType": "reference",
+    "geography": [
+      "OECD members",
+      "Selected non-member economies"
+    ],
+    "updateCadence": null,
+    "intendedUses": [
+      "Discover OECD short-term economic datasets and structural metadata"
+    ],
+    "limitations": "Dataflow metadata only, including non-production flows. Select a production dataset, dimensions, units and coverage before requesting values; no OECD observations were imported.",
+    "licenseUrl": null,
+    "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+    "verifiedAt": "2026-10-31T19:11:28.669Z",
+    "verification": {
+      "httpStatus": 200,
+      "contentType": "application/xml; charset=utf-8; version=2.1",
+      "bytes": 55470,
+      "pageTitle": null,
+      "metadataExcerpt": "IDREF9073 false 2026-10-31T20:11:28.204827+01:00 NonProductionDataflow true REF_AREA LAYOUT_ROW TIME_PERIOD LAYOUT_COLUMN UNIT_MULT=0,OBS_STATUS=A,ACTIVITY=_Z,TRANSFORMATION=_Z,ADJUSTMENT=_Z,UNIT_MEASURE=GR NOT_DISPLAYED FREQ=M,MEASURE=PRVM,UNIT_MEASURE=IX,ACTIVITY=BTE DEFAULT COMBINED_MEASURE:MEASURE,ACTIVITY;COMBINED_UNIT_MEASURE:UNIT_MEASURE,BASE_PER,UNIT_MULT,TRANSFORMATION,ADJUSTMENT COMBINED_CONCEPTS COMBINED_MEASURE:Measure;COMBINED_UNIT_MEASURE:Unit of measure COMBINED_MEASURE:Mesure;COM",
+      "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+    }
+  }
+]

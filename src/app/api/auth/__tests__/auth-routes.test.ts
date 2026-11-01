@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 import { POST as signinHandler } from '@/app/api/auth/signin/route'
 import { POST as signupHandler } from '@/app/api/auth/signup/route'
 import { GET as callbackHandler } from '@/app/auth/callback/route'
@@ -116,19 +117,19 @@ describe('Auth API Routes', () => {
       const req = new NextRequest('http://localhost:3000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'new@example.com', password: '123' }),
+        body: JSON.stringify({ email: 'new@example.com', password: '123', consent: true, policyVersion: LEGAL.version }),
       })
       const res = await signupHandler(req)
       expect(res.status).toBe(400)
       const data = await res.json()
-      expect(data.error).toBe('Use a valid email and a password of 8 to 128 characters.')
+      expect(data.error).toContain('Use a valid email and password')
     })
 
     it('returns user and session on successful signup', async () => {
       const req = new NextRequest('http://localhost:3000/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'new@example.com', password: 'securepassword123' }),
+        body: JSON.stringify({ email: 'new@example.com', password: 'securepassword123', consent: true, policyVersion: LEGAL.version }),
       })
       const res = await signupHandler(req)
       expect(res.status).toBe(200)

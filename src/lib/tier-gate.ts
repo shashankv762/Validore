@@ -55,7 +55,7 @@ export async function checkValidationLimit(supabaseId: string): Promise<{ allowe
     const [user] = await tx.select().from(users).where(eq(users.id, result.user.id)).for('update')
     if (!user) return { allowed: false, remaining: 0 }
     const now = new Date()
-    if (!user.validationResetAt || now > user.validationResetAt) {
+    if (!user.validationResetAt || now >= user.validationResetAt) {
       await tx.update(users).set({ validationsThisMonth: 0,
         validationResetAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
       }).where(eq(users.id, user.id))

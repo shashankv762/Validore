@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 
 const cookies = vi.hoisted(() => ({ values: new Map<string, string>(), set: vi.fn() }))
 vi.mock('next/headers', () => ({ cookies: async () => ({
@@ -31,7 +32,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.restoreAllMocks(
 
 const request = (path = 'forgot-password') => new NextRequest('http://localhost:3000/api/auth/' + path, {
   method: 'POST', headers: { origin: 'http://localhost:3000', 'content-type': 'application/json' },
-  body: JSON.stringify({ email: 'founder@example.com', password: 'test-password123' }),
+  body: JSON.stringify({ email: 'founder@example.com', password: 'test-password123', consent: true, policyVersion: LEGAL.version }),
 })
 
 describe('Recovery cookies with the installed Supabase SDK', () => {

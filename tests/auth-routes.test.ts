@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 const mocks = vi.hoisted(() => ({ signin: vi.fn(), signup: vi.fn(), sync: vi.fn(), commit: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: { signInWithPassword: mocks.signin, signUp: mocks.signup } }),
@@ -21,6 +22,10 @@ beforeEach(() => {
 })
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 describe('Authentication boundaries', () => {
+  it.each([{}, { consent: false, policyVersion: LEGAL.version }, { consent: true, policyVersion: 'outdated' }])('requires current terms acceptance before registering: %j', async acceptance => {
+    expect((await signup(request('signup', { email: 'founder@example.com', password: 'password123', ...acceptance }))).status).toBe(400)
+    expect(mocks.signup).not.toHaveBeenCalled()
+  })
   it('blocks cross-origin login and signup before calling the provider', async () => {
     for (const [handler, name] of [[signin, 'signin'], [signup, 'signup']] as const) {
       expect((await handler(request(name, { email: 'founder@example.com', password: 'password123' }, 'https://untrusted.example'))).status).toBe(403)
@@ -30,13 +35,13 @@ describe('Authentication boundaries', () => {
   })
   it('rejects non-string and oversized credentials before provider calls', async () => {
     expect((await signin(request('signin', { email: ['bad'], password: 'password123' }))).status).toBe(400)
-    expect((await signup(request('signup', { email: 'founder@example.com', password: 'a'.repeat(129) }))).status).toBe(400)
+    expect((await signup(request('signup', { email: 'founder@example.com', password: 'a'.repeat(129), consent: true, policyVersion: LEGAL.version }))).status).toBe(400)
     expect(mocks.signin).not.toHaveBeenCalled()
     expect(mocks.signup).not.toHaveBeenCalled()
   })
   it('does not synchronize an unconfirmed signup identity', async () => {
     mocks.signup.mockResolvedValue({ data: { user: { id: 'new-auth-id' }, session: null }, error: null })
-    expect((await signup(request('signup', { email: 'founder@example.com', password: 'password123' }))).status).toBe(200)
+    expect((await signup(request('signup', { email: 'founder@example.com', password: 'password123', consent: true, policyVersion: LEGAL.version }))).status).toBe(200)
     expect(mocks.sync).not.toHaveBeenCalled()
   })
   it('does not expose infrastructure exceptions to the client', async () => {
@@ -47,7 +52,7 @@ describe('Authentication boundaries', () => {
   })
   it('requires configured abuse controls for production signup', async () => {
     vi.stubEnv('NODE_ENV', 'production')
-    expect((await signup(request('signup', { email: 'founder@example.com', password: 'password123' }))).status).toBe(503)
+    expect((await signup(request('signup', { email: 'founder@example.com', password: 'password123', consent: true, policyVersion: LEGAL.version }))).status).toBe(503)
     expect(mocks.signup).not.toHaveBeenCalled()
   })
 })

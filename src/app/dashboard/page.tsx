@@ -2,9 +2,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Loader2, Network, Search, Calculator, ShieldCheck, FileText, Clock3 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IdeaInputSchema, type IdeaDraft } from '@/lib/idea-input'
+import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
+import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
+import { FounderInterview } from '@/components/FounderInterview'
+import { ValidationProgress } from '@/components/ValidationProgress'
 
 const FIELDS: { key: keyof IdeaDraft; label: string; hint: string; placeholder: string; multiline?: boolean; max: number }[] = [
   { key: 'name', label: 'Startup name', hint: 'A working title is enough. You can refine it later.', placeholder: 'e.g. Validore', max: 100 },
@@ -15,6 +20,13 @@ const FIELDS: { key: keyof IdeaDraft; label: string; hint: string; placeholder: 
   { key: 'businessModel', label: 'Business model', hint: 'Describe how your startup will earn revenue.', placeholder: 'e.g. B2B subscriptions at $99 per month', max: 2000 },
   { key: 'coreProblem', label: 'Core problem', hint: 'What is difficult, expensive or frustrating for your customer today?', placeholder: 'Our customers struggle with…', multiline: true, max: 4000 },
   { key: 'proposedSolution', label: 'Proposed solution', hint: 'How will your approach solve that problem?', placeholder: 'We will help them by…', multiline: true, max: 4000 },
+]
+const GROUPS: { title: string; description: string; fields: (keyof IdeaDraft)[] }[] = [
+  { title: 'The basics', description: 'Start with a name, a market, and where you want to launch.', fields: ['name', 'industry', 'location'] },
+  { title: 'Your customer', description: 'The best research starts with a specific person and a real problem.', fields: ['targetCustomer', 'coreProblem'] },
+  { title: 'Your solution', description: 'Describe what you will build and how the business could work.', fields: ['product', 'proposedSolution', 'businessModel'] },
+  { title: 'Founder clarity', description: 'Go a little deeper with questions tailored to your answers, or continue straight to your review.', fields: [] },
+  { title: 'Review & start', description: 'Give the research team a clear brief. You can edit any detail below.', fields: [] },
 ]
 const EMPTY: IdeaDraft = { name: '', industry: '', product: '', targetCustomer: '', location: '', businessModel: '', coreProblem: '', proposedSolution: '' }
 const errorText = (data: { error?: unknown }, fallback: string) => typeof data.error === 'string' ? data.error : fallback
@@ -34,24 +46,82 @@ export default function IdeaWizard() {
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('Saving your idea')
   const [progress, setProgress] = useState(0)
+  const { data: accountData, error: accountError, refresh } = useAccount()
+  const account = accountData?.user
+  const [errorField, setErrorField] = useState<string>('')
+  const [savedIdeaId, setSavedIdeaId] = useState<string | null>(null)
+  const [savingBrief, setSavingBrief] = useState(false)
+  const advancing = useRef(false)
+  const [interviewBusy, setInterviewBusy] = useState(false)
+  const touched = useRef(false)
   const active = useRef(false)
   const request = useRef<AbortController | null>(null)
   const saved = useRef<{ id: string; fingerprint: string } | null>(null)
   useEffect(() => () => request.current?.abort(), [])
-  const field = FIELDS[step]
-  const next = () => {
-    const result = IdeaInputSchema.shape[field.key].safeParse(draft[field.key])
-    if (!result.success) { setError(result.error.issues[0].message); document.getElementById(field.key)?.focus(); return }
-    setError('')
-    setStep(value => Math.min(FIELDS.length, value + 1))
+  useEffect(() => {
+    let active = true
+    void refresh().then(data => {
+      if (!active || !data?.user) return
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('validore:brief:' + data.user.id) || 'null')
+        if (stored?.draft && !touched.current) {
+          const restored = Object.fromEntries(FIELDS.map(field => [field.key, typeof stored.draft[field.key] === 'string' ? stored.draft[field.key].slice(0, field.max) : ''])) as IdeaDraft
+          setDraft(restored)
+          setStep(Number.isInteger(stored.step) ? Math.max(0, Math.min(stored.ideaId ? 4 : 2, stored.step)) : 0)
+          if (typeof stored.ideaId === 'string') { saved.current = { id: stored.ideaId, fingerprint: '' }; setSavedIdeaId(stored.ideaId) }
+        }
+      } catch { /* The form still works when browser storage is unavailable. */ }
+    })
+    return () => { active = false }
+  }, [refresh])
+  useEffect(() => {
+    if (!account) return
+    try { sessionStorage.setItem('validore:brief:' + account.id, JSON.stringify({ draft, step, ideaId: saved.current?.id })) } catch {}
+  }, [draft, step, account])
+  const group = GROUPS[step] ?? GROUPS[0]
+  const fields = group.fields.map(key => FIELDS.find(field => field.key === key)!)
+  const cost = account?.tier === 'free' ? CREDIT_COSTS.LITE_VALIDATION : CREDIT_COSTS.DEEP_VALIDATION
+  const saveBrief = async (signal?: AbortSignal) => {
+    const parsed = IdeaInputSchema.safeParse(draft)
+    if (!parsed.success) throw new Error('Please complete the idea brief before continuing.')
+    const fingerprint = JSON.stringify(parsed.data)
+    if (!saved.current || saved.current.fingerprint !== fingerprint) {
+      const res = await fetch('/api/ideas', { method: saved.current ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...parsed.data, website, ...(saved.current ? { ideaId: saved.current.id } : {}) }),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data.idea?.id) throw new Error(errorText(data, 'Your idea could not be saved. Please try again.'))
+      saved.current = { id: data.idea.id, fingerprint }
+      setSavedIdeaId(data.idea.id)
+      if (account) { try { sessionStorage.setItem('validore:brief:' + account.id, JSON.stringify({ draft, step, ideaId: data.idea.id })) } catch {} }
+    }
+    return saved.current.id
   }
-  const submit = async () => {
+  const next = async () => {
+    if (advancing.current || savingBrief || interviewBusy) return
+    for (const field of fields) {
+      const result = IdeaInputSchema.shape[field.key].safeParse(draft[field.key])
+      if (!result.success) { setError(result.error.issues[0].message); setErrorField(field.key); document.getElementById(field.key)?.focus(); return }
+    }
+    setError('')
+    setErrorField('')
+    if (step === 2) {
+      advancing.current = true
+      setSavingBrief(true)
+      try { await saveBrief() }
+      catch (error) { setError(error instanceof Error ? error.message : 'Your brief could not be saved.'); return }
+      finally { advancing.current = false; setSavingBrief(false) }
+    }
+    setStep(value => Math.min(4, value + 1))
+  }
+  const handleSubmit = async () => {
     if (active.current) return
     const parsed = IdeaInputSchema.safeParse(draft)
     if (!parsed.success) {
       const first = parsed.error.issues[0]
-      setStep(Math.max(0, FIELDS.findIndex(item => item.key === first.path[0])))
+      setStep(Math.max(0, GROUPS.findIndex(item => item.fields.includes(first.path[0] as keyof IdeaDraft))))
       setError(first.message)
+      setErrorField(String(first.path[0]))
       return
     }
     active.current = true
@@ -64,20 +134,14 @@ export default function IdeaWizard() {
       return { res, data: await res.json().catch(() => ({})) }
     }
     try {
-      const fingerprint = JSON.stringify(parsed.data)
-      if (!saved.current || saved.current.fingerprint !== fingerprint) {
-        const { res, data } = await fetchJson('/api/ideas', { method: saved.current ? 'PATCH' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...parsed.data, website, ...(saved.current ? { ideaId: saved.current.id } : {}) }) })
-        if (!res.ok || !data.idea?.id) throw new Error(errorText(data, 'Your idea could not be saved. Try again.'))
-        saved.current = { id: data.idea.id, fingerprint }
-      }
+      const ideaId = await saveBrief(controller.signal)
       setLoadingMsg('Starting your validation')
-      const { res, data } = await fetchJson('/api/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ideaId: saved.current.id }) })
+      const { res, data } = await fetchJson('/api/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ideaId }) })
       if (!res.ok || !data.jobId) throw new Error(errorText(data, 'Validation could not start. Your idea is saved; try again.'))
-      const deadline = Date.now() + 10 * 60 * 1000
+      notifyAccountUpdated()
+      const pollingDeadline = AbortSignal.timeout(10 * 60 * 1000)
       let networkFailures = 0
-      while (Date.now() < deadline) {
+      while (!pollingDeadline.aborted) {
         await delay(2000, controller.signal)
         let status
         try { status = await fetchJson('/api/reports/status?jobId=' + encodeURIComponent(data.jobId)) }
@@ -93,7 +157,9 @@ export default function IdeaWizard() {
         setProgress(typeof job.progress === 'number' && Number.isFinite(job.progress) ? Math.max(0, Math.min(100, job.progress)) : 0)
         setLoadingMsg(job.status === 'pending' ? 'Your analysis is queued' : job.reportId ? 'Your report is ready' : job.completedSections > 0 ? 'Analysing: ' + job.completedSections + ' of ' + job.totalSections + ' sections complete' : 'Researching your startup idea')
         if (job.reportId) {
+          notifyAccountUpdated()
           navigating = true
+          if (account) { try { sessionStorage.removeItem('validore:brief:' + account.id) } catch {} }
           toast.success('Your analysis is ready')
           router.push('/dashboard/report/' + job.reportId)
           return
@@ -108,59 +174,68 @@ export default function IdeaWizard() {
         toast.error(message)
       }
     } finally {
+      notifyAccountUpdated()
       active.current = false
       if (!controller.signal.aborted && !navigating) setLoading(false)
     }
   }
-  return <div className="mx-auto max-w-3xl">
-    <div className="mb-8">
-      <h1 className="text-3xl font-light tracking-tight text-[#0A1628] sm:text-4xl">Validate your startup idea</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#1C1C1C]/75">Build a clear picture of your market, customers and next steps. Start with what you know; your report will label assumptions.</p>
+  return <div className="idea-workspace">
+    <div className="workspace-page-heading">
+      <div><h1>What are you building?</h1><p>A little context now. A clearer view of your market, your assumptions, and your next move.</p></div>
+      <Link href="/dashboard/reports" className="workspace-text-link"><FileText size={15} aria-hidden="true" />Your reports<ArrowRight size={14} aria-hidden="true" /></Link>
     </div>
-    <div className="mb-6 flex items-center justify-between gap-4 text-sm">
-      <span className="text-[#1C1C1C]/75">Step {step + 1} of 9</span><span className="font-medium text-[#0A1628]">{field?.label || 'Review your idea'}</span>
-    </div>
-    <div className="mb-8 flex gap-2" role="progressbar" aria-label="Idea details" aria-valuemin={1} aria-valuemax={9} aria-valuenow={step + 1}>
-      {Array.from({ length: 9 }, (_, index) => <span key={index} className={'h-1.5 flex-1 rounded-full ' + (index < step ? 'bg-[#C8A860]' : index === step ? 'bg-[#0A1628]' : 'bg-[#E8E0D0]')} />)}
-    </div>
-    {loading ? <section className="card-angular px-6 py-12 sm:p-12" aria-busy="true" aria-label="Validation progress">
-      <div className="flex items-center gap-3"><Loader2 className="h-6 w-6 animate-spin text-[#B8963E]" aria-hidden="true" /><h2 className="text-xl font-light text-[#0A1628]">Preparing your report</h2></div>
-      <p role="status" aria-live="polite" className="mt-4 text-sm text-[#1C1C1C]/80">{loadingMsg}</p>
-      <div className="mt-6 h-2 overflow-hidden rounded-full bg-[#E8E0D0]" role="progressbar" aria-label="Analysis completion" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
-        <div className="h-full rounded-full bg-[#C8A860] transition-[width]" style={{ width: progress + '%' }} />
+    <div className="idea-workspace-grid">
+      <div className="idea-brief">
+        {!loading && <nav className="brief-steps" aria-label="Idea brief steps">{GROUPS.map((item, index) =>
+          <button key={item.title} type="button" disabled={index > step || savingBrief || interviewBusy} aria-current={index === step ? 'step' : undefined}
+            onClick={() => { setStep(index); setError(''); setErrorField('') }} className={index === step ? 'is-current' : index < step ? 'is-complete' : ''}>
+            <span aria-hidden="true">{index < step ? <Check size={12} /> : index + 1}</span><span>{item.title}</span>
+          </button>)}</nav>}
+        {loading ? <ValidationProgress progress={progress} message={loadingMsg} /> : <form noValidate className="brief-panel" onSubmit={event => { event.preventDefault(); if (step < 4) void next(); else void handleSubmit() }}>
+          <div className="brief-panel-heading"><span>Step {step + 1} of 5</span><h2>{group.title}</h2><p>{group.description}</p></div>
+          {step < 3 ? <div className="brief-fields">{fields.map(field => <div className="brief-field" key={field.key}>
+            <label htmlFor={field.key}>{field.label}</label>
+            {field.multiline ? <textarea id={field.key} name={field.key} rows={4} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+              onChange={event => { touched.current = true; setDraft(value => ({ ...value, [field.key]: event.target.value })); setError(''); setErrorField('') }}
+              aria-invalid={errorField === field.key} aria-describedby={field.key + '-hint' + (errorField === field.key ? ' wizard-error' : '')} /> :
+              <input id={field.key} name={field.key} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+                onChange={event => { touched.current = true; setDraft(value => ({ ...value, [field.key]: event.target.value })); setError(''); setErrorField('') }}
+                aria-invalid={errorField === field.key} aria-describedby={field.key + '-hint' + (errorField === field.key ? ' wizard-error' : '')} />}
+            <div className="brief-field-help"><p id={field.key + '-hint'}>{field.hint}</p>{field.multiline && <span>{draft[field.key].length.toLocaleString()} / {field.max.toLocaleString()}</span>}</div>
+          </div>)}</div> : step === 3 ? savedIdeaId && <FounderInterview key={savedIdeaId + JSON.stringify(draft)} ideaId={savedIdeaId} onBusyChange={setInterviewBusy} /> : <div>
+            <dl className="brief-review">{FIELDS.map(item => <div key={item.key}>
+              <div><dt>{item.label}</dt><button type="button" onClick={() => { setStep(GROUPS.findIndex(group => group.fields.includes(item.key))); setError('') }} aria-label={'Edit ' + item.label.toLowerCase()}>Edit</button></div>
+              <dd>{draft[item.key]}</dd>
+            </div>)}</dl>
+            <div className="brief-cost"><div><strong>{account?.tier === 'free' ? 'Lite validation' : 'Full validation'}</strong><span>{account ? (account.tier === 'free' ? LITE_AGENT_COUNT : FULL_AGENT_COUNT) + ' specialists · PDF and Word included' : 'Loading plan details…'}</span></div><strong>{account ? cost + ' credits' : '?'}</strong></div>
+            {account && cost > account.creditBalance + account.purchasedCredits && <p className="brief-balance-warning">You have {account.creditBalance + account.purchasedCredits} credits. <Link href="/dashboard/credits">View your credit options</Link> before starting.</p>}
+            <p className="brief-privacy">Your idea and any saved founder answers are processed by configured AI providers to prepare the report. See our <Link href="/legal/privacy">Privacy Policy</Link>. Credits are returned if the analysis fails without a report.</p>
+          </div>}
+          <input name="website" aria-hidden="true" hidden tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
+          {error && <div id="wizard-error" role="alert" className="brief-error">{error}</div>}
+          {accountError && <p className="brief-error" role="status">Your account details could not load. Refresh the page before starting an analysis; your brief stays in this tab.</p>}
+          <div className="brief-actions">
+            <button type="button" disabled={step === 0 || savingBrief || interviewBusy} onClick={() => { setStep(value => Math.max(0, value - 1)); setError(''); setErrorField('') }} className="workspace-button-secondary"><ArrowLeft size={15} aria-hidden="true" />Back</button>
+            <button type="submit" disabled={loading || savingBrief || interviewBusy || (step === 2 && !account) || (step === 4 && (!account || cost > account.creditBalance + account.purchasedCredits))} className="workspace-button-primary">
+              {savingBrief ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" />Saving brief…</> : step < 4 ? <>{step === 3 ? 'Continue to review' : 'Continue'}<ArrowRight size={15} aria-hidden="true" /></> : <>Start validation<ArrowRight size={15} aria-hidden="true" /></>}
+            </button>
+          </div>
+          <p className="brief-save-note"><Clock3 size={12} aria-hidden="true" />Your draft stays in this browser tab.</p>
+        </form>}
       </div>
-      <p className="mt-6 text-sm leading-relaxed text-[#1C1C1C]/75">You can leave this page while the analysis runs. Your report will be saved to your workspace.</p>
-      <Link href="/dashboard/reports" className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#0A1628] underline underline-offset-4">View your reports<ArrowRight size={16} aria-hidden="true" /></Link>
-    </section> : <form noValidate className="card-angular p-6 sm:p-9" onSubmit={event => { event.preventDefault(); if (field) next(); else void submit() }}>
-      {field ? <div key={field.key} className="animate-step-in">
-        <label htmlFor={field.key} className="block text-xl font-medium text-[#0A1628]">{field.label}</label>
-        <p id={field.key + '-hint'} className="mb-5 mt-2 text-sm text-[#1C1C1C]/75">{field.hint}</p>
-        {field.multiline ? <textarea id={field.key} autoFocus maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
-          onChange={event => { setDraft(value => ({ ...value, [field.key]: event.target.value })); setError('') }}
-          aria-invalid={!!error} aria-describedby={field.key + '-hint' + (error ? ' wizard-error' : '')}
-          className="min-h-40 w-full resize-y rounded-lg border border-[#E8E0D0] bg-white px-4 py-3 text-[#1C1C1C]" /> :
-          <input id={field.key} autoFocus maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
-            onChange={event => { setDraft(value => ({ ...value, [field.key]: event.target.value })); setError('') }}
-            aria-invalid={!!error} aria-describedby={field.key + '-hint' + (error ? ' wizard-error' : '')}
-            className="w-full rounded-lg border border-[#E8E0D0] bg-white px-4 py-3 text-[#1C1C1C]" />}
-      </div> : <div>
-        <h2 className="text-xl font-medium text-[#0A1628]">Your idea at a glance</h2>
-        <p className="mt-2 text-sm text-[#1C1C1C]/75">Check your details before starting the analysis.</p>
-        <dl className="mt-6 divide-y divide-[#E8E0D0]">{FIELDS.map((item, index) => <div key={item.key} className="py-4 first:pt-0">
-          <div className="flex items-center justify-between gap-3"><dt className="text-sm font-medium text-[#0A1628]">{item.label}</dt>
-            <button type="button" onClick={() => { setStep(index); setError('') }} className="px-2 py-1 text-xs underline underline-offset-4" aria-label={'Edit ' + item.label.toLowerCase()}>Edit</button></div>
-          <dd className="mt-2 whitespace-pre-wrap break-words text-sm text-[#1C1C1C]/80">{draft[item.key]}</dd>
-        </div>)}</dl>
-        <p className="mt-5 text-xs leading-relaxed text-[#1C1C1C]/75">Starting an analysis uses credits from your plan. Your idea is processed by AI providers; read our <Link href="/legal/privacy" className="underline underline-offset-4">Privacy Policy</Link>.</p>
-      </div>}
-      <input name="website" aria-hidden="true" hidden tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
-      {error && <div id="wizard-error" role="alert" className="mt-5 rounded-lg border border-[#B8963E] bg-[#F5F0E8] p-4 text-sm text-[#0A1628]">{error}<Link href="/dashboard/reports" className="mt-2 block underline underline-offset-4">View your reports</Link></div>}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-3 border-t border-[#E8E0D0] pt-6">
-        <button type="button" disabled={step === 0} onClick={() => { setStep(value => Math.max(0, value - 1)); setError('') }} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#E8E0D0] px-5 py-2.5 text-sm disabled:opacity-40"><ArrowLeft size={16} aria-hidden="true" />Back</button>
-        <button type="submit" disabled={loading} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-[#FAFAF7]" style={{ background: field ? 'var(--navy)' : 'var(--gold-gradient)', color: field ? 'var(--ivory)' : 'var(--navy)' }}>
-          {field ? <>Continue<ArrowRight size={16} aria-hidden="true" /></> : <>Validate idea<Check size={16} aria-hidden="true" /></>}
-        </button>
-      </div>
-    </form>}
+      <aside className="wizard-guide">
+        <div className="wizard-guide-symbol"><Network size={23} aria-hidden="true" /></div>
+        <h2>A team for your next move.</h2>
+        <p>Specialists work together to turn your brief into questions worth answering and a plan you can test.</p>
+        <ol className="wizard-guide-steps">
+          <li><Search size={17} aria-hidden="true" /><div><strong>Find the evidence</strong><span>Explore your market, customers, and alternatives.</span></div></li>
+          <li><Calculator size={17} aria-hidden="true" /><div><strong>Check the assumptions</strong><span>Separate source-backed findings from estimates.</span></div></li>
+          <li><ShieldCheck size={17} aria-hidden="true" /><div><strong>Make a practical plan</strong><span>See the risks and the next experiments to run.</span></div></li>
+        </ol>
+        <Link href="/dashboard/agents" className="workspace-text-link">Meet the research team<ArrowRight size={14} aria-hidden="true" /></Link>
+        <div className="wizard-deliverable"><FileText size={18} aria-hidden="true" /><div><strong>Keep the whole report.</strong><span>Download a PDF or an editable Word document with your findings and sources.</span></div></div>
+        <Link href="/demo" className="workspace-text-link">Take a look at a sample<ArrowRight size={14} aria-hidden="true" /></Link>
+      </aside>
+    </div>
   </div>
 }

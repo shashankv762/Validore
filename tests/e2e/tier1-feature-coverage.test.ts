@@ -13,6 +13,14 @@ import { TIER_CONFIG_SPECS, parseCsvRows, assertZeroValidoreBranding, isValidPdf
 import { calculateContributionMargin, calculateBreakEvenUnits, calculateLTV, calculateCACPaybackPeriod } from '@/lib/financial'
 import { STARTUP_WEIGHTS, BM_WEIGHTS, CAMPAIGN_WEIGHTS, PITCH_WEIGHTS, PRICING_WEIGHTS, validateWeightTable, ValidationDecision } from '@/lib/scoring'
 import JSZip from 'jszip'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import PrivacyPage from '@/app/legal/privacy/page'
+import TermsPage from '@/app/legal/terms/page'
+import CookiesPage from '@/app/legal/cookies/page'
+import RefundPage from '@/app/legal/refund/page'
+import AcceptableUsePage from '@/app/legal/acceptable-use/page'
+import { LEGAL } from '@/lib/legal'
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../')
 
@@ -308,23 +316,15 @@ describe('Tier 1: Feature Coverage', () => {
       expect(content).not.toContain('[Your Name]')
     })
 
-    it('F14.2: All 4 legal pages reference "Bengaluru, Karnataka, India", "Shashank V", and zero old location', () => {
-      const legalPages = [
-        'src/app/legal/privacy/page.tsx',
-        'src/app/legal/terms/page.tsx',
-        'src/app/legal/cookies/page.tsx',
-        'src/app/legal/refund/page.tsx',
-      ]
-      const forbiddenCity = ['New', 'Delhi'].join(' ')
-
-      for (const relPath of legalPages) {
-        const fullPath = path.join(PROJECT_ROOT, relPath)
-        expect(fs.existsSync(fullPath), `${relPath} must exist`).toBe(true)
-        const content = fs.readFileSync(fullPath, 'utf8')
-        expect(content, `${relPath} must contain Bengaluru, Karnataka, India`).toContain('Bengaluru, Karnataka, India')
-        expect(content, `${relPath} must contain Shashank V`).toContain('Shashank V')
-        expect(content, `${relPath} must not contain old city`).not.toContain(forbiddenCity)
-        expect(content, `${relPath} must not contain [Your Name]`).not.toContain('[Your Name]')
+    it('F14.2: All policies render the confirmed operator, country, contact, and current version', () => {
+      expect(LEGAL).toMatchObject({ operator: 'Shashank V', country: 'India', contact: 'aegixchainai@gmail.com' })
+      for (const Page of [PrivacyPage, TermsPage, CookiesPage, RefundPage, AcceptableUsePage]) {
+        const content = renderToStaticMarkup(createElement(Page))
+        expect(content).toContain(LEGAL.operator)
+        expect(content).toContain(LEGAL.country)
+        expect(content).toContain(LEGAL.contact)
+        expect(content).toContain(LEGAL.version)
+        expect(content).not.toContain('[Your Name]')
       }
     })
 

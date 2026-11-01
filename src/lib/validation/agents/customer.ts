@@ -1,4 +1,5 @@
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief } from '@/lib/ai/research-brief'
 import { CustomerAgentSchema } from '../schemas'
 import type { IdeaInput } from '../schemas'
 import { STARTUP_WEIGHTS } from '@/lib/scoring'
@@ -25,11 +26,11 @@ YOUR SCOPE — you own exactly these sections of the report:
 1. problemScore — 0-${STARTUP_WEIGHTS.problemValidation} (max ${STARTUP_WEIGHTS.problemValidation}). How strong is the evidence that this problem is real, frequent, and painful?
 2. customerScore — 0-${STARTUP_WEIGHTS.customerValidation} (max ${STARTUP_WEIGHTS.customerValidation}). How well-defined and reachable is the target customer?
 3. wtpScore — 0-${STARTUP_WEIGHTS.willingnessToPay} (max ${STARTUP_WEIGHTS.willingnessToPay}). Willingness-to-pay signals, judged honestly.
-4. personas — 1-3 detailed ICPs (primary, secondary, early adopter).
+4. personas — 1-2 concise, specific ICPs (primary and, only if materially different, secondary).
 5. problemValidation5Factor — frequency, severity, urgency, dissatisfaction, willingnessToSeekSolution, each scored 1-10 with reasoning.
 6. customerJPG — Jobs / Pains / Gains mapping (value proposition canvas).
-7. interviewQuestions — 10-15 non-leading Mom Test style questions with category and rationale.
-8. wtpSurveyQuestions — 4-8 willingness-to-pay survey questions (open / scale / multiple_choice).
+7. interviewQuestions — exactly 10 non-leading Mom Test style questions with category and a one-sentence rationale.
+8. wtpSurveyQuestions — 4 focused willingness-to-pay survey questions (open / scale / multiple_choice).
 
 INTEGRITY RULES:
 1. Never fabricate customer quotes, testimonials, or traction data. These are PROPOSED personas and survey designs — not real interview data.
@@ -42,11 +43,16 @@ Other agents handle market sizing, competitors, financials, and the final decisi
 
 export async function runCustomerAgent(idea: IdeaInput, opts?: AgentOpts) {
   return generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
     agentRole: 'customer',
+    researchMode: opts?.reuseResearch ? 'reuse' : 'auto',
+    sources: opts?.sources,
     prompt: buildCustomerPrompt(idea),
     schema: CustomerAgentSchema,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
+    privateContext: opts?.privateContext,
+    researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
   })
 }

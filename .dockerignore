@@ -26,9 +26,21 @@ dist
 *.pem
 *.key
 *.p12
+*.pfx
+*.jks
+*.keystore
+service-account*.json
+service_account*.json
+*.dump
+*.dump.gz
+*.sql.gz
+**/.auth
 
 # ── CI/CD artefacts ───────────────────────────────────────────────────────────
 reports
+test-results
+playwright-report
+blob-report
 .trivy-cache
 coverage
 .github
@@ -37,6 +49,8 @@ coverage
 /.rbxsync-trash
 /.npm-cache
 /.tmp
+/tmp
+*.tmp
 /.docker-auth.*/
 
 # ── Docker files (not needed inside the image) ────────────────────────────────
@@ -79,6 +93,9 @@ tests
 **/*.spec.ts
 **/*.spec.tsx
 vitest.config.ts
+vitest.config.mts
+.venv
+venv
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log

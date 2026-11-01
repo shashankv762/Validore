@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { safeNextPath } from '@/lib/auth-redirect'
 
 export async function readAuthBody(request: NextRequest): Promise<unknown> {
   if (request.headers.get('content-type')?.includes('application/json')) return request.json().catch(() => null)
   const form = await request.formData().catch(() => null)
   return form ? Object.fromEntries(form.entries()) : null
 }
-export function authFormResponse(request: NextRequest, path: string, kind: 'error' | 'message', message: string, status = 200) {
+export function authFormResponse(request: NextRequest, path: string, kind: 'error' | 'message', message: string, status = 200, next?: unknown) {
   if (request.headers.get('content-type')?.includes('application/json')) return NextResponse.json({ [kind]: message }, { status })
   const url = new URL(path, authOrigin(request))
   url.searchParams.set(kind, message)
+  if (next) url.searchParams.set('next', safeNextPath(next, url.origin))
   return NextResponse.redirect(url, 303)
 }
 export function validAuthOrigin(request: NextRequest) {
@@ -26,7 +28,7 @@ function servedOrigin(request: NextRequest) {
       if (['localhost', '127.0.0.1', '[::1]'].includes(host.hostname) && host.port === url.port) return host.origin
     } catch {}
   } else {
-    // Render terminates TLS before Next.js. Resolve the public scheme only for
+    // Hosts can terminate TLS before Next.js. Resolve the public scheme only for
     // explicitly configured app hosts, never from arbitrary forwarding headers.
     const host = (request.headers.get('host') || url.host).toLowerCase()
     const publicOrigin = configuredOrigins().find(origin => new URL(origin).host === host)

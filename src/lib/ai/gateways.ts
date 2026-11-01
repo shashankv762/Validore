@@ -1,25 +1,32 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { OPENCODE_FREE_MODELS, OPENROUTER_FREE_MODELS, PIXROUTER_FREE_MODELS, ROLE_MODELS } from './model-policy'
+import { reserveGatewayRequest } from './provider-budget'
+import { FULL_AGENT_ROLES, type AgentRole } from './roles'
 
-export type AgentRole = 'market' | 'customer' | 'competitor' | 'finance' | 'risk' | 'synthesis'
+export type { AgentRole } from './roles'
 export type GatewayCandidate = { id: string; baseURL: string; apiKey: string; modelId: string; fingerprint: string }
 type Environment = Record<string, string | undefined>
 type Dependencies = { environment?: () => Environment; fetcher?: typeof fetch; now?: () => number }
-type Catalog = { expires: number; models: Set<string> | null; authorized: boolean }
+type Catalog = { expires: number; models: Set<string> | null; authorized: boolean; freeModels?: Set<string>; toolModels?: Set<string> }
 
 // All configured OpenAI-compatible gateway providers.
 // To add a new provider, append an entry here and set the corresponding
 // <PREFIX>_API_KEY, <PREFIX>_BASE_URL, <PREFIX>_MODELS, <PREFIX>_FREE_MODELS
 // environment variables — no other code changes needed.
-const profiles = [
+const profiles: { id: string; prefix: string; baseURL?: string; models?: readonly string[] }[] = [
+  { id: 'ollama', prefix: 'OLLAMA', baseURL: 'http://127.0.0.1:11434/v1' },
+  { id: 'pixrouter', prefix: 'PIXROUTER', baseURL: 'https://pixrouter.com/v1', models: PIXROUTER_FREE_MODELS },
+  { id: 'opencode', prefix: 'OPENCODE', baseURL: 'https://opencode.ai/inference/openai/v1', models: OPENCODE_FREE_MODELS },
+  { id: 'openrouter', prefix: 'OPENROUTER', baseURL: 'https://openrouter.ai/api/v1', models: OPENROUTER_FREE_MODELS },
   { id: 'seekai',      prefix: 'SEEKAI'      },  // seekai.cc — best model coverage
   { id: 'kios',        prefix: 'KIOS'        },  // kiosapi.com
   { id: 'apinex',      prefix: 'APINEX'      },  // api.apinex.bond
   { id: 'orca',        prefix: 'ORCA'        },  // api.orcarouter.ai
   { id: 'agentrouter', prefix: 'AGENTROUTER' },  // agentrouter.org — last-resort fallback
-] as const
+]
 
-const roles: AgentRole[] = ['market', 'customer', 'competitor', 'finance', 'risk', 'synthesis']
+const roles = FULL_AGENT_ROLES
 const modelList = (value?: string) =>
   [...new Set((value ?? '').split(',').map((v) => v.trim()).filter((v) => /^\S{1,200}$/.test(v)))].slice(0, 30)
 
@@ -51,13 +58,18 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
     const request = (async () => {
       let result: Catalog = { models: null, authorized: true, expires: now() + 30_000 }
       try {
+        if (!(await reserveGatewayRequest(config))) {
+          const blocked = { ...result, authorized: false }
+          catalogs.set(config.fingerprint, blocked)
+          return blocked
+        }
         const response = await fetcher(config.baseURL + '/models', {
           headers: { Authorization: 'Bearer ' + config.apiKey },
           redirect: 'error',
           cache: 'no-store',
           signal: AbortSignal.timeout(Math.max(1, timeoutMs)),
         })
-        if (response.status === 401) {
+        if (response.status === 401 || response.status === 403) {
           result = { models: null, authorized: false, expires: now() + 60_000 }
         } else if (response.ok) {
           // Bound provider-controlled JSON before parsing it.
@@ -79,8 +91,14 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
               const ids = body.data.flatMap((item: unknown) =>
                 item && typeof item === 'object' && 'id' in item && typeof item.id === 'string' ? [item.id] : [])
               // A malformed catalog is unknown, not proof that configured models are absent.
-              if (body.data.length === 0 || ids.length > 0)
+              if (body.data.length === 0 || ids.length > 0) {
                 result = { models: new Set(ids), authorized: true, expires: now() + 300_000 }
+                if (config.id === 'openrouter') {
+                  const rows = body.data as { id: string; pricing?: { prompt?: string; completion?: string }; supported_parameters?: string[] }[]
+                  result.freeModels = new Set(rows.filter(row => row.pricing && Number(row.pricing.prompt) === 0 && Number(row.pricing.completion) === 0).map(row => row.id))
+                  result.toolModels = new Set(rows.filter(row => row.supported_parameters?.includes('tools')).map(row => row.id))
+                }
+              }
             }
           }
         }
@@ -109,18 +127,31 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
 
       const configs = profiles.flatMap((profile) => {
         if (enabled && !enabled.has(profile.id)) return []
-        const apiKey = env[profile.prefix + '_API_KEY']?.trim()
+        const localProvider = profile.id === 'ollama'
+        if (localProvider && env.OLLAMA_ENABLED !== 'true') return []
+        const configuredKey = env[profile.prefix + '_API_KEY']?.trim()
+        const apiKey = configuredKey || (localProvider ? 'ollama' : undefined)
         if (!apiKey || apiKey === 'no-key') return []
         try {
-          const url = new URL(env[profile.prefix + '_BASE_URL'] ?? '')
-          if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) return []
+          const url = new URL(env[profile.prefix + '_BASE_URL'] || profile.baseURL || '')
+          const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+          if ((url.protocol !== 'https:' && !(localProvider && loopback && url.protocol === 'http:')) || url.username || url.password || url.search || url.hash) return []
+          if (localProvider && !loopback && !configuredKey) return []
+          // Never send either official credential to a different host.
+          if (profile.id === 'opencode' && url.hostname !== 'opencode.ai') return []
+          if (profile.id === 'openrouter' && url.hostname !== 'openrouter.ai') return []
+          if (profile.id === 'pixrouter' && url.origin !== 'https://pixrouter.com') return []
           const baseURL = url.toString().replace(/\/$/, '')
           const fingerprint = createHash('sha256').update(profile.id + baseURL + apiKey).digest('hex')
-          const free = new Set(modelList(env[profile.prefix + '_FREE_MODELS']))
-          let models = modelList(env[profile.prefix + '_MODELS']).filter((id) => !freeOnly || free.has(id))
+          const free = new Set(modelList(env[profile.prefix + '_FREE_MODELS'] || profile.models?.join(',')))
+          let models = modelList(env[profile.prefix + '_MODELS'] || env[profile.prefix + '_FREE_MODELS'] || profile.models?.join(',')).filter((id) => !freeOnly || free.has(id))
+          if (profile.id === 'openrouter' && freeOnly) models = models.filter(id => id.endsWith(':free') || id === 'openrouter/free')
+          if (profile.id === 'opencode' && freeOnly) models = models.filter(id => (OPENCODE_FREE_MODELS as readonly string[]).includes(id))
+          if (profile.id === 'pixrouter' && freeOnly) models = models.filter(id => (PIXROUTER_FREE_MODELS as readonly string[]).includes(id))
+          if (localProvider && freeOnly) models = models.filter(id => !/(?::|-|\/)cloud(?:\b|$)/i.test(id))
           // Promote agent-preferred models to the front within each provider's list.
-          const preferred = role ? modelList(env['AI_AGENT_' + role.toUpperCase() + '_MODELS']) : []
-          models = [...models.filter((id) => preferred.includes(id)), ...models.filter((id) => !preferred.includes(id))]
+          const preferred = role ? modelList(env['AI_AGENT_' + role.toUpperCase() + '_MODELS'] || ROLE_MODELS[role]?.join(',')) : []
+          models = [...preferred.filter(id => models.includes(id)), ...models.filter(id => !preferred.includes(id))]
           if (models.length === 0) return []
           return [{ id: profile.id, apiKey, baseURL, fingerprint, models }]
         } catch { return [] }
@@ -132,7 +163,7 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
 
       // Stagger gateway selection by agent-role index so each agent naturally
       // hits a different primary provider, spreading load and isolating failures.
-      const offset = role && configs.length ? roles.indexOf(role) % configs.length : 0
+      const offset = env.AI_GATEWAY_ROTATE === 'true' && role && configs.length ? roles.indexOf(role) % configs.length : 0
       const rotated = [...configs.slice(offset), ...configs.slice(0, offset)]
 
       const lists = await Promise.all(rotated.map(async (config) => {
@@ -146,6 +177,8 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
         return config.models
           .filter((id) =>
             (!available.models || available.models.has(id)) &&
+            (!freeOnly || !available.freeModels || available.freeModels.has(id)) &&
+            (!available.toolModels || available.toolModels.has(id)) &&
             (failures.get(config.fingerprint + '/' + id) ?? 0) <= now()
           )
           .map((modelId) => ({
@@ -191,6 +224,12 @@ export function createGatewayRouter(dependencies: Dependencies = {}) {
         return
       }
       if (status === 429 || status === 503 || status === 529) {
+        if (status === 429 && (candidate.id === 'opencode' || candidate.id === 'pixrouter')) {
+          const headers = error && typeof error === 'object' && 'responseHeaders' in error ? error.responseHeaders as Record<string, string> | undefined : undefined
+          const retry = Number(headers?.['retry-after'])
+          failures.set(candidate.fingerprint, now() + (Number.isFinite(retry) && retry > 0 ? Math.min(86400, Math.max(60, retry)) * 1000 : candidate.id === 'pixrouter' ? 300_000 : 120_000))
+          return
+        }
         failures.set(candidate.fingerprint + '/' + candidate.modelId, now() + 120_000)
         return
       }
@@ -217,9 +256,9 @@ export function parseGatewayOutput<T>(text: string, schema: z.ZodSchema<T>): T {
   try {
     value = JSON.parse(fenced ? fenced[1] : singleLine ? singleLine[1] : trimmed)
   } catch {
-    throw new Error('AI output was not valid JSON')
+    throw new SyntaxError('AI output was not valid JSON')
   }
   const parsed = schema.safeParse(value)
-  if (!parsed.success) throw new Error('AI output did not match the required schema')
+  if (!parsed.success) throw parsed.error
   return parsed.data
 }

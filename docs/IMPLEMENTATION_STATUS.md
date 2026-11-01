@@ -1,48 +1,82 @@
 # Implementation and verification status
 
-Updated 2026-10-31. The public beta is live at **https://validore.onrender.com**, running application commit `6538a6bad5c612290cf6b3e027e759c22c314208`. Both `validore.tech` and `www.validore.tech` are attached to Render, but DNS and custom-domain HTTPS remain pending.
+Updated November 1, 2026 for the Vercel/`validore.tech` release preparation, privacy/data/interview extension and agent-pipeline verification. Changes are local and uncommitted. No Git push, Vercel deployment, DNS edit, Jenkins account change, production migration or research database seed was performed. This extension made no application AI calls. [Current release evidence](PRIVACY_DATA_RELEASE_2026-11-01.md) separates its checks from preceding live-model runs.
 
-This session used GPT-6 Astra. Local servers, tests, builds, caches and temporary files ran in `R:\Validore-Astra-20261031`; source edits and Git operations remained in the original repository. The app's configured AI models were tested with the user's authorization. Existing unrelated work was preserved.
+Earlier Render deployment acceptance is preserved in [historical release evidence](RELEASE_EVIDENCE_2026-10-31.md). It describes a different application revision and does not establish readiness of these changes on Vercel.
 
-## Repairs released
+## Changes prepared
 
-- Authentication defers session cookies until profile provisioning succeeds, accepts explicitly configured HTTPS aliases behind Render's proxy, preserves callback origins, and reports provider, SMTP and password-policy errors. Recovery callbacks and normal password changes support Supabase's current-password requirement.
-- Credit reservation and job creation share a transaction. Monthly allowances renew under a row lock; bounded, idempotent refunds recover abandoned jobs, including historical null update timestamps. Progress writes are awaited.
-- Report IDs are validated and report loading exposes a retry state. Exports use owned saved records, remove fabricated fallback claims, escape portfolio HTML, preserve purchased downloads and use wide slides.
-- Financial calculations share consistent rules, bound database amounts and return explicit nulls for undefined ratios. Module errors have consistent responses.
-- Provider routing supports an operational gateway allowlist and optional native-provider priority. HTTP 402 cools down a gateway. Explicit free-only and custom-key selections remain respected.
-- Next.js and eslint-config-next are on **16.4.3**. CI explicitly sets the test environment even when the host builds with `NODE_ENV=production`.
-- Both reviewed SQL deltas were applied. All **14 application tables** have RLS; effective anon/authenticated privileges are denied. Direct queries as both roles failed, while owner reads and row counts were preserved.
+- Added five consistent policy pages for Shashank V, India, with the confirmed privacy contact and an essential-storage notice that can be reopened. Added current-notice signup acknowledgment and an owner-only account export.
+- Added private adaptive founder interviews with save-before-AI durability, guided fallback, limits, evidence labels, owner/version checks and individual erasure. Answers inform validation, Lean Canvas, pricing, crowdfunding and pitch outputs. Tool-enabled research uses a separate public brief; private answers and derived findings enter only tool-free output.
+- Collected and stored 48 official WDI observations plus ten official directory references with the user-requested Astra agent. Direct public refresh uses no application AI tokens. Added reviewed internal research persistence, provenance, expiry and retention maintenance; additive migration 0003 is required before serving this revision.
+- Added real-SDK synthetic Full/Lite pipeline acceptance, proving search sharing, stored-data reuse, fallback usage, privacy separation and zero extra model calls on durable replay. Expanded ignore rules and added a release-file boundary check. Added mobile-ready founder notes, route skeletons and actual validation progress.
+- Rebuilt the landing page around a fictional interactive report, clearer workflow/modules, accurate availability of paid plans, accessible navigation, and restrained motion.
+- Integrated the supplied faceted ore mark and exact custom vector lettering into site, auth, legal, workspace, and report branding. Updated favicon, social preview, and Apple home-screen icon.
+- Unified signup, sign-in, and password recovery with labeled native forms and pending feedback. Signup/Google completion and handled sign-in errors preserve safe return destinations.
+- Refreshed the authenticated workspace, responsive navigation, reports, research team, credits, settings and module screens. Added mobile table scrolling, reliable loading/retry states, and protection against exporting a stale pricing result after inputs change.
+- Expanded full validation to nine specialists with fourteen role-filtered research and planning tools. Lite retains three specialists. Added product, growth and source-review outputs, visible agent/tool activity, and explicit handling of partial results.
+- Synchronized account balances across Credits, Usage, Settings, navigation and planning tools while preserving existing plan/add-on amounts. Added owner-scoped usage aggregates, single-request refreshes, cross-tab updates and session recovery. Prevented stale account history and outdated checkout-price reuse; corrected cycle-aware refund amounts and ledger totals.
+- Added dated server-side market memory, a live World Bank indicator tool, shared source caching and bounded evidence selection. Finance, product and growth reuse existing research; complete memory limitations survive selection and read pages supersede snippets. Documented optional Ollama and SearXNG setup.
+- Connected PixRouter with four tool/JSON-tested free aliases, host-bound OpenCode/OpenRouter fallbacks, bounded generation and a shared 55/hour Redis request budget. Restored Tavily, Serper and SerpAPI as limited fallbacks, with combined two/report and 30/day budgets and cached results.
+- Added DNS-pinned public page reading, redirect validation, citation provenance checks, conservative unsupported-market sizing and deterministic financial/statistical tools. Founder assumptions remain unvalidated until real tests occur.
+- Added owner-checked PDF and editable Word downloads for validation, canvas, pricing, crowdfunding and pitch content, preserving selected versions. Created a five-page reusable report template in both formats, linked from Reports and Research team.
+- Added canonical metadata, a public sitemap, indexing rules, noindex auth/dashboard metadata, loading and 404 recovery, and current Next.js `retry()` error recovery.
+- Used `aegixchainai@gmail.com` for the public support/legal contact.
+- Split full AI validation into separate durable steps suitable for Vercel's 300-second handler budget. Completed steps survive replay; cached preparation excludes private keys. Queue control signals propagate rather than triggering the model fallback accidentally. Progress never moves backward on replay.
+- Rejected an unconfigured production validation runner before reserving credits. Gated billing actions on the required Stripe settings and improved account/credit error handling.
+- Removed Jenkins pipelines/setup helpers, the GitHub Actions CI workflow, and Render deployment automation. Disabled Vercel automatic Git deployment. Kept manual verification commands and functional report/credit jobs.
+- Updated dependencies and resolved the production dependency advisories without breaking package downgrades.
+- Replaced obsolete launch instructions with the [Vercel + Namify guide](GO_LIVE.md).
 
-## Verification completed
+## Current checks
+
+Executed in the source workspace with Node **24.14.1**, npm **11.17.0**, and Next.js **16.4.3**.
 
 | Check | Result |
 | --- | --- |
-| Strict ESLint, generated Next route types, TypeScript | Passed |
-| Regression suite | **307 passed, 8 skipped** |
-| Separate real PostgreSQL release suite | **5 passed**, in an isolated schema removed afterward; these account for five of the eight CI skips |
-| Production build and standalone smoke | Passed locally on R, in GitHub CI and on Render |
-| Production dependency audit | **0 high/critical**, 5 moderate transitive findings remain |
-| Signup confirmation and email delivery | Verified during local integration testing; hosted email/password sign-in passed afterward |
-| Hosted sign-in/profile | Passed; account initially received 100 credits |
-| Hosted recovery/password change | Callback, update and changed-password login passed; original test password restored |
-| Google provider/initiation | Enabled; redirects to Supabase authorize; interactive consent/login completion is unverified |
-| Redis and Inngest | Redis PONG and hosted Inngest registration passed |
-| Hosted queued lite validation | Pending to running to complete; report retrieval passed; credits **100 to 50**, one charge |
-| Hosted report history/access | Saved report appears in rendered history; owner retrieval 200, anonymous retrieval 401 |
-| Real full six-agent report on R | All six agents completed in **96.5 seconds**, using the native Google fallback chain |
+| Strict ESLint (`npm run lint`) | Passed |
+| Next route generation and TypeScript (`npm run typecheck`) | Passed |
+| Unit/regression/contract suite (`npm test`) | **487 passed, 8 skipped**; 55 test files passed and one file skipped |
+| Real SDK agent pipeline | Full nine-specialist and Lite three-specialist flows, stored indicator, shared searches, private-context separation, usage accounting, JSON fallback and durable replay passed with synthetic external services |
+| Production Next.js build (`npm run build`) | Passed with Turbopack; **53/53** pages generated |
+| Built standalone smoke (`npm run smoke:production`) | Passed all **14** check groups |
+| Release-file boundaries | **108** Git/Vercel inclusion/exclusion cases passed; no currently tracked ignored files |
+| New privacy/interview browser review | **60 checks passed**, no browser/CSP errors; policies/auth and actual interview, privacy-download, progress/loading components at desktop/tablet/phone widths with synthetic private backend |
+| Production dependency audit (`npm audit --omit=dev`) | **0 vulnerabilities** reported |
+| Current full dependency audit | **20 moderate findings in development dependencies**; no high/critical findings; incompatible force fixes were not applied |
+| Earlier social preview and Apple icon review | Visually inspected; supplied vector artwork renders correctly; image responses also pass the current smoke check |
+| Earlier workspace browser review | Authenticated workspace and owned reports; auth/recovery forms; pricing/crowdfunding/pitch fixtures at 1440/390/320px; nine-card Research team and source-review overview/narrative at 1440/768/390/320px, with no overflow or browser errors in those checks |
+| Earlier account browser review | Credits, Usage, Settings and Research team at 1440/768/390/320px; refresh deduplication, pending-update replay, cross-tab synchronization, session/account changes, plan prices and post-analysis balance refresh passed with synthetic fixtures |
+| Earlier owned document downloads | Real owned PDF and DOCX returned 200 with private/no-store responses; both public template downloads matched generated files; authenticated downloads were not repeated in this extension |
+| Earlier blank report template review | Five A4 pages in each format; every PDF and LibreOffice-rendered Word page inspected, with corrected pagination and font substitution |
+| Earlier full validation, preceding revision | **9/9 specialists passed**, 31 seconds, Qwen and Inkling via PixRouter; 69,209 reported tokens; not repeated for this extension |
+| Earlier live Lite validation (before the memory changes) | **3/3 specialists passed**, 160 seconds, 43,098 reported tokens |
+| Current public-data collection | 48/48 WDI pairs for six geographies, 2024–2025 observations; ten official references; no application model or paid data API calls |
+| Earlier PixRouter protocol checks | Four selected free aliases completed an actual tool-result and JSON round trip; historical provider evidence, not re-tested here |
+| New Vercel deployment and domain DNS/TLS | Not performed |
+| Hosted email/Google, Inngest execution, billing, and database checks for this revision | Not performed |
 
-The full local run used `gemini-3.5-flash`, `gemini-3.1-flash-lite` and `gemini-3.6-flash`. Original gateway routing failed or degraded: APINEX returned billing HTTP 402, ORCA HTTP 429, AgentRouter HTTP 401, and SeekAI timed out. Native-provider priority is now enabled for automatic/paid mode. KIOS remains a configured fallback; its complex-report reliability is not established. Model catalog availability is not treated as generation readiness.
+The standalone smoke checks liveness, landing content, metadata/response headers, the sample report, favicon and both logo variants, PNG social/Apple images, native sign-in forms and return path, dynamic CSP, policy pages, signup consent, API request/privacy boundaries, custom 404 recovery, robots/sitemap output, and cache policy. It does not authenticate customers or spend AI/payment credits.
 
-The R-drive build used Webpack/SWC WASM and a callback filesystem resolver that preserves path checks. No local tests or builds ran on the source SSD in this session. See the [durable release evidence](RELEASE_EVIDENCE_2026-10-31.md) for the deployed revision, CI link, timestamps and detailed log locations.
+Browser review found logo sizing/loading advisories, a mobile input font-size override, table overflow and stale module exports; those were corrected. The home logo link also avoids prefetching an unused landing stylesheet from account pages. Premium-module UI checks used browser fixtures rather than changing the account tier or charging credits. Browser emulation does not replace physical-phone testing or final-domain email, Google and payment acceptance.
 
-## Remaining launch work and limits
+The earlier live AI checks used synthetic ideas, did not write customer reports or spend workspace credits, and did use external provider allowance. The preceding 31-second run used the official-data tool and one additional agent search. It reported 69,209 tokens versus 84,307 in an older run, but differing conditions do not establish a controlled saving. Those runs do not verify the privacy/interview revision. See [earlier release evidence](RELEASE_CANDIDATE_2026-11-01.md) and [the model snapshot](AI_MODELS.md).
 
-- **Custom domain:** add the records in [GO_LIVE.md](GO_LIVE.md), verify them in Render, then check HTTPS. Dashboard automation stopped after Computer Use reported an Escape-key stop and an unavailable browser host. No DNS change was made afterward.
-- **Google:** complete an interactive login/consent journey and verify OAuth audience/publication settings before advertising unrestricted Google onboarding.
-- **Billing:** unconfigured and unavailable. Live payments and a complete Razorpay subscription lifecycle are not verified.
-- **Operations:** Render Free sleeps when idle and has usage limits. AI, email, queue and database quotas are separate. Failure/retry/refund behavior has regression and real database coverage, but no destructive live failure was induced. Responsive UI and keyboard journeys need a browser session.
-- **Security:** rotate credentials previously exposed in chat and update dependent services together. Rotation is not verified. Five moderate transitive dependency findings remain.
-- **Product:** crowdfunding benchmarks are synthetic; notification preferences are browser-only and email notifications are not implemented. AI output needs human review. SQL files are reviewed deltas, not a fully journaled baseline migration history.
+The new pipeline checks use the real AI SDK with synthetic external services and no application API spend. Their fixed token values test accounting, not actual model costs or quality. Replayed Full steps made zero additional model/search requests; a second Lite report reused cached public search while still running model analysis. Usage totals are recorded validation tokens, not all provider billing: other modules/interviews and unreported or unpersisted failures are excluded.
 
-The beta works on its Render hostname; it is not certified error-free. Historical classroom checkpoints remain in Git history and do not describe this release's current deployment or test status.
+The eight skipped tests require a separate database: three auth-sync integration cases and five database-release cases. Tests deliberately do not load `.env.local`; use an isolated `TEST_DATABASE_URL` in ignored `.env.test.local` to enable database tests. The database-release suite requires application tables in a `validore_test_` schema selected by the connection's search path. The user confirmed staging is not set up yet. No live customer database was used for this test run.
+
+Development findings remain in the ESLint/minimatch and drizzle-kit/esbuild tooling chains. The package manager's proposed force fixes include breaking changes/downgrades, so those were not applied. Production dependencies are clean in the current audit; audits are point-in-time checks, not a guarantee of absence of defects.
+
+## Remaining launch work
+
+1. Review/commit/push the intended source changes, import the project into Vercel, and configure the documented production environment values. `opusplan.md` remains untouched and unrelated.
+2. Review the SQL deltas, including the new-account free-model default and **0003 founder interviews/research**, against staging and a backed-up database. Apply 0003 before serving this app revision. Drain old queued work, register/sync the correct Vercel Inngest endpoint, and retire duplicate old worker/cron schedules.
+3. Add `validore.tech` and `www.validore.tech` in Vercel, copy the project-specific DNS records into the active Namify DNS zone, and verify HTTPS and the canonical redirect.
+4. Save Supabase Site URL/redirect entries, upload the prepared Validore consent logo in Google Auth Platform, complete live email/Google/recovery journeys, and verify queued reports, credit accounting, owned history, and exports on the final domain.
+5. Configure and test live Stripe only when accepting payments. Until then, paid actions remain unavailable. Razorpay checkout is not implemented.
+6. Disable any externally configured Jenkins jobs/hooks and obsolete GitHub required checks. Local repository deletion cannot change those accounts.
+7. Restore working OpenRouter/OpenCode account access or sufficient alternate capacity before relying on fallback. PixRouter's observed 60/hour allowance supports a controlled pilot; measure throughput before broad public onboarding.
+8. Finish provider/queue retention, privacy request handling, direct Supabase signup controls and consent-path review. Complete two-account interview/export isolation and full hosted journeys. Review [security findings and limitations](SECURITY_REVIEW_2026-11-01.md).
+
+This is a verified local release candidate, not a claim of zero errors or a completed production launch. Real-device accessibility/performance, live provider quotas, deployment cutover, payment reconciliation, and operational monitoring remain part of launch acceptance.

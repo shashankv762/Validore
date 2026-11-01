@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { AlertTriangle, FlaskConical, History, FileText } from 'lucide-react'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { nextCanvasVersion } from '@/lib/canvas-versions'
+import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
+import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 
 type CanvasBlock = {
   content: string
@@ -92,7 +94,8 @@ export default function LeanCanvasPage() {
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [isPremium, setIsPremium] = useState(false)
+  const { data: account } = useAccount()
+  const isPremium = account?.user.tier === 'premium' || account?.user.tier === 'max_premium'
   const [manualBlocks, setManualBlocks] = useState<Record<string, string>>({})
   const [canvasReport, setCanvasReport] = useState<any[] | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
@@ -106,14 +109,10 @@ export default function LeanCanvasPage() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return
-        const [res, tierRes] = await Promise.all([fetch('/api/ideas'), fetch('/api/me')])
+        const res = await fetch('/api/ideas')
         if (!res.ok) throw new Error('Ideas unavailable')
         const data = await res.json()
         if (active) setIdeas(Array.isArray(data.ideas) ? data.ideas : [])
-        if (tierRes.ok) {
-          const { user: profile } = await tierRes.json()
-          if (active) setIsPremium(profile?.tier === 'premium' || profile?.tier === 'max_premium')
-        }
       } catch { if (active) toast.error('Your ideas could not be loaded. Refresh to try again.') }
     }
     void load()
@@ -174,7 +173,7 @@ export default function LeanCanvasPage() {
         }
       } catch { toast.info('Canvas saved. Refresh the page to reload the full version history.') }
     } catch { toast.error('The request could not complete. Check the version history before trying again.') }
-    finally { setGenerating(false); setSaving(false) }
+    finally { notifyAccountUpdated(); setGenerating(false); setSaving(false) }
   }
 
   async function handleGenerate() { await saveCanvas(false) }
@@ -194,8 +193,8 @@ export default function LeanCanvasPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-light text-[#0A1628] mb-1">Lean Canvas</h1>
-          <p className="text-sm text-[#1C1C1C] opacity-60">
+          <h1 className="text-2xl font-light text-[#141923] mb-1">Lean Canvas</h1>
+          <p className="text-sm text-[#364152] opacity-60">
             {isPremium
               ? 'AI-powered 9-step Lean Canvas automation with confidence scoring.'
               : 'Manual Lean Canvas editor. Upgrade to Premium for AI automation.'}
@@ -205,13 +204,13 @@ export default function LeanCanvasPage() {
           <ExportToolbar
             ideaId={selectedIdeaId}
             canvasId={currentCanvas.id}
-            formats={['pdf', 'csv']}
+            formats={['pdf', 'docx', 'csv']}
           />
         )}
       </div>
 
       <div className="card-angular p-6">
-        <label htmlFor="canvas-idea" className="block text-xs font-medium text-[#96792b] uppercase tracking-wider mb-2">Select Idea</label>
+        <label htmlFor="canvas-idea" className="block text-xs font-medium text-[#89620B]  mb-2">Select Idea</label>
         <select
           id="canvas-idea" disabled={generating || saving || reportLoading}
           value={selectedIdeaId}
@@ -224,16 +223,16 @@ export default function LeanCanvasPage() {
             setIntakeAnswers({});
             setLoading(Boolean(event.target.value));
           }}
-          className="w-full px-4 py-2 border border-[#E8E0D0] rounded bg-[#FAFAF7] text-sm focus:outline-none focus:border-[#C8A860] mb-4"
+          className="w-full px-4 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:outline-none focus:border-[#E0A526] mb-4"
         >
           <option value="">— Select an idea —</option>
           {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
         
         {selectedIdeaId && isPremium && (
-          <div className="border-t border-[#E8E0D0] pt-4 mt-4">
+          <div className="border-t border-[#E5E7EB] pt-4 mt-4">
             <h3 className="text-sm font-semibold mb-1">Deep Intake Form (12 Questions)</h3>
-            <p className="text-xs text-[#1C1C1C]/60 mb-3">
+            <p className="text-xs text-[#364152]/60 mb-3">
               Your answers supplement the idea&apos;s stored data and give the AI extra context for a more precise canvas.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -252,13 +251,13 @@ export default function LeanCanvasPage() {
                 '12. What is the biggest risk to this idea right now?'
               ].map((q, i) => (
                 <div key={i}>
-                  <label className="block text-xs font-medium text-[#0A1628] mb-1">{q}</label>
+                  <label className="block text-xs font-medium text-[#141923] mb-1">{q}</label>
                   {/* FIX-13: Controlled input — value bound to intakeAnswers[i], onChange updates state */}
                   <input
                     type="text"
                     maxLength={4000}
                     aria-label={q}
-                    className="w-full px-3 py-1.5 border border-[#E8E0D0] rounded bg-white text-sm focus:border-[#C8A860] focus:outline-none"
+                    className="w-full px-3 py-1.5 border border-[#E5E7EB] rounded bg-white text-sm focus:border-[#E0A526] focus:outline-none"
                     placeholder="Enter details..."
                     value={intakeAnswers[i] ?? ''}
                     onChange={e => setIntakeAnswers(prev => ({ ...prev, [i]: e.target.value }))}
@@ -269,7 +268,7 @@ export default function LeanCanvasPage() {
             <button
               onClick={handleGenerate}
               disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
-              className="px-4 py-2 bg-[#0A1628] text-white rounded text-sm disabled:opacity-50"
+              className="px-4 py-2 bg-[#141923] text-white rounded text-sm disabled:opacity-50"
             >
               {generating ? 'Generating AI Canvas...' : 'Submit & Generate New Canvas'}
             </button>
@@ -280,28 +279,28 @@ export default function LeanCanvasPage() {
 
       {selectedIdeaId && (
         <details className="card-angular p-6" open={!canvases.length}>
-          <summary className="cursor-pointer font-medium text-[#0A1628]">Write a manual canvas</summary>
-          <p className="mt-3 text-sm text-[#1C1C1C]/70">Save your own assumptions as a new version. Manual saves use no AI credits. Each idea can have four versions.</p>
+          <summary className="cursor-pointer font-medium text-[#141923]">Write a manual canvas</summary>
+          <p className="mt-3 text-sm text-[#364152]/70">Save your own assumptions as a new version. Manual saves use no AI credits. Each idea can have four versions.</p>
           <fieldset disabled={generating || saving || loading || nextCanvasVersion(canvases) === null} className="mt-4">
             <legend className="sr-only">Manual canvas blocks</legend>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {BLOCKS.map(({ key, label }) => (
                 <div key={key}>
-                  <label htmlFor={'manual-' + key} className="block mb-2 text-sm font-medium text-[#0A1628]">{label}</label>
+                  <label htmlFor={'manual-' + key} className="block mb-2 text-sm font-medium text-[#141923]">{label}</label>
                   <textarea id={'manual-' + key} rows={4} maxLength={4000}
                     value={manualBlocks[key] ?? ''}
                     onChange={event => setManualBlocks(previous => ({ ...previous, [key]: event.target.value }))}
                     placeholder={'Describe your ' + label.toLowerCase()}
-                    className="w-full resize-y border border-[#E8E0D0] bg-white p-3 text-sm disabled:opacity-60" />
+                    className="w-full resize-y border border-[#E5E7EB] bg-white p-3 text-sm disabled:opacity-60" />
                 </div>
               ))}
             </div>
             <button type="button" onClick={() => saveCanvas(true)}
-              className="mt-4 px-5 py-2.5 bg-[#0A1628] text-white text-sm disabled:opacity-50">
+              className="mt-4 px-5 py-2.5 bg-[#141923] text-white text-sm disabled:opacity-50">
               {saving ? 'Saving…' : 'Save manual version'}
             </button>
           </fieldset>
-          {nextCanvasVersion(canvases) === null && <p className="mt-3 text-sm text-[#96792b]">All four versions are saved. You can review and export them below.</p>}
+          {nextCanvasVersion(canvases) === null && <p className="mt-3 text-sm text-[#89620B]">All four versions are saved. You can review and export them below.</p>}
         </details>
       )}
 
@@ -314,10 +313,10 @@ export default function LeanCanvasPage() {
                 onClick={() => { setActiveVersion(idx); setCanvasReport(null) }}
                 disabled={reportLoading || generating || saving}
                 aria-pressed={activeVersion === idx}
-                className={`px-4 py-2 text-sm font-medium transition-all cursor-pointer ${
+                className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
                   activeVersion === idx
-                    ? 'text-[#0A1628] border-b-2 border-[#C8A860] font-semibold'
-                    : 'text-[#1C1C1C] opacity-60 hover:opacity-100'
+                    ? 'text-[#141923] border-b-2 border-[#E0A526] font-semibold'
+                    : 'text-[#364152] opacity-60 hover:opacity-100'
                 }`}
               >
                 Version {c.version}
@@ -327,23 +326,23 @@ export default function LeanCanvasPage() {
 
           {/* 0C-3: Overall Canvas Confidence Score Gauge */}
           {currentCanvas && (
-            <div className="card-angular px-4 py-2 bg-[#FAFAF7] border border-[#E8E0D0] flex items-center gap-3">
+            <div className="card-angular px-4 py-2 bg-[#FFFFFF] border border-[#E5E7EB] flex items-center gap-3">
               <div className="relative w-12 h-12 flex items-center justify-center">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="#E8E0D0" strokeWidth="10" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="#E5E7EB" strokeWidth="10" />
                   <circle
                     cx="50" cy="50" r="42" fill="none" stroke={gaugeColor} strokeWidth="10"
                     strokeDasharray="264"
                     strokeDashoffset={264 - (264 * overallConfidenceScore) / 100}
-                    className="transition-all duration-700 ease-out"
+                    className=""
                   />
                 </svg>
-                <span className="absolute text-xs font-bold text-[#0A1628]">
+                <span className="absolute text-xs font-bold text-[#141923]">
                   {overallConfidenceScore}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold tracking-wider text-stone-500 block">
+                <span className="text-[10px]  font-bold tracking-wider text-stone-500 block">
                   Canvas Confidence
                 </span>
                 <span
@@ -364,22 +363,22 @@ export default function LeanCanvasPage() {
             <button
               onClick={handleGenerate}
               disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
-              className="px-6 py-2.5 text-sm font-medium text-[#0A1628] disabled:opacity-50 transition-all cursor-pointer"
-              style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 10px 2px 10px' }}
+              className="px-6 py-2.5 text-sm font-medium text-[#141923] disabled:opacity-50 transition-colors cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}
             >
               {generating ? '⏳ Generating AI Canvas…' : nextCanvasVersion(canvases) === null ? 'Max 4 versions reached' : '✦ Generate with AI'}
             </button>
           ) : (
             <div className="card-angular px-6 py-3 flex items-center gap-3">
-              <span className="text-[#96792b]">🔒</span>
+              <span className="text-[#89620B]">🔒</span>
               <div>
-                <p className="text-sm font-medium text-[#0A1628]">AI Canvas Automation — Premium Feature</p>
-                <p className="text-xs text-[#1C1C1C] opacity-60">Upgrade to Premium ($29/mo) to unlock AI-powered canvas generation</p>
+                <p className="text-sm font-medium text-[#141923]">AI Canvas Automation — Premium Feature</p>
+                  <p className="text-xs text-[#364152] opacity-60">Upgrade to Premium ({formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo) to unlock AI-powered canvas generation</p>
               </div>
               <a
                 href="/dashboard/settings"
-                className="ml-auto px-4 py-2 text-xs font-medium text-[#0A1628]"
-                style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 8px 2px 8px' }}
+                className="ml-auto px-4 py-2 text-xs font-medium text-[#141923]"
+                style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 8px 2px 8px' }}
               >
                 Upgrade
               </a>
@@ -394,14 +393,14 @@ export default function LeanCanvasPage() {
           <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-amber-900">
+              <span className="text-xs font-bold  text-amber-900">
                 Riskiest Assumption Under Test
               </span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-300 bg-amber-200/60 text-amber-900">
                 ASSUMPTION
               </span>
             </div>
-            <p className="text-sm text-[#0A1628] leading-relaxed font-medium">
+            <p className="text-sm text-[#141923] leading-relaxed font-medium">
               {riskiestAssumption}
             </p>
           </div>
@@ -411,26 +410,26 @@ export default function LeanCanvasPage() {
       {/* 0C-4: Version Change Reason & Evidence Summary */}
       {currentCanvas && (currentCanvas.changeReason || currentCanvas.evidenceSummary) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="card-angular p-5 bg-[#FAFAF7] border border-[#E8E0D0]">
-            <div className="flex items-center gap-2 mb-2 text-[#96792b]">
+          <div className="card-angular p-5 bg-[#FFFFFF] border border-[#E5E7EB]">
+            <div className="flex items-center gap-2 mb-2 text-[#89620B]">
               <History className="w-4 h-4" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider">
+              <h3 className="text-xs font-semibold ">
                 Version Evolution Rationale (V{currentCanvas.version})
               </h3>
             </div>
-            <p className="text-xs text-[#1C1C1C] leading-relaxed">
+            <p className="text-xs text-[#364152] leading-relaxed">
               {currentCanvas.changeReason || 'Initial baseline version generated from startup parameters.'}
             </p>
           </div>
 
-          <div className="card-angular p-5 bg-[#FAFAF7] border border-[#E8E0D0]">
-            <div className="flex items-center gap-2 mb-2 text-[#96792b]">
+          <div className="card-angular p-5 bg-[#FFFFFF] border border-[#E5E7EB]">
+            <div className="flex items-center gap-2 mb-2 text-[#89620B]">
               <FileText className="w-4 h-4" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider">
+              <h3 className="text-xs font-semibold ">
                 Evidence &amp; Uncertainty Summary
               </h3>
             </div>
-            <p className="text-xs text-[#1C1C1C] leading-relaxed">
+            <p className="text-xs text-[#364152] leading-relaxed">
               {currentCanvas.evidenceSummary || 'Unverified founder assumptions. Field tests and validation sprints required.'}
             </p>
           </div>
@@ -439,7 +438,7 @@ export default function LeanCanvasPage() {
 
       {loading ? (
         <div className="card-angular p-12 text-center">
-          <div className="animate-pulse text-[#96792b]">Loading canvas…</div>
+          <div className="animate-pulse text-[#89620B]">Loading canvas…</div>
         </div>
       ) : currentCanvas ? (
         <>
@@ -451,22 +450,22 @@ export default function LeanCanvasPage() {
               const color = confidenceColor(score)
               const badge = confidenceBadge(score)
               return (
-                <div key={key} className="card-angular p-5 bg-[#FAFAF7]" style={{ borderLeft: `3px solid ${color}` }}>
+                <div key={key} className="card-angular p-5 bg-[#FFFFFF]" style={{ borderLeft: `3px solid ${color}` }}>
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider">{label}</h3>
+                    <h3 className="text-xs font-semibold text-[#141923] ">{label}</h3>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: color + '20', color }}>
                       {badge}
                     </span>
                   </div>
                   {block ? (
                     <>
-                      <p className="text-sm text-[#1C1C1C] leading-relaxed mb-3">{block.content}</p>
+                      <p className="text-sm text-[#364152] leading-relaxed mb-3">{block.content}</p>
                       {block.keyAssumptions?.length > 0 && (
                         <div className="mt-2">
-                          <p className="text-xs text-[#96792b] font-medium mb-1">Key Assumptions:</p>
+                          <p className="text-xs text-[#89620B] font-medium mb-1">Key Assumptions:</p>
                           <ul className="space-y-0.5">
                             {block.keyAssumptions.map((a, i) => (
-                              <li key={i} className="text-xs text-[#1C1C1C] opacity-70 flex gap-1">
+                              <li key={i} className="text-xs text-[#364152] opacity-70 flex gap-1">
                                 <span>•</span>{a}
                               </li>
                             ))}
@@ -474,8 +473,8 @@ export default function LeanCanvasPage() {
                         </div>
                       )}
                       <div className="mt-3 flex items-center gap-2">
-                        <div className="flex-1 h-1 rounded bg-[#E8E0D0]">
-                          <div className="h-1 rounded transition-all" style={{ width: `${score}%`, background: color }} />
+                        <div className="flex-1 h-1 rounded bg-[#E5E7EB]">
+                          <div className="h-1 rounded transition-colors" style={{ width: `${score}%`, background: color }} />
                         </div>
                         <span className="text-xs font-medium" style={{ color }}>{score}/100</span>
                       </div>
@@ -486,7 +485,7 @@ export default function LeanCanvasPage() {
                       onChange={e => setManualBlocks(b => ({ ...b, [key]: e.target.value }))}
                       placeholder={`Describe your ${label.toLowerCase()}…`}
                       rows={4}
-                      className="w-full text-sm text-[#1C1C1C] bg-transparent border-none focus:outline-none resize-none placeholder-[#1C1C1C]/40"
+                      className="w-full text-sm text-[#364152] bg-transparent border-none focus:outline-none resize-none placeholder-[#364152]/40"
                     />
                   )}
                 </div>
@@ -496,34 +495,34 @@ export default function LeanCanvasPage() {
 
           {/* 0C-2: Validation Experiments Planner Table */}
           {validationExperiments.length > 0 && (
-            <div className="card-angular p-6 bg-[#FAFAF7]">
+            <div className="card-angular p-6 bg-[#FFFFFF]">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628] flex items-center gap-2">
-                  <FlaskConical className="w-4 h-4 text-[#C8A860]" /> Validation Experiments Planner
+                <h3 className="text-sm font-semibold text-[#141923] flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-[#E0A526]" /> Validation Experiments Planner
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-800">
                   PROPOSED_STRATEGY
                 </span>
               </div>
-              <p className="text-xs text-[#1C1C1C] opacity-60 mb-4">
+              <p className="text-xs text-[#364152] opacity-60 mb-4">
                 Structured experiment backlog to systematically de-risk core hypotheses.
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-[#E8E0D0] bg-[#F5F0E8]/70">
-                      <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Assumption Tested</th>
-                      <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Experiment Method</th>
-                      <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Success Metric / KPI</th>
-                      <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-28">Timeframe</th>
+                    <tr className="border-b border-[#E5E7EB] bg-[#F7F8FA]/70">
+                      <th className="py-2.5 px-3 font-semibold text-[#141923]">Assumption Tested</th>
+                      <th className="py-2.5 px-3 font-semibold text-[#141923]">Experiment Method</th>
+                      <th className="py-2.5 px-3 font-semibold text-[#141923]">Success Metric / KPI</th>
+                      <th className="py-2.5 px-3 font-semibold text-[#141923] w-28">Timeframe</th>
                     </tr>
                   </thead>
                   <tbody>
                     {validationExperiments.map((exp, idx) => (
-                      <tr key={idx} className="border-b border-[#E8E0D0] last:border-0 hover:bg-[#F5F0E8]/40">
-                        <td className="py-3 px-3 font-medium text-[#0A1628] align-top">{exp.assumption}</td>
-                        <td className="py-3 px-3 text-[#1C1C1C] align-top leading-relaxed">{exp.experiment}</td>
-                        <td className="py-3 px-3 font-mono font-medium text-[#96792b] align-top">{exp.successMetric}</td>
+                      <tr key={idx} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F7F8FA]/40">
+                        <td className="py-3 px-3 font-medium text-[#141923] align-top">{exp.assumption}</td>
+                        <td className="py-3 px-3 text-[#364152] align-top leading-relaxed">{exp.experiment}</td>
+                        <td className="py-3 px-3 tabular-nums font-medium text-[#89620B] align-top">{exp.successMetric}</td>
                         <td className="py-3 px-3 text-stone-600 align-top whitespace-nowrap">{exp.timeframe}</td>
                       </tr>
                     ))}
@@ -535,7 +534,7 @@ export default function LeanCanvasPage() {
 
           {/* New Sections for Phase 3 */}
           {Array.isArray(currentCanvas?.analysisData?.assumptionRegister) && (
-             <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Assumption Register</h3>
                <div className="overflow-x-auto">
                  <table className="w-full text-xs text-left">
@@ -550,7 +549,7 @@ export default function LeanCanvasPage() {
              </div>
           )}
           {Array.isArray(currentCanvas?.analysisData?.buildMeasureLearnCycles) && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Build-Measure-Learn Cycles</h3>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {currentCanvas.analysisData.buildMeasureLearnCycles.map((cycle: any, i: number) => (
@@ -565,14 +564,14 @@ export default function LeanCanvasPage() {
             </div>
           )}
           {currentCanvas?.analysisData?.pivotAnalysis && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Pivot Analysis Panel</h3>
                <p><strong>Current Model:</strong> {currentCanvas.analysisData.pivotAnalysis.currentModel}</p>
                <p><strong>Recommendation:</strong> {currentCanvas.analysisData.pivotAnalysis.recommendation}</p>
             </div>
           )}
           {Array.isArray(currentCanvas?.analysisData?.ifThenRules) && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">IF→THEN Rules</h3>
                <div className="grid grid-cols-1 gap-2">
                  {currentCanvas.analysisData.ifThenRules.map((rule: any, i: number) => (
@@ -584,7 +583,7 @@ export default function LeanCanvasPage() {
             </div>
           )}
           {Array.isArray(currentCanvas?.analysisData?.pricingVsVolumeMatrix) && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Pricing vs Volume Matrix</h3>
                <table className="w-full text-xs text-left">
                  <thead><tr className="border-b"><th>Price</th><th>Volume</th><th>Revenue</th><th>Margin</th></tr></thead>
@@ -597,7 +596,7 @@ export default function LeanCanvasPage() {
             </div>
           )}
           {currentCanvas?.analysisData?.businessModelCanvas && (
-             <div className="card-angular p-6 bg-[#FAFAF7] mt-4">
+             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Business Model Canvas</h3>
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs border p-2 break-words">
                  <div className="col-span-1 border p-2"><b>Key Partners:</b> {currentCanvas.analysisData.businessModelCanvas.keyPartners?.join(', ')}</div>
@@ -620,23 +619,23 @@ export default function LeanCanvasPage() {
           {/* FIX-06 Sections */}
           {/* 1. Formal Problem Statement */}
           {currentCanvas?.analysisData?.problemStatement && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm border-l-4 border-amber-500">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm border-l-4 border-amber-500">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">Formal Problem Statement</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">Formal Problem Statement</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800">ASSUMPTION</span>
               </div>
-              <p className="text-lg font-medium text-[#0A1628]">{currentCanvas.analysisData.problemStatement}</p>
+              <p className="text-lg font-medium text-[#141923]">{currentCanvas.analysisData.problemStatement}</p>
             </div>
           )}
 
           {/* 2. Customer Interview Questions */}
           {Array.isArray(currentCanvas?.analysisData?.interviewQuestions) && currentCanvas.analysisData.interviewQuestions.length > 0 && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">Customer Interview Questions</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">Customer Interview Questions</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">PROPOSED_STRATEGY</span>
               </div>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-[#1C1C1C]">
+              <ol className="list-decimal list-inside space-y-2 text-sm text-[#364152]">
                 {currentCanvas.analysisData.interviewQuestions.map((q: any, i: number) => (
                   <li key={i}>{q.question || q}</li>
                 ))}
@@ -646,14 +645,14 @@ export default function LeanCanvasPage() {
 
           {/* 3. Segment Prioritization Matrix */}
           {Array.isArray(currentCanvas?.analysisData?.segmentPrioritization) && currentCanvas.analysisData.segmentPrioritization.length > 0 && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm overflow-x-auto">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm overflow-x-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">Segment Prioritization Matrix</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">Segment Prioritization Matrix</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-800">AI_ESTIMATE_UNVERIFIED</span>
               </div>
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="border-b bg-[#F5F0E8]/70">
+                  <tr className="border-b bg-[#F7F8FA]/70">
                     <th className="py-2 px-2">Segment</th>
                     <th className="py-2 px-2">Market Size</th>
                     <th className="py-2 px-2">Accessibility</th>
@@ -666,7 +665,7 @@ export default function LeanCanvasPage() {
                 </thead>
                 <tbody>
                   {currentCanvas.analysisData.segmentPrioritization.map((seg: any, i: number) => (
-                    <tr key={i} className="border-b hover:bg-[#F5F0E8]/40">
+                    <tr key={i} className="border-b hover:bg-[#F7F8FA]/40">
                       <td className="py-2 px-2 font-medium">{seg.segment}</td>
                       <td className="py-2 px-2">{seg.estimatedSize || seg.marketSize || '-'}</td>
                       <td className="py-2 px-2">{seg.accessibility || '-'}</td>
@@ -684,14 +683,14 @@ export default function LeanCanvasPage() {
 
           {/* 4. Existing Alternatives Comparison */}
           {Array.isArray(currentCanvas?.analysisData?.alternativeSolutions) && currentCanvas.analysisData.alternativeSolutions.length > 0 && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm overflow-x-auto">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm overflow-x-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">Existing Alternatives Comparison</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">Existing Alternatives Comparison</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-200 bg-emerald-50 text-emerald-800">PROPOSED_STRATEGY</span>
               </div>
               <table className="w-full text-xs text-left">
                 <thead>
-                  <tr className="border-b bg-[#F5F0E8]/70">
+                  <tr className="border-b bg-[#F7F8FA]/70">
                     <th className="py-2 px-2">Name</th>
                     <th className="py-2 px-2">Weakness</th>
                     <th className="py-2 px-2">Our Advantage</th>
@@ -699,7 +698,7 @@ export default function LeanCanvasPage() {
                 </thead>
                 <tbody>
                   {currentCanvas.analysisData.alternativeSolutions.map((alt: any, i: number) => (
-                    <tr key={i} className="border-b hover:bg-[#F5F0E8]/40">
+                    <tr key={i} className="border-b hover:bg-[#F7F8FA]/40">
                       <td className="py-2 px-2 font-medium">{alt.name}</td>
                       <td className="py-2 px-2">{alt.weakness}</td>
                       <td className="py-2 px-2 text-emerald-700">{alt.ourAdvantage}</td>
@@ -712,9 +711,9 @@ export default function LeanCanvasPage() {
 
           {/* 5. RAT Matrix Dashboard */}
           {Array.isArray(currentCanvas?.analysisData?.ratMatrix) && currentCanvas.analysisData.ratMatrix.length > 0 && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">RAT Matrix Dashboard</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">RAT Matrix Dashboard</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800">ASSUMPTION</span>
               </div>
               <div className="overflow-x-auto">
@@ -730,22 +729,22 @@ export default function LeanCanvasPage() {
 
           {/* 6. Business Model Validation Score */}
           {currentCanvas?.analysisData?.businessModelValidationScore !== undefined && currentCanvas?.analysisData?.bmScoreBreakdown && (
-            <div className="card-angular p-6 bg-[#FAFAF7] mt-4 shadow-sm">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="text-sm font-semibold text-[#0A1628]">Business Model Validation Score</h3>
+                <h3 className="text-sm font-semibold text-[#141923]">Business Model Validation Score</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-orange-200 bg-orange-50 text-orange-800">AI_ESTIMATE_UNVERIFIED</span>
               </div>
               <div className="flex items-center gap-8">
-                <div className="text-5xl font-light text-[#0A1628]">{currentCanvas.analysisData.businessModelValidationScore}<span className="text-lg text-stone-500">/100</span></div>
+                <div className="text-5xl font-light text-[#141923]">{currentCanvas.analysisData.businessModelValidationScore}<span className="text-lg text-stone-500">/100</span></div>
                 <div className="flex-1 grid grid-cols-2 gap-4">
                   {Object.entries(currentCanvas.analysisData.bmScoreBreakdown).map(([key, val]: [string, any], i) => (
                     <div key={i}>
-                      <div className="flex justify-between text-xs mb-1 uppercase font-semibold">
+                      <div className="flex justify-between text-xs mb-1  font-semibold">
                         <span>{key}</span>
                         <span>{val}/100</span>
                       </div>
-                      <div className="w-full bg-[#E8E0D0] h-1.5 rounded-full">
-                        <div className="bg-[#C8A860] h-1.5 rounded-full" style={{ width: `${val}%` }}></div>
+                      <div className="w-full bg-[#E5E7EB] h-1.5 rounded-full">
+                        <div className="bg-[#E0A526] h-1.5 rounded-full" style={{ width: `${val}%` }}></div>
                       </div>
                     </div>
                   ))}
@@ -756,13 +755,13 @@ export default function LeanCanvasPage() {
         </>
       ) : selectedIdeaId ? (
         <div className="card-angular p-12 text-center">
-          <p className="text-[#1C1C1C] opacity-60 text-sm mb-4">No canvas yet for this idea.</p>
+          <p className="text-[#364152] opacity-60 text-sm mb-4">No canvas yet for this idea.</p>
           {isPremium && (
             <button
               onClick={handleGenerate}
               disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
-              className="px-6 py-2.5 text-sm font-medium text-[#0A1628] cursor-pointer"
-              style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 10px 2px 10px' }}
+              className="px-6 py-2.5 text-sm font-medium text-[#141923] cursor-pointer"
+              style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}
             >
               {generating ? 'Generating…' : '✦ Generate Canvas with AI'}
             </button>
@@ -770,7 +769,7 @@ export default function LeanCanvasPage() {
         </div>
       ) : (
         <div className="card-angular p-12 text-center">
-          <p className="text-[#1C1C1C] opacity-40 text-sm">Select an idea above to get started.</p>
+          <p className="text-[#364152] opacity-40 text-sm">Select an idea above to get started.</p>
         </div>
       )}
 
@@ -778,7 +777,7 @@ export default function LeanCanvasPage() {
       {currentCanvas && (
         <div className="mt-6">
           <button
-            className="w-full flex items-center justify-between p-4 bg-[#FAFAF7] border border-[#E8E0D0] rounded-lg hover:bg-[#F5F0E8] text-left"
+            className="w-full flex items-center justify-between p-4 bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg hover:bg-[#F7F8FA] text-left"
             onClick={async () => {
               if (reportLoading) return
               if (canvasReport) {
@@ -801,11 +800,11 @@ export default function LeanCanvasPage() {
               }
             }}
           >
-            <span className="font-semibold text-[#0A1628] flex items-center gap-2">
-              <FileText className="w-4 h-4 text-[#C8A860]" />
+            <span className="font-semibold text-[#141923] flex items-center gap-2">
+              <FileText className="w-4 h-4 text-[#E0A526]" />
               View Full Analysis Report
             </span>
-            <span className="text-xs text-[#1C1C1C]/60">
+            <span className="text-xs text-[#364152]/60">
               {reportLoading ? 'Loading…' : canvasReport ? '▲ Collapse' : '▼ Expand'}
             </span>
           </button>
@@ -813,11 +812,11 @@ export default function LeanCanvasPage() {
           {canvasReport && (
             <div className="mt-2 space-y-3">
               {canvasReport.map((section: any, idx: number) => (
-                <div key={idx} className="border border-[#E8E0D0] rounded-lg overflow-hidden">
+                <div key={idx} className="border border-[#E5E7EB] rounded-lg overflow-hidden">
                   <div className="p-4 bg-white">
                     <div className="flex items-center justify-between mb-2">
-                      <h4 className="font-semibold text-sm text-[#0A1628]">{section.title}</h4>
-                      <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-[#C8A860]/15 text-[#96792b]">
+                      <h4 className="font-semibold text-sm text-[#141923]">{section.title}</h4>
+                      <span className="text-[9px] font-bold  px-2 py-0.5 rounded bg-[#E0A526]/15 text-[#89620B]">
                         AI_ESTIMATE_UNVERIFIED
                       </span>
                     </div>
@@ -829,7 +828,7 @@ export default function LeanCanvasPage() {
                           const items = JSON.parse(trimmed)
                           if (Array.isArray(items)) {
                             return (
-                              <ul className="list-disc pl-5 space-y-1 text-xs text-[#1C1C1C]/80">
+                              <ul className="list-disc pl-5 space-y-1 text-xs text-[#364152]/80">
                                 {items.map((item: any, i: number) => (
                                   <li key={i}>{typeof item === 'object' ? JSON.stringify(item) : String(item)}</li>
                                 ))}
@@ -839,7 +838,7 @@ export default function LeanCanvasPage() {
                         } catch {}
                       }
                       return (
-                        <p className="text-xs text-[#1C1C1C]/80 whitespace-pre-wrap leading-relaxed">{content}</p>
+                        <p className="text-xs text-[#364152]/80 whitespace-pre-wrap leading-relaxed">{content}</p>
                       )
                     })()}
                   </div>

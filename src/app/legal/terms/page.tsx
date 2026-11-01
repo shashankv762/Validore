@@ -1,105 +1,21 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import { PolicyPage } from '@/components/legal/PolicyPage'
+import { LEGAL } from '@/lib/legal'
 
-export const metadata = {
-  title: 'Terms of Service | Validore',
-  description: 'Terms of Service for Validore - AI-powered startup validation.',
-}
+export const metadata = { title: 'Terms of Service', description: 'Terms for Validore, AI outputs, subscriptions, credits, and your content.' }
 
-export default function LegalPage() {
-  return (
-    <div className="min-h-screen bg-[#F5F0E8] flex flex-col">
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
-        </Link>
-        <div className="flex items-center gap-6">
-          <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#96792b] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
-            Sign In
-          </Link>
-        </div>
-      </nav>
-
-      <main className="flex-1 max-w-3xl w-full mx-auto px-8 py-16">
-        <div className="card-angular p-10 bg-[#FAFAF7]">
-          
-<h1 className="text-3xl font-light text-[#0A1628] mb-8">Terms of Service</h1>
-<div className="text-sm text-[#1C1C1C] opacity-70 mb-8">Last updated: September 30, 2026</div>
-
-<div className="prose prose-sm max-w-none text-[#1C1C1C]">
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">1. Acceptance of Terms</h2>
-  <p className="mb-4">By accessing or using Validore, you agree to these Terms of Service. You must be at least 18 years old to use the Service.</p>
-  
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">2. Account Responsibilities</h2>
-  <p className="mb-4">You must provide accurate information when creating an account and are responsible for maintaining the security of your password and account.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">3. Service Description</h2>
-  <p className="mb-4">Validore is an AI-powered startup validation tool. It provides educational decision-support tools. <strong>It does not provide financial advice, legal advice, or investment advice.</strong></p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">4. Important Disclaimer</h2>
-  <p className="mb-4 font-medium p-4 bg-[#F5F0E8] border-l-4 border-[#C8A860]">
-    Validore provides educational decision-support tools. Validation scores, financial projections, and recommendations are AI-generated estimates, not guarantees of business success. Do not make investment decisions solely based on Validore&apos;s output.
-  </p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">5. Subscription Terms</h2>
-  <p className="mb-4">Subscriptions automatically renew unless canceled. You may cancel at any time, and you will retain access to premium features until the end of your billing cycle. Downgrading may result in the loss of features or capacity.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">6. Payment Terms</h2>
-  <p className="mb-4">Payments are processed securely via Stripe or Razorpay. Fees are stated in the applicable currency at checkout.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">7. Refund Policy</h2>
-  <p className="mb-4">Our refund policy is outlined separately. Please review our <Link href="/legal/refund" className="text-[#96792b] hover:underline">Refund Policy</Link> for full details.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">8. Credit Packs</h2>
-  <p className="mb-4">Credit packs are non-refundable if consumed. Unused credit packs may be refunded within 30 days of purchase.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">9. Intellectual Property</h2>
-  <p className="mb-4">You own all rights to your original startup idea data. Validore retains all rights to the platform, report formats, templates, and scoring methodology.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">10. User Content License</h2>
-  <p className="mb-4">By submitting data, you grant Validore a necessary license to process your data through our AI providers solely for the purpose of delivering the Service to you.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">11. Prohibited Use</h2>
-  <p className="mb-4">You agree not to use the Service for illegal content, reverse engineering, scraping, or attempting to extract the underlying AI prompts or models.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">12. Limitation of Liability</h2>
-  <p className="mb-4">To the maximum extent permitted by law, Validore&apos;s liability is capped at the total fees you paid to us in the 12 months preceding the claim.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">13. Indemnification</h2>
-  <p className="mb-4">You agree to indemnify and hold harmless Validore and its operator from any claims arising from your use of the Service.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">14. Termination</h2>
-  <p className="mb-4">We reserve the right to terminate your access for breach of these terms. You may delete your account at any time.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">15. Governing Law</h2>
-  <p className="mb-4">These Terms are governed by the laws of the Republic of India. Any disputes will be resolved in the courts of Bengaluru, Karnataka, India.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">16. Severability &amp; Entire Agreement</h2>
-  <p className="mb-4">If any provision is found unenforceable, the rest remains in effect. These Terms constitute the entire agreement between you and Validore.</p>
-</div>
-
-        </div>
-      </main>
-
-      <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
-        <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-2">
-             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
-           </div>
-           <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
-              <Link href="/legal/privacy" className="hover:text-[#96792b]">Privacy Policy</Link>
-              <Link href="/legal/terms" className="hover:text-[#96792b]">Terms of Service</Link>
-              <Link href="/legal/cookies" className="hover:text-[#96792b]">Cookie Policy</Link>
-              <Link href="/legal/refund" className="hover:text-[#96792b]">Refund Policy</Link>
-           </div>
-        </div>
-        <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
-        </div>
-      </footer>
-    </div>
-  )
+export default function TermsPage() {
+  return <PolicyPage eyebrow="A clear working agreement" title="Terms of service" summary="Validore helps you examine an idea, challenge assumptions, and plan experiments. These terms explain the service and your responsibilities." sections={[
+    { id: 'agreement', title: 'Your agreement', content: <p>Validore is operated by {LEGAL.operator}, {LEGAL.country}. By creating an account or requesting the service, you agree to these terms. You must be at least 18 and able to enter a binding agreement. If acting for an organization, you confirm authority to do so. Contact <a href={'mailto:' + LEGAL.contact}>{LEGAL.contact}</a> with questions.</p> },
+    { id: 'service', title: 'What the service provides', content: <><p>Validore provides AI-assisted research, founder interviews, estimates, reports, and planning tools. Features depend on your plan, credits, configured services, and provider availability. Reasonable usage limits protect reliability.</p><p>Analysis is educational decision support, not legal, tax, financial, or investment advice, professional due diligence, or a promise of funding or commercial success. Clarity feedback describes the specificity and evidence in submitted answers, not personal ability.</p></> },
+    { id: 'accuracy', title: 'Evidence and AI limitations', content: <><p>AI output can be incomplete, outdated, biased, or wrong. Datasets can lag the current date. A citation is not proof of accuracy; online research cannot establish customer demand by itself. Keep estimates, synthetic benchmarks, and projections labeled when reusing them.</p><p>Check important claims against original sources and qualified advice. Validate needs through appropriately consented interviews and experiments. You are responsible for reviewing output before publishing, investing, or making commitments.</p></> },
+    { id: 'account', title: 'Account responsibilities', content: <p>Provide a reachable email and accurate account information. Protect credentials, sign out on shared devices, and report unauthorized access. Do not share accounts to bypass limits, misrepresent identity, or manipulate credits. Access may be limited or suspended for abuse or material breach, with an opportunity to resolve issues where appropriate.</p> },
+    { id: 'content', title: 'Your content and permissions', content: <><p>You retain rights you hold in your briefs, answers, and other content. You permit us and configured providers to process and store it as needed for requested features, security, and legal obligations. This does not transfer ownership of your startup idea.</p><p>Submit only information you have the right to use. Do not include third-party personal records, secrets, or regulated information the service is not designed to handle. AI output may resemble other output, may not attract intellectual-property protection, and may contain third-party material with separate conditions. Review rights before reuse.</p></> },
+    { id: 'privacy', title: 'Privacy and research memory', content: <p>The <Link href="/legal/privacy">Privacy Policy</Link> explains provider processing, private founder history, and shared public research. The <Link href="/legal/cookies">Cookie Policy</Link> explains essential storage. Starting an optional interview authorizes the described tailoring and records the notice version. You can stop or clear it; existing reports may still contain derived information.</p> },
+    { id: 'billing', title: 'Subscriptions and credits', content: <><p>Prices, currency, applicable taxes, billing frequency, and included credits are shown before purchase. Subscriptions renew until canceled. Cancel through account billing controls, or contact support if unavailable. Cancellation normally takes effect at the end of the paid period.</p><p>Included credits reset according to your plan cycle; purchased credits are separate. Credits are not transferable and have no cash value outside applicable refund rights. Requested features deduct the displayed cost. Failed validation jobs return reserved credits; a delivered partial report may still consume credits.</p><p>Checkout is available only when configured. An unavailable button is not a completed purchase. Downgrades can limit active ideas or make content read-only. The <Link href="/legal/refund">Refund Policy</Link> and mandatory law govern refunds.</p></> },
+    { id: 'use', title: 'Acceptable use', content: <p>Follow the <Link href="/legal/acceptable-use">Acceptable Use Policy</Link>. Do not attack the service, access others’ data, bypass quotas or billing, misuse sources, distribute malware, or use the service unlawfully. Report vulnerabilities to {LEGAL.contact}; testing must not access other users’ data or disrupt service.</p> },
+    { id: 'availability', title: 'Availability and closure', content: <p>We do not guarantee uninterrupted access or continued availability of a third-party model, source, or feature. Features may change or retire with notice where required. You can stop using the service, cancel renewals, and request closure. Export important work before closing your account.</p> },
+    { id: 'liability', title: 'Responsibility and liability', content: <><p>To the extent permitted by law, the service is provided as available without warranties of accuracy, fitness for a particular purpose, or commercial results. We are not responsible for business decisions made solely from AI output or reliance on unverified forecasts.</p><p>Nothing excludes liability or remedies that cannot lawfully be excluded, including mandatory consumer rights, fraud, or other non-excludable obligations. Limitations apply only to the extent permitted by the law applicable to you.</p></> },
+    { id: 'law', title: 'Law, disputes, and changes', content: <><p>Indian law governs these terms, subject to mandatory protections in your location. Contact {LEGAL.contact} first to try to resolve a dispute. Nothing prevents use of a competent court, consumer forum, or regulator available under applicable law.</p><p>Changes carry a revised date and version. Additional notice or acceptance will be provided where required for material changes. If a provision is unenforceable, the remaining provisions continue.</p></> },
+  ]} />
 }

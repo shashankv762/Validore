@@ -1,6 +1,9 @@
 import {
-  pgTable, text, integer, boolean, timestamp, uuid, jsonb, pgEnum, uniqueIndex, index
+  pgTable, text, integer, boolean, timestamp, uuid, jsonb, pgEnum, uniqueIndex, index, check
 } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import type { InterviewState } from '@/lib/interview/schema'
+import type { SearchResult } from '@/lib/ai/search'
 
 export const tierEnum = pgEnum('tier', ['free', 'premium', 'max_premium'])
 export const evidenceEnum = pgEnum('evidence_strength', ['WEAK', 'MODERATE', 'STRONGER'])
@@ -27,7 +30,7 @@ export const users = pgTable('users', {
   purchasedCredits: integer('purchased_credits').notNull().default(0),
   creditsUsedThisCycle: integer('credits_used_this_cycle').notNull().default(0),
   creditResetAt: timestamp('credit_reset_at'),
-  preferredAiProvider: text('preferred_ai_provider').default('openai'),
+  preferredAiProvider: text('preferred_ai_provider').default('free_models'),
   encryptedOpenrouterKey: text('encrypted_openrouter_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
@@ -272,3 +275,40 @@ export const userDevices = pgTable('user_devices', {
   lastActive: timestamp('last_active').defaultNow(),
   createdAt: timestamp('created_at').defaultNow(),
 }).enableRLS()
+
+// Private founder context. There is deliberately no browser Data API policy.
+export const founderInterviews = pgTable('founder_interviews', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ideaId: uuid('idea_id').notNull().references(() => ideas.id, { onDelete: 'cascade' }),
+  ideaFingerprint: text('idea_fingerprint').notNull(),
+  noticeVersion: text('notice_version').notNull(),
+  consentedAt: timestamp('consented_at', { withTimezone: true }).notNull().defaultNow(),
+  state: jsonb('state').$type<InterviewState>().notNull(),
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('founder_interviews_idea_uidx').on(table.ideaId),
+  index('founder_interviews_user_idx').on(table.userId, table.updatedAt),
+  check('founder_interviews_version_check', sql`${table.version} > 0`),
+  check('founder_interviews_state_size', sql`octet_length(${table.state}::text) <= 256000`),
+]).enableRLS()
+
+// Only public, independently retrieved evidence belongs here. A content digest
+// preserves revisions without letting an AI rewrite a prior observation.
+export const researchSources = pgTable('research_sources', {
+  id: text('id').primaryKey(),
+  urlHash: text('url_hash').notNull(),
+  source: jsonb('source').$type<SearchResult>().notNull(),
+  searchText: text('search_text').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index('research_sources_expiry_idx').on(table.expiresAt),
+  index('research_sources_url_idx').on(table.urlHash, table.fetchedAt),
+  index('research_sources_search_idx').using('gin', sql`to_tsvector('english', ${table.searchText})`),
+  check('research_sources_time_order', sql`${table.expiresAt} > ${table.fetchedAt}`),
+  check('research_sources_excerpt_size', sql`octet_length(${table.source}::text) <= 24000 AND octet_length(${table.searchText}) <= 16000`),
+]).enableRLS()

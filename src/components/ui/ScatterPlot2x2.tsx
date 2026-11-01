@@ -60,15 +60,15 @@ const CustomTooltip: React.FC<CustomTooltipProps> = ({ active, payload, xLabel, 
   if (active && payload && payload.length) {
     const pt = payload[0].payload
     return (
-      <div className="bg-[#0A1628] text-[#F5F0E8] p-3 rounded shadow-xl border border-[#C8A860] text-xs max-w-xs z-50">
-        <div className="font-semibold text-sm text-[#C8A860] mb-1">{pt.name}</div>
+      <div className="bg-[#141923] text-[#F7F8FA] p-3 rounded shadow-xl border border-[#E0A526] text-xs max-w-xs z-50">
+        <div className="font-semibold text-sm text-[#E0A526] mb-1">{pt.name}</div>
         <div className="flex justify-between gap-4 mb-0.5 opacity-90">
           <span>{xLabel || 'X'}:</span>
-          <span className="font-mono">{pt.x}</span>
+          <span className="tabular-nums">{pt.x}</span>
         </div>
         <div className="flex justify-between gap-4 mb-1 opacity-90">
           <span>{yLabel || 'Y'}:</span>
-          <span className="font-mono">{pt.y}</span>
+          <span className="tabular-nums">{pt.y}</span>
         </div>
         {pt.category && (
           <div className="text-[10px] text-stone-300 italic mb-1">{pt.category}</div>
@@ -112,7 +112,7 @@ export function ScatterPlot2x2({
   if (!mounted) {
     return (
       <div
-        className={`card-angular p-6 bg-[#FAFAF7] shadow-sm flex items-center justify-center ${className}`}
+        className={`card-angular p-6 bg-[#FFFFFF] shadow-sm flex items-center justify-center ${className}`}
         style={{ height }}
       >
         <div className="text-xs text-stone-400">Loading positioning chart...</div>
@@ -120,18 +120,18 @@ export function ScatterPlot2x2({
     )
   }
 
-  if (points.length === 0) return <div className={`card-angular p-6 ${className}`}><p className="text-sm text-[#1C1C1C]/75">Positioning data is unavailable for this report.</p></div>
+  if (points.length === 0) return <div className={`card-angular p-6 ${className}`}><p className="text-sm text-[#364152]/75">Positioning data is unavailable for this report.</p></div>
 
   return (
-    <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
+    <div className={`card-angular p-6 bg-[#FFFFFF] shadow-sm ${className}`}>
       {(title || badge) && (
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div>
-            {title && <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>}
-            {subtitle && <p className="text-xs text-[#1C1C1C] opacity-60 mt-0.5">{subtitle}</p>}
+            {title && <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>}
+            {subtitle && <p className="text-xs text-[#364152] opacity-60 mt-0.5">{subtitle}</p>}
           </div>
           {badge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#C8A860]/40 bg-amber-50 text-amber-800 uppercase tracking-wide">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#E0A526]/40 bg-amber-50 text-amber-800 ">
               {badge}
             </span>
           )}
@@ -139,7 +139,7 @@ export function ScatterPlot2x2({
       )}
 
       {/* Quadrant Legend Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 my-3 text-[10px] text-stone-500 bg-[#F5F0E8] p-2 rounded border border-[#E8E0D0]">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 my-3 text-[10px] text-stone-500 bg-[#F7F8FA] p-2 rounded border border-[#E5E7EB]">
         <div className="truncate"><span className="font-semibold text-stone-700">Top-Right:</span> {quadrantLabels.topRight}</div>
         <div className="truncate"><span className="font-semibold text-stone-700">Top-Left:</span> {quadrantLabels.topLeft}</div>
         <div className="truncate"><span className="font-semibold text-stone-700">Bottom-Right:</span> {quadrantLabels.bottomRight}</div>
@@ -149,7 +149,7 @@ export function ScatterPlot2x2({
       <div style={{ width: '100%', height }}>
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart margin={{ top: 20, right: 30, bottom: 30, left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D0" opacity={0.6} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" opacity={0.6} />
             <XAxis
               type="number"
               dataKey="x"
@@ -160,7 +160,7 @@ export function ScatterPlot2x2({
                 value: xLabel,
                 position: 'bottom',
                 offset: 15,
-                fill: '#0A1628',
+                fill: '#141923',
                 fontSize: 11,
                 fontWeight: 500,
               }}
@@ -176,14 +176,14 @@ export function ScatterPlot2x2({
                 angle: -90,
                 position: 'left',
                 offset: 5,
-                fill: '#0A1628',
+                fill: '#141923',
                 fontSize: 11,
                 fontWeight: 500,
               }}
             />
             {/* Midline Reference Lines creating 2x2 quadrants */}
-            <ReferenceLine x={xMid} stroke="#C8A860" strokeDasharray="4 4" strokeWidth={1.5} />
-            <ReferenceLine y={yMid} stroke="#C8A860" strokeDasharray="4 4" strokeWidth={1.5} />
+            <ReferenceLine x={xMid} stroke="#E0A526" strokeDasharray="4 4" strokeWidth={1.5} />
+            <ReferenceLine y={yMid} stroke="#E0A526" strokeDasharray="4 4" strokeWidth={1.5} />
             <Tooltip
               content={<CustomTooltip xLabel={xLabel} yLabel={yLabel} />}
               cursor={{ strokeDasharray: '3 3' }}
@@ -192,8 +192,8 @@ export function ScatterPlot2x2({
               {points.map((entry, index) => (
                 <Cell
                   key={`cell-${index}`}
-                  fill={entry.isHighlighted ? '#C8A860' : '#0A1628'}
-                  stroke={entry.isHighlighted ? '#0A1628' : '#64748B'}
+                  fill={entry.isHighlighted ? '#E0A526' : '#141923'}
+                  stroke={entry.isHighlighted ? '#141923' : '#64748B'}
                   strokeWidth={entry.isHighlighted ? 2 : 1}
                   r={entry.isHighlighted ? 9 : 6}
                 />
@@ -205,11 +205,11 @@ export function ScatterPlot2x2({
 
       <div className="flex items-center justify-end gap-4 mt-3 text-xs text-stone-600">
         <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-[#C8A860] border border-[#0A1628]" />
-          <span className="font-medium text-[#0A1628]">Our Startup (Position Target)</span>
+          <span className="w-3 h-3 rounded-full bg-[#E0A526] border border-[#141923]" />
+          <span className="font-medium text-[#141923]">Our Startup (Position Target)</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#0A1628]" />
+          <span className="w-2.5 h-2.5 rounded-full bg-[#141923]" />
           <span>Competitors / Existing Market</span>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { runMultiAgentValidation } from './orchestrator'
 import type { IdeaInput } from '../schemas'
+import type { RunValidationStep } from '../steps'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Multi-agent orchestrator tests — zero live AI calls.
@@ -14,7 +15,8 @@ vi.mock('@/lib/ai/generate', () => ({
   generateWithFallback: vi.fn(),
 }))
 
-vi.mock('@/lib/ai/search', () => ({
+vi.mock('@/lib/ai/search', async importOriginal => ({
+  ...await importOriginal<typeof import('@/lib/ai/search')>(),
   webSearch: vi.fn(async () => ({
     results: [
       {
@@ -151,20 +153,23 @@ const SYNTHESIS = {
 type PromptPayload = { prompt: string }
 
 // Route mocks to per-agent payloads based on the role sentence in the prompt.
-function mockAgentsByPrompt(overrides: Record<string, Error> = {}) {
+function mockAgentsByPrompt(overrides: Record<string, Error> = {}, dataOverrides: Record<string, unknown> = {}) {
   const routing: Array<[string, unknown, string]> = [
     ['market intelligence analyst', MARKET, 'mock/market'],
     ['customer discovery researcher', CUSTOMER, 'mock/customer'],
     ['competitive intelligence analyst', COMPETITOR, 'mock/competitor'],
     ['financial modeling analyst', FINANCE, 'mock/finance'],
     ['risk analyst', RISK, 'mock/risk'],
+    ['product strategy specialist', { uvpOptions: SYNTHESIS.uvpOptions, selectedUvp: SYNTHESIS.selectedUvp, moscowFeatures: SYNTHESIS.moscowFeatures, mvpDescription: SYNTHESIS.mvpDescription, oneLineConcept: SYNTHESIS.oneLineConcept, landingPageCopy: SYNTHESIS.landingPageCopy }, 'mock/product'],
+    ['growth experiment planner', { actionPlan: SYNTHESIS.actionPlan, nextStepRecommendation: SYNTHESIS.nextStepRecommendation, nextStepRationale: SYNTHESIS.nextStepRationale }, 'mock/growth'],
+    ['source review specialist', { summary: 'More customer evidence is needed.', checks: [], gaps: ['Test willingness to pay.'] }, 'mock/evidence'],
     ['chief validation judge', SYNTHESIS, 'mock/synthesis'],
   ]
   ;(generateWithFallback as ReturnType<typeof vi.fn>).mockImplementation(async (opts: PromptPayload) => {
     for (const [marker, data, provider] of routing) {
       if (opts.prompt.includes(marker)) {
         if (overrides[marker]) throw overrides[marker]
-        return { data, provider, tokensUsed: 100 }
+        return { data: dataOverrides[marker] ?? data, provider, tokensUsed: 100 }
       }
     }
     throw new Error(`Unexpected prompt in test mock: ${opts.prompt.slice(0, 80)}`)
@@ -172,12 +177,35 @@ function mockAgentsByPrompt(overrides: Record<string, Error> = {}) {
 }
 
 describe('runMultiAgentValidation', () => {
+  it('reuses persisted step results without repeating paid model calls on replay', async () => {
+    const cache = new Map<string, unknown>()
+    const runStep: RunValidationStep = async <T>(id: string, work: () => Promise<T>) => {
+      if (!cache.has(id)) cache.set(id, JSON.parse(JSON.stringify(await work())))
+      return cache.get(id) as T
+    }
+    const first = await runMultiAgentValidation(idea, { runStep, customOpenRouterKey: 'private-test-key' })
+    expect(generateWithFallback).toHaveBeenCalledTimes(9)
+    const second = await runMultiAgentValidation(idea, { runStep, customOpenRouterKey: 'private-test-key' })
+    expect(generateWithFallback).toHaveBeenCalledTimes(9)
+    expect(second?.report.overallScore).toBe(first?.report.overallScore)
+    expect(second?.agentTrail.totalTokens).toBe(first?.agentTrail.totalTokens)
+    expect(JSON.stringify([...cache.values()])).not.toContain('private-test-key')
+  })
+
+  it('propagates durable scheduling failures instead of recording false model failures', async () => {
+    const scheduled = new Error('step must be resumed in another invocation')
+    const runStep: RunValidationStep = async <T>(id: string, work: () => Promise<T>) => {
+      if (id === 'agent-market') throw scheduled
+      return work()
+    }
+    await expect(runMultiAgentValidation(idea, { runStep })).rejects.toBe(scheduled)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     mockAgentsByPrompt()
   })
 
-  it('runs all 6 agents and returns a complete report', async () => {
+  it('runs all 9 agents and returns a complete report', async () => {
     const progress: Array<{ completed: number; total: number; label?: string }> = []
     const result = await runMultiAgentValidation(idea, {
       onProgress: (completed, total, label) => { progress.push({ completed, total, label }) },
@@ -191,11 +219,23 @@ describe('runMultiAgentValidation', () => {
     expect(result!.report.marketScore).toBeLessThanOrEqual(15)
     expect(result!.report.agentTrail.agents.market).toBe('ok')
     expect(result!.report.agentTrail.agents.synthesis).toBe('ok')
-    expect(result!.agentTrail.totalTokens).toBe(600)
-    // Progress should fire 6 times (once per agent)
-    expect(progress.length).toBe(6)
-    expect(progress.at(-1)?.completed).toBe(6)
-    expect(progress.at(-1)?.total).toBe(6)
+    expect(result!.agentTrail.totalTokens).toBe(900)
+    expect(result!.agentTrail.agents).toMatchObject({ product: 'ok', growth: 'ok', evidence: 'ok' })
+    expect(result!.report.evidenceReview?.gaps).toContain('Test willingness to pay.')
+    expect(progress.length).toBe(9)
+    expect(progress.at(-1)?.completed).toBe(9)
+    expect(progress.at(-1)?.total).toBe(9)
+    const review = vi.mocked(generateWithFallback).mock.calls.find(([options]) => options.agentRole === 'synthesis')?.[0]
+    expect(review?.prompt).toContain('growthExperiments')
+    expect(review?.prompt).toContain('sourceReview')
+    expect(review?.researchMode).toBe('reuse')
+    for (const role of ['finance', 'product', 'growth']) {
+      const options = vi.mocked(generateWithFallback).mock.calls.find(([input]) => input.agentRole === role)?.[0]
+      expect(options?.researchMode).toBe('reuse')
+    }
+    const budgetIds = vi.mocked(generateWithFallback).mock.calls.map(([options]) => options.researchBudgetId)
+    expect(new Set(budgetIds).size).toBe(1)
+    expect(budgetIds[0]).toBeTruthy()
   })
 
   it('computes deterministic unit economics from finance assumptions', async () => {
@@ -214,6 +254,23 @@ describe('runMultiAgentValidation', () => {
     // gross margin = (50-10)/50 = 80%
     expect(ue.grossMarginPercent).toBe(80)
     expect(ue.label).toBe('ASSUMPTION')
+  })
+
+  it('keeps unsupported market amounts out of finance and synthesis handoffs', async () => {
+    mockAgentsByPrompt({}, { 'market intelligence analyst': { ...MARKET, tamSamSom: {
+      tam: { value: '$999999B', method: 'An arbitrary assumption', source: 'AI estimate (unverified)', label: 'PROJECTION' },
+      sam: { value: '$99999B', method: 'Ten percent', label: 'PROJECTION' },
+      som: { value: '$9999B', method: 'Ten percent', label: 'PROJECTION' },
+    } } })
+    const result = await runMultiAgentValidation(idea)
+    expect(result!.report.tamSamSom.tam.value).toBe('Not established')
+    expect(result!.report.founderAssumptions.every(item => item.validated === false)).toBe(true)
+    const prompts = vi.mocked(generateWithFallback).mock.calls.map(([options]) => options.prompt)
+    for (const marker of ['financial modeling analyst', 'chief validation judge']) {
+      const prompt = prompts.find(value => value.includes(marker))!
+      expect(prompt).toContain('Not established')
+      expect(prompt).not.toContain('$999999B')
+    }
   })
 
   it('builds a 12-month projection with PROJECTION labels', async () => {
@@ -267,8 +324,8 @@ describe('runMultiAgentValidation', () => {
 
   it('records providers and total tokens in the trail', async () => {
     const result = await runMultiAgentValidation(idea)
-    expect(result!.agentTrail.providers.length).toBe(6)
+    expect(result!.agentTrail.providers.length).toBe(9)
     expect(result!.agentTrail.providers).toContain('mock/market')
-    expect(result!.agentTrail.totalTokens).toBe(600)
+    expect(result!.agentTrail.totalTokens).toBe(900)
   })
 })

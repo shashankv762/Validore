@@ -61,6 +61,7 @@ describe('Credits Purchase API & Business Logic', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     delete process.env.STRIPE_SECRET_KEY
+    process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_fixture'
     delete process.env.RAZORPAY_KEY_ID
     delete process.env.RAZORPAY_KEY_SECRET
   })
@@ -179,6 +180,16 @@ describe('Credits Purchase API & Business Logic', () => {
       const data = await res.json()
       expect(data.configured).toBe(false)
       expect(data.error).toContain('Payment provider not configured')
+    })
+
+    it('does not open checkout without a payment confirmation webhook', async () => {
+      process.env.STRIPE_SECRET_KEY = 'sk_test_valid_dummy_key'
+      delete process.env.STRIPE_WEBHOOK_SECRET
+      const response = await POST(new NextRequest('http://localhost:3000/api/credits/purchase', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ creditType: 'bundle' }),
+      }))
+      expect(response.status).toBe(503)
+      expect(mockCheckoutSessionsCreate).not.toHaveBeenCalled()
     })
 
     it('returns 503 when STRIPE_SECRET_KEY is placeholder "your_stripe_secret"', async () => {

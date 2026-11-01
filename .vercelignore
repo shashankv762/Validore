@@ -1,0 +1,49 @@
+# Local credentials and private acceptance fixtures must never be uploaded.
+.env*
+**/.env*
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+service-account*.json
+service_account*.json
+*.dump
+*.dump.gz
+*.sql.gz
+**/.auth/
+.tmp/
+tmp/
+*.tmp
+reports/
+test-results/
+playwright-report/
+blob-report/
+.classroom/
+.agents/
+.rbxsync-trash/
+.docker-auth.*/
+
+# Rebuilt by Vercel from the reviewed source and lockfile.
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+.npm-cache/
+.trivy-cache/
+.git/
+.vercel/
+*.log
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.venv/
+venv/
+Thumbs.db
+.DS_Store
+
+# Public snapshots, SQL migrations, lockfile, fonts and report templates are
+# release inputs. Keep them included; only private/generated artifacts are ignored.

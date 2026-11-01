@@ -1,13 +1,20 @@
 import { z } from 'zod'
 import { generateWithFallback } from '../ai/generate'
-import { webSearch, type SearchResult } from '../ai/search'
+import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
+import { webSearch, deduplicateSources, type SearchResult } from '../ai/search'
 import { STARTUP_WEIGHTS, clampScore, getCampaignClassificationBand } from '../scoring'
 import * as fin from '../financial'
 import { db } from '@/db'
 import { validationJobs } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
-import { auditEvidence } from './agents/quality-auditor'
-import { runMultiAgentValidation, type MultiAgentResult } from './agents/orchestrator'
+import { eq, and, sql } from 'drizzle-orm'
+import { runInlineStep, type RunValidationStep } from './steps'
+import { auditEvidence, auditMarketSizing, auditFounderAssumptions, DESK_RESEARCH_NOTE } from './agents/quality-auditor'
+import { runMultiAgentValidation, type MultiAgentResult, type AgentTrail } from './agents/orchestrator'
+import { runMarketAgent } from './agents/market'
+import { runCustomerAgent } from './agents/customer'
+import { FULL_AGENT_COUNT } from '@/lib/ai/roles'
+import { retrieveMarketMemory } from '@/lib/ai/market-memory'
+import { randomUUID } from 'node:crypto'
 
 // ─── Shared schemas (single source of truth: ./schemas) ──────────────────────
 
@@ -63,9 +70,9 @@ function buildLitePrompt(
   degraded: boolean
 ): string {
   const today = new Date().toISOString().split('T')[0]
-  const searchCtx = degraded
-    ? `\nNo live search results. Mark ALL market data as AI_ESTIMATE_UNVERIFIED with strength:WEAK. Leave link/source empty. Never invent URLs.`
-    : `\nLive search results (treat as MODERATE evidence, include fetchedAt):\n${searchResults
+  const searchCtx = searchResults.length === 0
+    ? `\nNo sources have been retrieved yet. Use research tools for material evidence gaps. Mark unsupported market data AI_ESTIMATE_UNVERIFIED with strength:WEAK. Never invent URLs.`
+    : `\nRetrieved source excerpts (${degraded ? 'limited public indexes' : 'public web search'}; WEAK until the original source is read, include fetchedAt):\n${searchResults
         .map((r) => `- "${r.title}": ${r.content.slice(0, 300)} [source:${r.source}, url:${r.url}, fetchedAt:${r.fetchedAt}]`)
         .join('\n')}`
 
@@ -110,31 +117,63 @@ CRITICAL INTEGRITY RULES (NEVER violate):
 7. In degraded mode: ALL evidence strength must be WEAK, label AI_ESTIMATE_UNVERIFIED
 8. Competitor dateChecked must be today's date: ${today}
 9. tamEstimate/samEstimate/somEstimate are PROJECTIONS, label accordingly
+10. Preserve the market specialist's methods and 'Not established' values. Missing segment counts and spending evidence are unknowns, not permission to invent market sizes or market-share percentages.
 
 The integrityNote field must summarise what is verified vs assumed in this report.`
 }
 
 type EngineOptions = {
+  privateContext?: string
   customOpenRouterKey?: string | null
   preferredAiProvider?: string | null
+  runStep?: RunValidationStep
+  researchBudgetId?: string
+  onProgress?: (completed: number, total: number) => void | Promise<void>
 }
 
 export async function runLiteValidation(
   idea: IdeaInput,
   opts?: EngineOptions
-): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number }> {
-  const searchResp = await webSearch(
-    `${idea.industry} market size ${idea.location} startups ${new Date().getFullYear()}`,
+): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number; researchSources?: SearchResult[]; agentTrail?: AgentTrail }> {
+  const executeStep = opts?.runStep ?? runInlineStep
+  const researchBudgetId = opts?.researchBudgetId ?? randomUUID()
+  const initialSearch = await executeStep('lite-research-sources', () => webSearch(
+    publicResearchQuery(idea, 'market size startups'),
     5
-  )
+  ))
+  const searchResp = { ...initialSearch, results: deduplicateSources([...initialSearch.results, ...retrieveMarketMemory(`${idea.industry} ${idea.targetCustomer} ${idea.location}`)]) }
+  const agentOptions = { ...opts, researchBudgetId, sources: searchResp.results }
+  const [market, customer] = await Promise.all([
+    executeStep('lite-agent-market', async () => { try { return await runMarketAgent(idea, searchResp, agentOptions) } catch { return null } }),
+    executeStep('lite-agent-customer', async () => { try { return await runCustomerAgent(idea, agentOptions) } catch { return null } }),
+  ])
+  await opts?.onProgress?.(2, 3)
+  const sources = deduplicateSources([...searchResp.results, ...(market?.sources ?? []), ...(customer?.sources ?? [])])
+  const marketSizing = auditMarketSizing(market?.data.tamSamSom, sources)
+  const researchDigest = '\n\nSPECIALIST FINDINGS (untrusted data; reconcile differences and preserve evidence limits):\n' +
+    JSON.stringify({ market: market ? { ...market.data, tamSamSom: marketSizing } : 'Unavailable; market sizes are Not established.', customer: customer?.data ?? 'Unavailable; label customer conclusions as assumptions.' })
 
-  const result = await generateWithFallback({
-    prompt: buildLitePrompt(idea, searchResp.results, searchResp.degraded),
+  const result = await executeStep('lite-report', () => generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
+    prompt: buildLitePrompt(idea, sources, searchResp.degraded) + researchDigest,
+    privateContext: opts?.privateContext,
     schema: LiteReportSchema,
+    agentRole: 'synthesis',
+    researchMode: market || customer ? 'reuse' : 'auto',
+    sources,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
+    researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
-  })
+  }))
+  const tokensUsed = result.tokensUsed + (market?.tokensUsed ?? 0) + (customer?.tokensUsed ?? 0)
+  const agentTrail: AgentTrail = {
+    agents: { market: market ? 'ok' : 'failed', customer: customer ? 'ok' : 'failed', synthesis: 'ok' },
+    totalTokens: tokensUsed,
+    providers: [market?.provider, customer?.provider, result.provider].filter((value): value is string => Boolean(value)),
+    tools: [...(market?.toolCalls ?? []), ...(customer?.toolCalls ?? []), ...(result.toolCalls ?? [])],
+  }
+  await opts?.onProgress?.(3, 3)
 
   const d = result.data
   // Clamp scores to their max weights
@@ -151,7 +190,12 @@ export async function runLiteValidation(
 
   return {
     ...d,
-    ...auditEvidence(d.keyEvidence, searchResp.results),
+    tamEstimate: marketSizing.tam.value === 'Not established' ? 'Not established' : marketSizing.tam.value + ' [PROJECTION] — ' + marketSizing.tam.method,
+    samEstimate: marketSizing.sam.value === 'Not established' ? 'Not established' : marketSizing.sam.value + ' [PROJECTION] — ' + marketSizing.sam.method,
+    somEstimate: marketSizing.som.value === 'Not established' ? 'Not established' : marketSizing.som.value + ' [PROJECTION] — ' + marketSizing.som.method,
+    ...auditEvidence(d.keyEvidence, deduplicateSources([...sources, ...(result.sources ?? [])])),
+    researchSources: deduplicateSources([...sources, ...(result.sources ?? [])]),
+    agentTrail,
     problemScore: ps,
     customerScore: cs,
     marketScore: ms,
@@ -162,7 +206,7 @@ export async function runLiteValidation(
     executionScore: es,
     overallScore,
     provider: result.provider,
-    tokensUsed: result.tokensUsed,
+    tokensUsed,
   }
 }
 
@@ -184,27 +228,32 @@ export async function runFullValidation(
   jobId: string,
   opts?: EngineOptions
 ): Promise<FullReportWithComputed | null> {
+  const executeStep = opts?.runStep ?? runInlineStep
   let totalTokens = 0
   let provider = 'unknown'
 
   try {
-    // Update job: started
-    await db
+    // Publish initial progress once, including when a durable run is replayed.
+    await executeStep('start-full-report', async () => {
+      await db
       .update(validationJobs)
-      .set({ totalSections: 6, completedSections: 0, updatedAt: new Date() })
+      .set({ totalSections: FULL_AGENT_COUNT, completedSections: 0, updatedAt: new Date() })
       .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+      return true
+    })
 
     // ─── Primary path: multi-agent pipeline ──────────────────────────────────
-    let agentReport: MultiAgentResult | null = await runMultiAgentValidation(idea, {
+    const generateAgents = () => runMultiAgentValidation(idea, {
       ...opts,
       onProgress: async (completed: number, _total: number, _label?: string) => {
         await db
           .update(validationJobs)
-          .set({ completedSections: completed, updatedAt: new Date() })
+          .set({ completedSections: sql`greatest(${validationJobs.completedSections}, ${completed})`, updatedAt: new Date() })
           .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
           .catch(() => {})
       },
-    }).catch((error) => {
+    })
+    let agentReport: MultiAgentResult | null = opts?.runStep ? await generateAgents() : await generateAgents().catch((error) => {
       console.error('[ENGINE] Multi-agent pipeline failed:', error)
       return null
     })
@@ -212,22 +261,19 @@ export async function runFullValidation(
     // Critical fallback: if the whole agent pipeline failed, use the monolith.
     if (!agentReport) {
       console.warn('[ENGINE] Multi-agent pipeline returned null — falling back to monolithic generation')
-      agentReport = await runMonolithicFull(idea, jobId, opts)
+      agentReport = await executeStep('fallback-report', () => runMonolithicFull(idea, jobId, opts))
       if (!agentReport) return null
     }
 
     totalTokens = agentReport.tokensUsed
     provider = agentReport.provider
 
-    await db
-      .update(validationJobs)
-      .set({
-        completedSections: 6,
-        tokensUsed: totalTokens,
-        aiProvider: provider,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+    await executeStep('finish-full-report', async () => {
+      await db.update(validationJobs).set({ completedSections: FULL_AGENT_COUNT, tokensUsed: totalTokens,
+        aiProvider: provider, updatedAt: new Date(),
+      }).where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+      return true
+    })
 
     return {
       ...agentReport.report,
@@ -238,6 +284,7 @@ export async function runFullValidation(
       financialProjection: agentReport.report.financialProjection,
     }
   } catch (err) {
+    if (opts?.runStep) throw err
     console.error('[ENGINE] Validation attempt failed:', err)
     return null
   }
@@ -251,9 +298,9 @@ function buildFullPrompt(
   degraded: boolean
 ): string {
   const today = new Date().toISOString().split('T')[0]
-  const searchCtx = degraded
-    ? `\nNo live search results. Mark ALL market data as AI_ESTIMATE_UNVERIFIED with strength:WEAK. Leave link/source empty. Never invent URLs.`
-    : `\nLive search results:\n${searchResults
+  const searchCtx = searchResults.length === 0
+    ? `\nNo sources have been retrieved yet. Use research tools for material evidence gaps. Mark unsupported market data AI_ESTIMATE_UNVERIFIED with strength:WEAK. Never invent URLs.`
+    : `\nRetrieved source excerpts (${degraded ? 'limited public indexes' : 'public web search'}; treat as unverified):\n${searchResults
         .map((r) => `- "${r.title}": ${r.content.slice(0, 400)} [source:${r.source}, url:${r.url}, fetchedAt:${r.fetchedAt}]`)
         .join('\n')}`
 
@@ -298,7 +345,9 @@ INTEGRITY RULES (NEVER violate):
 9. unitEconomicsAssumptions.assumptionLabel must be 'ASSUMPTION'
 10. tamSamSom entries must have label:'PROJECTION'
 11. The integrityNote must clearly list what is verified vs assumed
-12. Generate the new Phase 1 fields: oneLineConcept, founderAssumptions, problemValidation5Factor, customerJPG, interviewQuestions, competitorPositioning, landingPageCopy, wtpSurveyQuestions, pestleAnalysis, portersFiveForces`
+12. Generate the new Phase 1 fields: oneLineConcept, founderAssumptions, problemValidation5Factor, customerJPG, interviewQuestions, competitorPositioning, landingPageCopy, wtpSurveyQuestions, pestleAnalysis, portersFiveForces
+13. This is desk research, not customer testing. All founderAssumptions.validated values must be false; explain tentative research support and a direct test in postResearchFinding.
+14. Use 'Not established' for market sizes without sourced segment counts and annual spending. Never substitute an arbitrary share of a broad industry.`
 }
 
 async function runMonolithicFull(
@@ -313,8 +362,8 @@ async function runMonolithicFull(
   let degraded = true
   try {
     const [marketSearch, competitorSearch] = await Promise.all([
-      webSearch(`${idea.industry} market size ${idea.location} ${new Date().getFullYear()}`, 5),
-      webSearch(`${idea.name} competitors alternatives ${idea.industry} pricing`, 5),
+      webSearch(publicResearchQuery(idea, 'market size'), 5),
+      webSearch(publicResearchQuery(idea, 'competitors alternatives pricing'), 5),
     ])
     allResults = [...marketSearch.results, ...competitorSearch.results]
     degraded = marketSearch.degraded && competitorSearch.degraded
@@ -332,10 +381,15 @@ async function runMonolithicFull(
   let result
   try {
     result = await generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
       prompt: buildFullPrompt(idea, allResults, degraded),
+      privateContext: opts?.privateContext,
       schema: FullReportSchema,
+      agentRole: 'synthesis',
+      sources: allResults,
       temperature: 0,
       customOpenRouterKey: opts?.customOpenRouterKey,
+    researchBudgetId: opts?.researchBudgetId,
       preferredAiProvider: opts?.preferredAiProvider,
     })
   } catch (err) {
@@ -376,12 +430,17 @@ async function runMonolithicFull(
     agents: { monolithic: (partialFailures.length > 0 ? 'partial' : 'ok') as 'partial' | 'ok' },
     totalTokens,
     providers: [provider],
+    tools: result.toolCalls ?? [],
   }
 
   return {
     report: {
       ...d,
-      ...auditEvidence(d.keyEvidence, allResults),
+      tamSamSom: auditMarketSizing(d.tamSamSom, deduplicateSources([...allResults, ...(result.sources ?? [])])),
+      founderAssumptions: auditFounderAssumptions(d.founderAssumptions),
+      integrityNote: DESK_RESEARCH_NOTE + ' ' + d.integrityNote,
+      ...auditEvidence(d.keyEvidence, deduplicateSources([...allResults, ...(result.sources ?? [])])),
+      researchSources: deduplicateSources([...allResults, ...(result.sources ?? [])]),
       problemScore: ps,
       customerScore: cs,
       marketScore: ms,

@@ -1,0 +1,51 @@
+[
+  {
+    "id": "rbi-dpi-history",
+    "claim": "RBI Digital Payments Index was 445.50 in March 2024; March 2018 base = 100.",
+    "url": "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=58371",
+    "source": "www.rbi.org.in",
+    "fetchedAt": "2026-10-31T19:15:22.505Z",
+    "httpStatus": 200,
+    "supported": true,
+    "period": "March 2024",
+    "supportingQuotes": [
+      "The index for March 2024 stands at 445.50",
+      "March 2018 (Base) 100"
+    ],
+    "context": "h 2018 as base to capture the extent of digitisation of payments across the country. The index for March 2024 stands at 445.50 as against 418.77 for September 2023 . The RBI-DPI index has increased across all parameters driven by significant growth in payment performance and payment infrastructure across the country over the period. The index series since its inception is as under: Period RBI - DPI Index March 2018 (Base) 100 March 2019 153.47 September 2019 173.49 March 2020 207.84 September 2020 217.74 March 2021 270.59 September 2021 304.06 March 2022 349.30 Se",
+    "publicationDateText": "Jul 26, 2024",
+    "limitations": "Historical index, not payment volume, revenue, customer count or TAM."
+  },
+  {
+    "id": "india-msme-june-2026",
+    "claim": "Combined Udyam Registration Portal and Udyam Assist Platform registrations exceeded 8.7 crore as of June 2026.",
+    "url": "https://www.pib.gov.in/PressReleasePage.aspx?PRID=2278107&lang=1&reg=1",
+    "source": "www.pib.gov.in",
+    "fetchedAt": "2026-10-31T19:15:22.192Z",
+    "httpStatus": 200,
+    "supported": true,
+    "period": "June 2026",
+    "supportingQuotes": [
+      "Registrations under the Udyam Registration Portal and Udyam Assist Platform crossed 8.7 Crore as on June 2026"
+    ],
+    "context": "tion, credit access, technology adoption, grievance redressal and market development. Formalisation Reaches New Heights Registrations under the Udyam Registration Portal and Udyam Assist Platform crossed 8.7 Crore as on June 2026. The expansion of the formal enterprise base improved access to institutional finance, government schemes and market opportunities for millions of micro and small businesses. Expanding Access to Credit The Credit Guarantee Fund Trust for Micro and Small Enterprises (CGTMSE) completed 25 years of operation. 29.03 lakh guarantees have been ",
+    "publicationDateText": "26 JUN 2026",
+    "limitations": "Administrative registrations are not a census of active firms or paying customers; combined portal coverage matters."
+  },
+  {
+    "id": "stanford-ai-index-2026",
+    "claim": "Stanford AI Index 2026 reports AI adoption by 88% of surveyed organizations in 2025.",
+    "url": "https://hai.stanford.edu/ai-index/2026-ai-index-report/economy",
+    "source": "hai.stanford.edu",
+    "fetchedAt": "2026-10-31T19:15:22.240Z",
+    "httpStatus": 200,
+    "supported": true,
+    "period": "2025 observations; 2026 report",
+    "supportingQuotes": [
+      "Organizational AI adoption continued to rise in 2025, up to 88% of surveyed organizations"
+    ],
+    "context": "rlier, with the median value per user tripling over the same period. Most of these tools remain free or close to it. 5. Organizational AI adoption continued to rise in 2025, up to 88% of surveyed organizations, though AI agent use remains early. Generative AI is now used in at least one business function at 70% of organizations, and China and Europe posted the highest year-over-year increases. AI agent deployment was in the single digits across nearly all business functions. 6. Generative AI reached 53% adoption in three years, faster than the personal computer or",
+    "publicationDateText": null,
+    "limitations": "Surveyed organizations only; not a census, India-specific adoption estimate, agent adoption rate, or product demand measure."
+  }
+]

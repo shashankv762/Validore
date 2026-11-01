@@ -11,6 +11,8 @@ import { saveCanvasVersion } from '@/lib/canvas-store'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
+import { loadFounderContext } from '@/lib/interview/context'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
     if (nextCanvasVersion(existing) === null) return NextResponse.json({ error: 'This idea has reached the four-canvas version limit.' }, { status: 409 })
 
     // Web search for market context
-    const searchResp = await webSearch(`${idea.industry} business model ${idea.location} market ${new Date().getFullYear()}`, 4)
+    const searchResp = await webSearch(publicResearchQuery(idea, 'business model market'), 4)
     const searchCtx = searchResp.degraded
       ? 'No live search results. Mark all market claims as ASSUMPTION.'
       : searchResp.results.map(r => `- ${r.title}: ${r.content.slice(0, 250)} [${r.source}, ${r.fetchedAt}]`).join('\n')
@@ -206,6 +208,8 @@ INTEGRITY RULES:
 - Generate all fields including: assumptionRegister, problemStatement, interviewQuestions, segmentPrioritization, alternativeSolutions, businessModelCanvas, businessModelValidationScore, bmScoreBreakdown, ratMatrix, buildMeasureLearnCycles, pivotAnalysis, ifThenRules, pricingVsVolumeMatrix`
 
     const result = await generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
+      privateContext: await loadFounderContext(idea.id, dbUser.id),
       prompt,
       schema: LeanCanvasOutputSchema,
       temperature: 0,

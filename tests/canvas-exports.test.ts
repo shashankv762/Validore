@@ -8,6 +8,7 @@ const canvasId = '33333333-3333-4333-8333-333333333333'
 const reportId = '44444444-4444-4444-8444-444444444444'
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: 'auth-user' } } }) } }) }))
 vi.mock('@/lib/tier-gate', () => ({ canUserAccess: async () => true }))
+vi.mock('@/lib/rate-limit', () => ({ rateLimitCheck: async () => ({ success: true }) }))
 vi.mock('@/db', () => ({ db: { query: {
   users: { findFirst: async () => ({ id: '11111111-1111-4111-8111-111111111111' }) },
   validationReports: { findFirst: mocks.report }, leanCanvases: { findFirst: mocks.canvas },
@@ -15,7 +16,7 @@ vi.mock('@/db', () => ({ db: { query: {
   ideas: { findFirst: mocks.idea },
 } } }))
 vi.mock('@react-pdf/renderer', () => ({
-  renderToBuffer: async () => Buffer.from('%PDF-1.4 test'), Document: 'div', Page: 'div', Text: 'span', View: 'div', StyleSheet: { create: (styles: unknown) => styles },
+  renderToBuffer: async () => Buffer.from('%PDF-1.4 test'), Document: 'div', Page: 'div', Text: 'span', View: 'div', Image: 'img', Font: { register: vi.fn() }, StyleSheet: { create: (styles: unknown) => styles },
 }))
 import { GET as csv } from '@/app/api/export/csv/route'
 import { GET as pdf } from '@/app/api/export/pdf/route'
@@ -26,6 +27,23 @@ beforeEach(() => {
   mocks.idea.mockResolvedValue({ name: 'An example' })
 })
 describe('selected canvas export', () => {
+  it('exports pricing without selecting validation or crowdfunding for the same idea', async () => {
+    mocks.pricing.mockResolvedValue({ id: canvasId, userId: owner, ideaId, pricingScore: 73, recommendedPrice: '$25' })
+    const response = await csv(new NextRequest('http://localhost:3000/api/export/csv?ideaId=' + ideaId + '&module=pricing'))
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain('Recommended Price')
+    expect(mocks.report).not.toHaveBeenCalled()
+    expect(mocks.crowdfunding).not.toHaveBeenCalled()
+    expect(mocks.canvas).not.toHaveBeenCalled()
+  })
+  it('returns not found for a missing selected module without falling back to another module', async () => {
+    mocks.pricing.mockResolvedValue(null)
+    const response = await csv(new NextRequest('http://localhost:3000/api/export/csv?ideaId=' + ideaId + '&module=pricing'))
+    expect(response.status).toBe(404)
+    expect(mocks.report).not.toHaveBeenCalled()
+    expect(mocks.crowdfunding).not.toHaveBeenCalled()
+    expect(mocks.canvas).not.toHaveBeenCalled()
+  })
   it('exports the chosen canvas even when other module data exists, with an owner-scoped lookup', async () => {
     for (const handler of [csv, pdf]) {
       const response = await handler(new NextRequest('http://localhost:3000/api/export?ideaId=' + ideaId + '&canvasId=' + canvasId))

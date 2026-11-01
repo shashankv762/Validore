@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { tierConfig, foundingMemberCounter } from '../src/db/schema'
 import { count } from 'drizzle-orm'
+import { PLAN_CATALOG } from '../src/lib/plans'
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required')
@@ -16,8 +17,8 @@ const db = drizzle(client)
 const TIERS_DATA: (typeof tierConfig.$inferInsert)[] = [
   {
     tier: 'free',
-    monthlyValidationLimit: 2,
-    maxActiveIdeas: 1,
+    monthlyValidationLimit: PLAN_CATALOG.free.validationLimit,
+    maxActiveIdeas: PLAN_CATALOG.free.activeIdeaLimit,
     maxConcurrentRequests: 1,
     maxTokensPerCall: 4000,
     canExportPdf: false,
@@ -33,8 +34,8 @@ const TIERS_DATA: (typeof tierConfig.$inferInsert)[] = [
   },
   {
     tier: 'premium',
-    monthlyValidationLimit: 15,
-    maxActiveIdeas: 10,
+    monthlyValidationLimit: PLAN_CATALOG.premium.validationLimit,
+    maxActiveIdeas: PLAN_CATALOG.premium.activeIdeaLimit,
     maxConcurrentRequests: 3,
     maxTokensPerCall: 8000,
     canExportPdf: true,
@@ -50,8 +51,8 @@ const TIERS_DATA: (typeof tierConfig.$inferInsert)[] = [
   },
   {
     tier: 'max_premium',
-    monthlyValidationLimit: 50,
-    maxActiveIdeas: 100,
+    monthlyValidationLimit: PLAN_CATALOG.max_premium.validationLimit,
+    maxActiveIdeas: PLAN_CATALOG.max_premium.activeIdeaLimit,
     maxConcurrentRequests: 10,
     maxTokensPerCall: 16000,
     canExportPdf: true,

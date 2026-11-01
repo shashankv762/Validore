@@ -46,11 +46,11 @@ export function ActionPlanTable({
   const rows = Array.isArray(plan) ? plan.filter(item => item && typeof item === 'object') : []
   if (rows.length === 0) {
     return (
-      <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
+      <div className={`card-angular p-6 bg-[#FFFFFF] shadow-sm ${className}`}>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>
+          <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>
           {badge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#C8A860]/40 bg-purple-50 text-purple-800">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#E0A526]/40 bg-purple-50 text-purple-800">
               {badge}
             </span>
           )}
@@ -63,31 +63,42 @@ export function ActionPlanTable({
   const hasExpectedOutput = showExpectedOutput || rows.some(p => Boolean(p.expectedOutput))
 
   return (
-    <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
+    <div className={`card-angular p-6 bg-[#FFFFFF] shadow-sm ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div>
-          <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>
-          {subtitle && <p className="text-xs text-[#1C1C1C] opacity-60 mt-0.5">{subtitle}</p>}
+          <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>
+          {subtitle && <p className="text-xs text-[#364152] opacity-60 mt-0.5">{subtitle}</p>}
         </div>
         {badge && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-800 uppercase tracking-wide">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-purple-200 bg-purple-50 text-purple-800 ">
             {badge}
           </span>
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left border-collapse">
+      <ol className="grid gap-4 md:hidden" aria-label={title}>
+        {rows.map((row, index) => <li key={index} className="rounded-lg border border-slate-200 p-4">
+          <p className="text-xs font-semibold text-[#89620B] mb-2">{resolveTimeline(row, index)}</p>
+          <p className="text-sm leading-relaxed text-[#141923]">{resolveAction(row)}</p>
+          <dl className="mt-4 space-y-3 text-xs leading-relaxed">
+            <div><dt className="font-medium text-slate-500">Owner</dt><dd className="mt-1 text-slate-700">{row.owner || 'Not assigned'}</dd></div>
+            <div><dt className="font-medium text-slate-500">Target</dt><dd className="mt-1 text-slate-700">{row.kpi || 'To be defined'}</dd></div>
+            {hasExpectedOutput && <div><dt className="font-medium text-slate-500">Expected output</dt><dd className="mt-1 text-slate-700">{row.expectedOutput || 'To be defined'}</dd></div>}
+          </dl>
+        </li>)}
+      </ol>
+      <div className="hidden md:block overflow-x-auto" role="region" aria-label={title + ' table'} tabIndex={0}>
+        <table className="w-full min-w-[640px] text-xs text-left border-collapse [overflow-wrap:normal]">
           <thead>
-            <tr className="border-b border-[#E8E0D0] bg-[#F5F0E8]/70">
-              <th className="py-2.5 px-3 font-semibold text-[#96792b] w-28 uppercase tracking-wider text-[11px]">
+            <tr className="border-b border-[#E5E7EB] bg-[#F7F8FA]/70">
+              <th className="py-2.5 px-3 font-semibold text-[#89620B] w-28  text-[11px]">
                 Timeline
               </th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Strategic Action / Milestone</th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-32">Lead Owner</th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-48">Target KPI / Deliverable</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923]">Strategic Action / Milestone</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923] w-32">Lead Owner</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923] w-48">Target KPI / Deliverable</th>
               {hasExpectedOutput && (
-                <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Expected Output</th>
+                <th className="py-2.5 px-3 font-semibold text-[#141923]">Expected Output</th>
               )}
             </tr>
           </thead>
@@ -98,22 +109,22 @@ export function ActionPlanTable({
               return (
                 <tr
                   key={idx}
-                  className="border-b border-[#E8E0D0] last:border-0 hover:bg-[#F5F0E8]/40 transition-colors"
+                  className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F7F8FA]/40 transition-colors"
                 >
-                  <td className="py-3 px-3 font-semibold text-[#96792b] whitespace-nowrap align-top">
+                  <td className="py-3 px-3 font-semibold text-[#89620B] whitespace-nowrap align-top">
                     {timeline}
                   </td>
-                  <td className="py-3 px-3 font-medium text-[#0A1628] leading-relaxed align-top">
+                  <td className="py-3 px-3 font-medium text-[#141923] leading-relaxed align-top">
                     {action}
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
-                    <span className="inline-block bg-[#F5F0E8] text-[#0A1628] text-[11px] px-2 py-0.5 rounded border border-[#E8E0D0]">
+                    <span className="inline-block bg-[#F7F8FA] text-[#141923] text-[11px] px-2 py-0.5 rounded border border-[#E5E7EB]">
                       {row.owner || 'Not assigned'}
                     </span>
                   </td>
-                  <td className="py-3 px-3 text-[#1C1C1C] opacity-90 align-top">
+                  <td className="py-3 px-3 text-[#364152] opacity-90 align-top">
                     {row.kpi ? (
-                      <span className="font-mono text-[11px] bg-stone-100 text-stone-800 px-2 py-0.5 rounded border border-stone-200">
+                      <span className="tabular-nums text-[11px] bg-stone-100 text-stone-800 px-2 py-0.5 rounded border border-stone-200">
                         {row.kpi}
                       </span>
                     ) : (

@@ -2,6 +2,7 @@ import Stripe from 'stripe'
 import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { PLAN_CATALOG } from './plans'
 
 export function stripeBillingClient() {
   const key = process.env.STRIPE_SECRET_KEY
@@ -35,17 +36,23 @@ export async function createSubscriptionCheckout(userId: string, tier: 'premium'
       const portal = await stripe.billingPortal.sessions.create({ customer: customerId, return_url: origin + '/dashboard/settings' })
       return portal.url
     }
+    const configuredPrice = await stripe.prices.retrieve(price)
+    if (!configuredPrice.active || configuredPrice.currency !== 'usd' ||
+        configuredPrice.unit_amount !== PLAN_CATALOG[tier].monthlyPriceUsd * 100 ||
+        configuredPrice.recurring?.interval !== 'month' || configuredPrice.recurring.interval_count !== 1) {
+      throw new Error('The configured subscription price does not match the advertised monthly plan')
+    }
     const sessions = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 })
     for (const session of sessions.data) {
       if (session.mode !== 'subscription' || session.metadata?.purpose !== 'validore_subscription') continue
-      if (session.metadata.tier === tier && session.url) return session.url
+      if (session.metadata.tier === tier && session.metadata.priceId === price && session.url) return session.url
       // Only expire this application's abandoned plan checkout; completed sessions reject expiry.
       await stripe.checkout.sessions.expire(session.id)
     }
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription', customer: customerId, client_reference_id: user.id,
       line_items: [{ price, quantity: 1 }],
-      metadata: { userId: user.id, tier, purpose: 'validore_subscription' },
+      metadata: { userId: user.id, tier, priceId: price, purpose: 'validore_subscription' },
       subscription_data: { metadata: { userId: user.id } },
       success_url: origin + '/dashboard/settings?checkout=returned', cancel_url: origin + '/dashboard/settings',
     })

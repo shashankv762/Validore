@@ -8,7 +8,7 @@ export function DialogShell({ title, onClose, children }: { title: string; onClo
     return () => { if (dialog?.open) dialog.close() }
   }, [])
   return <dialog ref={ref} aria-label={title} onCancel={event => { event.preventDefault(); onClose() }}
-    className="m-auto w-[min(28rem,calc(100vw-2rem))] max-h-[90dvh] overflow-y-auto border-0 bg-transparent p-0 backdrop:bg-[#0A1628]/60">
+    className="app-dialog m-auto w-[min(28rem,calc(100vw-2rem))] max-h-[90dvh] overflow-y-auto border-0 bg-transparent p-0 backdrop:bg-[#141923]/60">
     {children}
   </dialog>
 }

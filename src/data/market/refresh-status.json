@@ -1,0 +1,101 @@
+{
+  "runStartedAt": "2026-10-31T19:11:25.312Z",
+  "completedAt": "2026-10-31T19:11:29.372Z",
+  "requestedPeriod": "2019:2026",
+  "completedYearOnly": true,
+  "expectedObservationCount": 48,
+  "fetchedObservationCount": 48,
+  "storedObservationCount": 48,
+  "snapshotUpdated": true,
+  "missing": [],
+  "failures": [],
+  "regressedKeys": [],
+  "excludedCurrentYearObservations": 0,
+  "successfulRequests": [
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/SP.POP.TOTL?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.634Z",
+      "bytes": 8430,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/NY.GDP.MKTP.CD?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.731Z",
+      "bytes": 8836,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/NY.GDP.PCAP.CD?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.722Z",
+      "bytes": 9317,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/IT.NET.USER.ZS?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.792Z",
+      "bytes": 9870,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/FP.CPI.TOTL.ZG?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.868Z",
+      "bytes": 9686,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.883Z",
+      "bytes": 9145,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:25.983Z",
+      "bytes": 9850,
+      "metadataUpdatedAt": "2026-10-08"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/country/IN;US;GB;SG;BR;WLD/indicator/SL.UEM.TOTL.ZS?format=json&date=2019:2026&per_page=1000",
+      "fetchedAt": "2026-10-31T19:11:26.019Z",
+      "bytes": 10565,
+      "metadataUpdatedAt": "2026-10-08"
+    }
+  ],
+  "metadataRequests": [
+    {
+      "url": "https://api.worldbank.org/v2/indicator/SP.POP.TOTL?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.720Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.CD?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.789Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/NY.GDP.PCAP.CD?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.806Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/IT.NET.USER.ZS?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.877Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/FP.CPI.TOTL.ZG?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.954Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.KD.ZG?format=json",
+      "fetchedAt": "2026-10-31T19:11:25.966Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/SP.URB.TOTL.IN.ZS?format=json",
+      "fetchedAt": "2026-10-31T19:11:26.072Z"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/indicator/SL.UEM.TOTL.ZS?format=json",
+      "fetchedAt": "2026-10-31T19:11:26.120Z"
+    }
+  ],
+  "catalogVerifiedCount": 10,
+  "catalogRetainedCount": 0,
+  "catalogFailures": []
+}

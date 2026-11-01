@@ -5,13 +5,16 @@ import { syncUserToDatabase } from '@/lib/auth-sync'
 import { isDisposableEmail } from '@/lib/email-validator'
 import { readAuthBody, authFormResponse, validAuthOrigin, authOrigin } from '@/lib/auth-form'
 import { clientIp as getClientIp } from '@/lib/client-ip'
+import { safeNextPath } from '@/lib/auth-redirect'
+import { LEGAL } from '@/lib/legal'
 
-const SignupSchema = z.object({ email: z.string().trim().email().max(320), password: z.string().min(8).max(128) })
+const SignupSchema = z.object({ email: z.string().trim().email().max(320), password: z.string().min(8).max(128), next: z.unknown().optional(),
+  consent: z.union([z.literal('on'), z.literal(true)]), policyVersion: z.literal(LEGAL.version) })
 export async function POST(req: NextRequest) {
   try {
     if (!validAuthOrigin(req)) return authFormResponse(req, '/auth/signup', 'error', 'Invalid request origin', 403)
     const parsed = SignupSchema.safeParse(await readAuthBody(req))
-    if (!parsed.success) return authFormResponse(req, '/auth/signup', 'error', 'Use a valid email and a password of 8 to 128 characters.', 400)
+    if (!parsed.success) return authFormResponse(req, '/auth/signup', 'error', 'Use a valid email and password, confirm you are 18 or over, and accept the current terms.', 400)
     const { email, password } = parsed.data
     if (isDisposableEmail(email)) return authFormResponse(req, '/auth/signup', 'error', 'Please use a permanent email address', 400)
     // Only trust forwarding headers supplied by the configured ingress proxy.
@@ -34,7 +37,11 @@ export async function POST(req: NextRequest) {
     }
     const { client: supabase, commitCookies } = await createClientWithDeferredCookies()
     const origin = authOrigin(req)
-    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: origin + '/auth/callback' } })
+    const next = safeNextPath(parsed.data.next, origin)
+    const callback = new URL('/auth/callback', origin)
+    if (next !== '/dashboard') callback.searchParams.set('next', next)
+    const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: callback.toString(),
+      data: { terms_version: LEGAL.version, terms_accepted_at: new Date().toISOString() } } })
     if (error) console.error('[auth/signup] Provider rejected signup', { status: error.status, code: error.code })
     if (error?.code === 'weak_password') {
       return authFormResponse(req, '/auth/signup', 'error', 'Choose a stronger, unique password. Use at least 12 characters with uppercase and lowercase letters, a number, and a symbol; avoid common or previously exposed passwords.', 400)
@@ -61,8 +68,8 @@ export async function POST(req: NextRequest) {
     }
     commitCookies()
     if (!req.headers.get('content-type')?.includes('application/json')) {
-      if (data?.session) return NextResponse.redirect(new URL('/dashboard', origin), 303)
-      return authFormResponse(req, '/auth/signin', 'message', 'Check your email to verify your account, then sign in.')
+      if (data?.session) return NextResponse.redirect(new URL(next, origin), 303)
+      return authFormResponse(req, '/auth/signin', 'message', 'Check your email to verify your account, then sign in.', 200, next)
     }
     return NextResponse.json({ user: data.user, session: data.session })
   } catch (error) {

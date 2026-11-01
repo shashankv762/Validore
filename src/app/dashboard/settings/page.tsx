@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { DialogShell } from '@/components/ui/DialogShell'
+import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
+import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { PrivacyControls } from '@/components/PrivacyControls'
 import {
   User,
   Shield,
@@ -25,39 +28,23 @@ import {
   X,
 } from 'lucide-react'
 
-interface UserProfile {
-  id: string
-  email: string
-  tier: 'free' | 'premium' | 'max_premium'
-  isFoundingMember: boolean
-  validationsThisMonth: number
-  currentPeriodEnd?: string | null
-  subscriptionStatus?: string | null
-  cancelAtPeriodEnd?: boolean
-  createdAt?: string
-  emailVerified?: boolean
-}
-
-interface NotificationPrefs {
-  validationComplete: boolean
-  weeklyDigest: boolean
-  productUpdates: boolean
-}
-
 type AiProviderChain = 'free_models' | 'paid_models' | 'custom_openrouter'
 
-const PREFS_STORAGE_KEY = 'validore_notification_preferences'
 const OPENROUTER_KEY_STORAGE_KEY = 'validore_custom_openrouter_key'
 
 function SettingsContent() {
   const router = useRouter()
-  const supabase = createClient()
-
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const searchParams = useSearchParams()
+  const [supabase] = useState(createClient)
+  const account = useAccount()
+  const profile = account.data?.user ?? null
+  const loading = account.loading
+  const profileError = account.error
+  const billing = account.data?.billing ?? { credits: false, premium: false, maxPremium: false }
+  const freeOnly = account.data?.ai.freeOnly !== false
+  const hasSavedKey = Boolean(profile?.hasCustomApiKey)
   const [resettingPassword, setResettingPassword] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
-  const [savingPrefs, setSavingPrefs] = useState(false)
   const [savingAiPrefs, setSavingAiPrefs] = useState(false)
   const [copiedId, setCopiedId] = useState(false)
 
@@ -65,88 +52,25 @@ function SettingsContent() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancellingSub, setCancellingSub] = useState(false)
   const [billingBusy, setBillingBusy] = useState(false)
-  const [hasSavedKey, setHasSavedKey] = useState(false)
-  const [profileError, setProfileError] = useState('')
-
-  const [aiProvider, setAiProvider] = useState<AiProviderChain>('free_models')
+  const [aiProviderDraft, setAiProvider] = useState<AiProviderChain | null>(null)
+  const aiProvider = aiProviderDraft ?? profile?.preferredAiProvider ?? 'free_models'
   const [customApiKey, setCustomApiKey] = useState('')
   const [showApiKey, setShowApiKey] = useState(false)
 
-  // Notification Preferences with lazy initialization
-  const [notifications, setNotifications] = useState<NotificationPrefs>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(PREFS_STORAGE_KEY)
-        if (saved) return JSON.parse(saved)
-      } catch {}
-    }
-    return {
-      validationComplete: true,
-      weeklyDigest: true,
-      productUpdates: false,
-    }
-  })
+  const reloadProfile = () => account.refresh()
 
-  const reloadProfile = () => {
-    setLoading(true)
-    fetch('/api/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (data?.user) {
-          setProfile({
-            id: data.user.id || '',
-            email: data.user.email || '',
-            tier: data.user.tier || 'free',
-            isFoundingMember: Boolean(data.user.isFoundingMember),
-            validationsThisMonth: data.user.validationsThisMonth ?? 0,
-            currentPeriodEnd: data.user.currentPeriodEnd,
-            subscriptionStatus: data.user.subscriptionStatus || null,
-            cancelAtPeriodEnd: Boolean(data.user.cancelAtPeriodEnd),
-            createdAt: data.user.createdAt,
-            emailVerified: Boolean(data.user.emailVerified),
-          })
-        }
-        if (data?.user) {
-          setProfileError('')
-          const provider = data.user.preferredAiProvider
-          setAiProvider(['free_models', 'paid_models', 'custom_openrouter'].includes(provider) ? provider : 'paid_models')
-          setHasSavedKey(Boolean(data.user.hasCustomApiKey))
-        } else setProfileError('Unable to load your account. Refresh to try again.')
-        setLoading(false)
-      })
-      .catch(() => { setProfileError('Unable to load your account. Refresh to try again.'); setLoading(false) })
-  }
+  useEffect(() => {
+    if (searchParams.get('checkout') !== 'returned') return
+    notifyAccountUpdated()
+    const timer = window.setInterval(notifyAccountUpdated, 4000)
+    const end = window.setTimeout(() => { window.clearInterval(timer); router.replace('/dashboard/settings') }, 32_000)
+    return () => { window.clearInterval(timer); window.clearTimeout(end) }
+  }, [searchParams, router])
 
   // Load profile from /api/me on mount
   useEffect(() => {
     // Remove keys saved by older versions; secrets are stored only on the server.
     try { localStorage.removeItem(OPENROUTER_KEY_STORAGE_KEY) } catch {}
-    fetch('/api/me')
-      .then(res => (res.ok ? res.json() : null))
-      .then(data => {
-        if (data?.user) {
-          setProfile({
-            id: data.user.id || '',
-            email: data.user.email || '',
-            tier: data.user.tier || 'free',
-            isFoundingMember: Boolean(data.user.isFoundingMember),
-            validationsThisMonth: data.user.validationsThisMonth ?? 0,
-            currentPeriodEnd: data.user.currentPeriodEnd,
-            subscriptionStatus: data.user.subscriptionStatus || null,
-            cancelAtPeriodEnd: Boolean(data.user.cancelAtPeriodEnd),
-            createdAt: data.user.createdAt,
-            emailVerified: Boolean(data.user.emailVerified),
-          })
-        }
-        if (data?.user) {
-          setProfileError('')
-          const provider = data.user.preferredAiProvider
-          setAiProvider(['free_models', 'paid_models', 'custom_openrouter'].includes(provider) ? provider : 'paid_models')
-          setHasSavedKey(Boolean(data.user.hasCustomApiKey))
-        } else setProfileError('Unable to load your account. Refresh to try again.')
-        setLoading(false)
-      })
-      .catch(() => { setProfileError('Unable to load your account. Refresh to try again.'); setLoading(false) })
   }, [])
 
   const copyUserId = async () => {
@@ -156,18 +80,6 @@ function SettingsContent() {
       setCopiedId(true); toast.success('User ID copied to clipboard')
       setTimeout(() => setCopiedId(false), 2000)
     } catch { toast.error('Unable to copy. Select the account ID and copy it manually.') }
-  }
-
-  const handleSaveNotifications = () => {
-    setSavingPrefs(true)
-    try {
-      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(notifications))
-      toast.success('Notification preferences saved successfully.')
-    } catch {
-      toast.error('Failed to save preferences to local storage.')
-    } finally {
-      setTimeout(() => setSavingPrefs(false), 400)
-    }
   }
 
   const handleSaveAiPreferences = async () => {
@@ -183,8 +95,10 @@ function SettingsContent() {
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'Unable to save AI preferences')
-      if (customApiKey.trim()) setHasSavedKey(true)
       setCustomApiKey('')
+      notifyAccountUpdated()
+      await account.refresh()
+      setAiProvider(null)
       toast.success('AI preferences saved.')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to save AI preferences')
@@ -199,7 +113,9 @@ function SettingsContent() {
         body: JSON.stringify({ preferredAiProvider: 'free_models', customOpenRouterKey: null }),
       })
       if (!response.ok) throw new Error('Unable to remove the stored key')
-      setCustomApiKey(''); setHasSavedKey(false); setAiProvider('free_models')
+      setCustomApiKey(''); setAiProvider('free_models')
+      notifyAccountUpdated()
+      await account.refresh()
       toast.success('Stored API key removed.')
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to remove key') }
     finally { setSavingAiPrefs(false) }
@@ -257,9 +173,10 @@ function SettingsContent() {
   const handleConfirmCancelSubscription = async () => {
     setCancellingSub(true)
     try {
-      const res = await fetch('/api/billing/cancel', { method: 'POST' })
+      const res = await fetch('/api/billing/cancel', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       if (!res.ok) throw new Error('Failed to cancel')
-      setProfile(prev => (prev ? { ...prev, cancelAtPeriodEnd: true } : null))
+      notifyAccountUpdated()
+      await account.refresh()
       setCancelDialogOpen(false)
       toast.success('Subscription scheduled for cancellation at the end of the current billing cycle.')
     } catch {
@@ -291,43 +208,43 @@ function SettingsContent() {
   return (
     <div className="space-y-10 pb-16 max-w-4xl">
       {/* Header */}
-      <div className="border-b border-[#E8E0D0] pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border-b border-[#E5E7EB] pb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-[#C8A860]/15 text-[#96792b] mb-2 uppercase tracking-wider">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-medium bg-[#E0A526]/15 text-[#89620B] mb-2 ">
             <User className="w-3.5 h-3.5" />
-            <span>Account & Configuration</span>
+            <span>Your workspace</span>
           </div>
-          <h1 className="text-3xl font-light text-[#0A1628] tracking-tight">Settings</h1>
-          <p className="text-sm text-[#1C1C1C]/70 mt-1">
-            Manage your personal profile, subscription tier, AI provider cascade, and account credentials.
+          <h1 className="text-3xl font-light text-[#141923] tracking-tight">Settings</h1>
+          <p className="text-sm text-[#364152]/70 mt-1">
+            Manage your account, plan and research preferences.
           </p>
         </div>
 
         <button
           onClick={reloadProfile}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 text-xs text-[#0A1628] hover:text-[#96792b] border border-[#E8E0D0] bg-[#FAFAF7] rounded transition-colors self-start md:self-auto"
+          className="inline-flex items-center gap-2 px-3 py-2 text-xs text-[#141923] hover:text-[#89620B] border border-[#E5E7EB] bg-[#FFFFFF] rounded transition-colors self-start md:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
 
-      {profileError && <p role="alert" className="p-4 border border-[#C8A860] text-sm">{profileError}</p>}
+      {profileError && <p role="alert" className="p-4 border border-[#E0A526] text-sm">{profileError}</p>}
       {/* Account Info Section */}
-      <section className="card-angular p-6 bg-[#FAFAF7]">
+      <section className="card-angular p-6 bg-[#FFFFFF]">
         <div className="flex items-center gap-2 mb-6">
-          <User className="w-4 h-4 text-[#96792b]" />
-          <h2 className="text-base font-normal text-[#0A1628]">Account Information</h2>
+          <User className="w-4 h-4 text-[#89620B]" />
+          <h2 className="text-base font-normal text-[#141923]">Account Information</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
           <div>
-            <label className="block text-[#1C1C1C]/60 uppercase tracking-wider mb-1 font-medium">
-              Registered Email
+            <label className="block text-[#364152]/60  mb-1 font-medium">
+              Email address
             </label>
-            <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] font-mono text-sm flex items-center justify-between">
-              <span>{profile?.email || (loading ? 'Loading…' : 'Unavailable')}</span>
+            <div className="p-3 bg-white border border-[#E5E7EB] rounded text-[#141923] tabular-nums text-sm flex items-center justify-between">
+              <span className="min-w-0 break-all mr-2">{profile?.email || (loading ? 'Loading…' : 'Unavailable')}</span>
               <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-sans font-medium">
                 {profile?.emailVerified ? 'Verified' : 'Unconfirmed'}
               </span>
@@ -335,14 +252,14 @@ function SettingsContent() {
           </div>
 
           <div>
-            <label className="block text-[#1C1C1C]/60 uppercase tracking-wider mb-1 font-medium">
-              Account Identifier (UUID)
+            <label className="block text-[#364152]/60  mb-1 font-medium">
+              Account ID
             </label>
-            <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] font-mono text-xs flex items-center justify-between">
+            <div className="p-3 bg-white border border-[#E5E7EB] rounded text-[#141923] tabular-nums text-xs flex items-center justify-between">
               <span className="truncate mr-2">{profile?.id || '—'}</span>
               <button
                 onClick={copyUserId}
-                className="text-[#1C1C1C]/60 hover:text-[#96792b] transition-colors p-1"
+                className="text-[#364152]/60 hover:text-[#89620B] transition-colors p-1"
                 title="Copy User ID"
               >
                 {copiedId ? (
@@ -355,25 +272,25 @@ function SettingsContent() {
           </div>
 
           <div>
-            <label className="block text-[#1C1C1C]/60 uppercase tracking-wider mb-1 font-medium">
+            <label className="block text-[#364152]/60  mb-1 font-medium">
               Membership Class
             </label>
-            <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] flex items-center justify-between">
+            <div className="p-3 bg-white border border-[#E5E7EB] rounded text-[#141923] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {profile?.isFoundingMember ? (
                   <>
-                    <Crown className="w-4 h-4 text-[#96792b]" />
-                    <span className="font-medium text-[#96792b]">Founding Member</span>
+                    <Crown className="w-4 h-4 text-[#89620B]" />
+                    <span className="font-medium text-[#89620B]">Founding Member</span>
                   </>
                 ) : (
                   <>
-                    <Shield className="w-4 h-4 text-[#1C1C1C]/50" />
+                    <Shield className="w-4 h-4 text-[#364152]/50" />
                     <span>Standard Member</span>
                   </>
                 )}
               </div>
               {profile?.isFoundingMember && (
-                <span className="text-[10px] bg-[#C8A860]/15 text-[#96792b] px-2 py-0.5 rounded font-medium">
+                <span className="text-[10px] bg-[#E0A526]/15 text-[#89620B] px-2 py-0.5 rounded font-medium">
                   Founding Member (1 of 100)
                 </span>
               )}
@@ -381,10 +298,10 @@ function SettingsContent() {
           </div>
 
           <div>
-            <label className="block text-[#1C1C1C]/60 uppercase tracking-wider mb-1 font-medium">
+            <label className="block text-[#364152]/60  mb-1 font-medium">
               Account Created
             </label>
-            <div className="p-3 bg-white border border-[#E8E0D0] rounded text-[#0A1628] font-mono">
+            <div className="p-3 bg-white border border-[#E5E7EB] rounded text-[#141923] tabular-nums">
               {formatDate(profile?.createdAt)}
             </div>
           </div>
@@ -392,42 +309,38 @@ function SettingsContent() {
       </section>
 
       {/* Subscription Management Section */}
-      <section className="card-angular p-6 bg-[#FAFAF7]">
+      <section className="card-angular p-6 bg-[#FFFFFF]">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[#96792b]" />
-            <h2 className="text-base font-normal text-[#0A1628]">Subscription Management</h2>
+            <Zap className="w-4 h-4 text-[#89620B]" />
+            <h2 className="text-base font-normal text-[#141923]">Subscription Management</h2>
           </div>
           <span
             className={`text-xs px-2.5 py-1 rounded font-medium capitalize ${
               profile?.tier === 'max_premium'
-                ? 'bg-[#C8A860]/20 text-[#0A1628] border border-[#C8A860]'
+                ? 'bg-[#E0A526]/20 text-[#141923] border border-[#E0A526]'
                 : profile?.tier === 'premium'
                 ? 'bg-blue-100 text-blue-800'
-                : 'bg-[#E8E0D0] text-[#1C1C1C]'
+                : 'bg-[#E5E7EB] text-[#364152]'
             }`}
           >
-            {profile?.tier === 'max_premium'
-              ? 'Max Premium Plan ($79/mo)'
-              : profile?.tier === 'premium'
-              ? 'Pro Plan ($29/mo)'
-              : 'Free Plan ($0)'}
+            {profile ? `${PLAN_CATALOG[profile.tier].name} (${formatUsd(PLAN_CATALOG[profile.tier].monthlyPriceUsd)}${profile.tier === 'free' ? '' : '/mo'})` : 'Loading plan…'}
           </span>
         </div>
 
         {/* Plan Status Banner */}
-        <div className="bg-white border border-[#E8E0D0] rounded p-5 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs divide-y md:divide-y-0 md:divide-x divide-[#E8E0D0]">
+        <div className="bg-white border border-[#E5E7EB] rounded p-5 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs divide-y md:divide-y-0 md:divide-x divide-[#E5E7EB]">
             <div className="pr-4">
-              <span className="text-[#1C1C1C]/60 uppercase tracking-wider block mb-1">
+              <span className="text-[#364152]/60  block mb-1">
                 Current Plan Tier
               </span>
-              <span className="text-xl font-mono font-light text-[#0A1628] capitalize">
-                {profile?.tier?.replace('_', ' ') || 'Free'}
+              <span className="text-xl tabular-nums font-light text-[#141923] capitalize">
+                {profile ? PLAN_CATALOG[profile.tier].name : '—'}
               </span>
-              <p className="text-[11px] text-[#1C1C1C]/60 mt-1">
+              <p className="text-[11px] text-[#364152]/60 mt-1">
                 {profile?.tier === 'max_premium'
-                  ? 'Unlimited launch & fundraising tools'
+                  ? 'Launch and fundraising tools'
                   : profile?.tier === 'premium'
                   ? 'Full validation & pricing suite'
                   : 'Lite validation & manual canvas'}
@@ -435,7 +348,7 @@ function SettingsContent() {
             </div>
 
             <div className="pt-3 md:pt-0 md:px-4">
-              <span className="text-[#1C1C1C]/60 uppercase tracking-wider block mb-1">
+              <span className="text-[#364152]/60  block mb-1">
                 Subscription Status
               </span>
               <div className="flex items-center gap-2 mt-1">
@@ -454,22 +367,22 @@ function SettingsContent() {
                     : profile?.subscriptionStatus?.toUpperCase() || 'NO SUBSCRIPTION'}
                 </span>
               </div>
-              <p className="text-[11px] text-[#1C1C1C]/60 mt-1">
+              <p className="text-[11px] text-[#364152]/60 mt-1">
                 {profile?.currentPeriodEnd
                   ? `Cycle ends ${formatDate(profile.currentPeriodEnd)}`
-                  : '30-day rolling cycle'}
+                  : 'No renewal scheduled'}
               </p>
             </div>
 
             <div className="pt-3 md:pt-0 md:pl-4">
-              <span className="text-[#1C1C1C]/60 uppercase tracking-wider block mb-1">
+              <span className="text-[#364152]/60  block mb-1">
                 Billing Actions
               </span>
               <div className="flex flex-col gap-2 mt-1">
                 <button
                   onClick={() => openBilling()}
-                  disabled={billingBusy || loading}
-                  className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-[#0A1628] bg-[#E8E0D0] hover:bg-[#C8A860] rounded transition-colors"
+                  disabled={billingBusy || loading || !billing.credits || !profile?.subscriptionStatus}
+                  className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-[#141923] bg-[#E5E7EB] hover:bg-[#E0A526] rounded transition-colors"
                 >
                   <CreditCard className="w-3 h-3" />
                   <span>Manage Billing</span>
@@ -489,38 +402,38 @@ function SettingsContent() {
         </div>
 
         {/* Upgrade / Plan CTAs */}
-        <div className="border-t border-[#E8E0D0] pt-6">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#1C1C1C]/60 mb-4">
+        <div className="border-t border-[#E5E7EB] pt-6">
+          <h3 className="text-xs font-semibold  text-[#364152]/60 mb-4">
             Plan Upgrades & Downgrades
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Pro Plan ($29/mo) */}
             <div
-              className={`p-4 rounded border transition-all ${
+              className={`p-4 rounded border transition-colors ${
                 profile?.tier === 'premium'
-                  ? 'border-[#C8A860] bg-[#C8A860]/5'
-                  : 'border-[#E8E0D0] bg-white'
+                  ? 'border-[#E0A526] bg-[#E0A526]/5'
+                  : 'border-[#E5E7EB] bg-white'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#0A1628]">Pro Plan ($29/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">Premium ({formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo)</span>
                 {profile?.tier === 'premium' && (
-                  <span className="text-[10px] bg-[#C8A860] text-[#0A1628] font-bold px-2 py-0.5 rounded">
+                  <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
                   </span>
                 )}
               </div>
-              <p className="text-xs text-[#1C1C1C]/70 mb-4">
-                1,500 credits/mo, full 40-section validation, AI Lean Canvas, Pricing Simulator, and PDF/CSV downloads.
+              <p className="text-xs text-[#364152]/70 mb-4">
+                {PLAN_CATALOG.premium.monthlyCredits.toLocaleString()} credits/mo, full validation, AI Lean Canvas, Pricing Simulator and CSV downloads. PDF and Word are included on every plan.
               </p>
               {profile?.tier === 'free' ? (
                 <button
                   onClick={() => openBilling('premium')}
-                  disabled={billingBusy || loading}
-                  className="w-full py-2 px-3 text-xs font-medium text-[#0A1628] bg-[#E8E0D0] hover:bg-[#C8A860] rounded transition-colors"
+                  disabled={billingBusy || loading || !billing.premium}
+                  className="w-full py-2 px-3 text-xs font-medium text-[#141923] bg-[#E5E7EB] hover:bg-[#E0A526] rounded transition-colors"
                 >
-                  Upgrade to Pro ($29/mo)
+                  {billing.premium ? `Upgrade to Premium (${formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo)` : 'Premium is coming soon'}
                 </button>
               ) : (
                 <div className="text-xs text-emerald-700 font-medium flex items-center gap-1">
@@ -531,33 +444,33 @@ function SettingsContent() {
 
             {/* Max Plan ($79/mo) */}
             <div
-              className={`p-4 rounded border transition-all ${
+              className={`p-4 rounded border transition-colors ${
                 profile?.tier === 'max_premium'
-                  ? 'border-[#C8A860] bg-[#C8A860]/5'
-                  : 'border-[#E8E0D0] bg-white'
+                  ? 'border-[#E0A526] bg-[#E0A526]/5'
+                  : 'border-[#E5E7EB] bg-white'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#0A1628]">Max Premium ($79/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">Max Premium ({formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}/mo)</span>
                 {profile?.tier === 'max_premium' && (
-                  <span className="text-[10px] bg-[#C8A860] text-[#0A1628] font-bold px-2 py-0.5 rounded">
+                  <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
                   </span>
                 )}
               </div>
-              <p className="text-xs text-[#1C1C1C]/70 mb-4">
-                4,500 credits/mo, Crowdfunding & Pitch Deck access, White-Label PDF, Portfolio ZIP, and PPTX export.
+              <p className="text-xs text-[#364152]/70 mb-4">
+                {PLAN_CATALOG.max_premium.monthlyCredits.toLocaleString()} credits/mo, Crowdfunding & Pitch Deck access, White-Label PDF, Portfolio ZIP, and PPTX export.
               </p>
               {profile?.tier !== 'max_premium' ? (
                 <button
                   onClick={() => openBilling('max_premium')}
-                  disabled={billingBusy || loading}
-                  className="w-full py-2 px-3 text-xs font-semibold text-[#0A1628] bg-[#C8A860] hover:bg-[#b09048] rounded transition-colors"
+                  disabled={billingBusy || loading || !billing.maxPremium}
+                  className="w-full py-2 px-3 text-xs font-semibold text-[#141923] bg-[#E0A526] hover:bg-[#b09048] rounded transition-colors"
                 >
-                  Upgrade to Max ($79/mo)
+                  {billing.maxPremium ? `Upgrade to Max Premium (${formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}/mo)` : 'Max Premium is coming soon'}
                 </button>
               ) : (
-                <div className="text-xs text-[#96792b] font-medium flex items-center gap-1">
+                <div className="text-xs text-[#89620B] font-medium flex items-center gap-1">
                   <Crown className="w-3.5 h-3.5" /> Highest Tier Active
                 </div>
               )}
@@ -567,27 +480,27 @@ function SettingsContent() {
       </section>
 
       {/* AI Provider Selection Chain Section */}
-      <section className="card-angular p-6 bg-[#FAFAF7]">
+      <section className="card-angular p-6 bg-[#FFFFFF]">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <Cpu className="w-4 h-4 text-[#96792b]" />
-            <h2 className="text-base font-normal text-[#0A1628]">AI Inference Provider Chain</h2>
+            <Cpu className="w-4 h-4 text-[#89620B]" />
+            <h2 className="text-base font-normal text-[#141923]">AI research preferences</h2>
           </div>
-          <span className="text-xs font-medium text-[#96792b] bg-[#C8A860]/15 px-2 py-0.5 rounded">
-            Configurable Failover
+          <span className="text-xs font-medium text-[#89620B] bg-[#E0A526]/15 px-2 py-0.5 rounded">
+            Research access
           </span>
         </div>
-        <p className="text-xs text-[#1C1C1C]/70 mb-6">
-          Choose which AI model infrastructure executes your research, scoring, and document generation tasks.
+        <p className="text-xs text-[#364152]/70 mb-6">
+          Choose how the research team accesses models for your analyses.
         </p>
 
         <div className="space-y-4">
           {/* Mode 1: Default (Free Models Chain) */}
           <label
-            className={`block p-4 rounded border cursor-pointer transition-all ${
+            className={`block p-4 rounded border cursor-pointer transition-colors ${
               aiProvider === 'free_models'
-                ? 'border-[#C8A860] bg-white shadow-sm ring-1 ring-[#C8A860]'
-                : 'border-[#E8E0D0] bg-white/70 hover:border-[#C8A860]/40'
+                ? 'border-[#E0A526] bg-white shadow-sm ring-1 ring-[#E0A526]'
+                : 'border-[#E5E7EB] bg-white/70 hover:border-[#E0A526]/40'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -597,39 +510,38 @@ function SettingsContent() {
                 value="free_models"
                 checked={aiProvider === 'free_models'}
                 onChange={() => setAiProvider('free_models')}
-                className="mt-1 text-[#C8A860] focus:ring-[#C8A860]"
+                className="mt-1 text-[#E0A526] focus:ring-[#E0A526]"
               />
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#0A1628]">
-                    Default Free Models Chain
+                  <span className="text-sm font-semibold text-[#141923]">
+                    Automatic free models
                   </span>
-                  <span className="text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
-                    Recommended • Zero Added Cost
+                  <span className="text-[10px] font-bold  bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                    Recommended
                   </span>
                 </div>
-                <p className="text-xs text-[#1C1C1C]/70 mt-1">
-                  Zero platform inference cost with automatic cascade failover across open frontier models.
+                <p className="text-xs text-[#364152]/70 mt-1">
+                  Use the available free models selected for each research task. If one provider is unavailable, the team tries another within its request budget.
                 </p>
-                <div className="mt-3 p-2 bg-[#FAFAF7] rounded border border-[#E8E0D0] text-[11px] font-mono text-[#0A1628]">
-                  <div className="text-[10px] uppercase text-[#1C1C1C]/50 font-sans font-semibold mb-1">
-                    Cascade Execution Order:
+                <div className="mt-3 p-2 bg-[#FFFFFF] rounded border border-[#E5E7EB] text-[11px] tabular-nums text-[#141923]">
+                  <div className="text-[10px]  text-[#364152]/50 font-sans font-semibold mb-1">
+                    How research works:
                   </div>
-                  <div>Uses the free OpenRouter models configured by Validore. Availability and quotas vary by provider.</div>
+                  <div>Specialists reuse dated market knowledge, read public sources and check calculations. Free-model availability and quotas vary.</div>
                   <div className="mt-0.5">
-                    Research: <span className="text-[#96792b]">kimi-k2.5-free</span>
+                    Available models are selected for each task within the workspace request limits.
                   </div>
                 </div>
               </div>
             </div>
           </label>
 
-          {/* Mode 2: Paid Commercial Fallback Chain */}
-          <label
-            className={`block p-4 rounded border cursor-pointer transition-all ${
+          {!freeOnly && <label
+            className={`block p-4 rounded border cursor-pointer transition-colors ${
               aiProvider === 'paid_models'
-                ? 'border-[#C8A860] bg-white shadow-sm ring-1 ring-[#C8A860]'
-                : 'border-[#E8E0D0] bg-white/70 hover:border-[#C8A860]/40'
+                ? 'border-[#E0A526] bg-white shadow-sm ring-1 ring-[#E0A526]'
+                : 'border-[#E5E7EB] bg-white/70 hover:border-[#E0A526]/40'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -639,23 +551,23 @@ function SettingsContent() {
                 value="paid_models"
                 checked={aiProvider === 'paid_models'}
                 onChange={() => setAiProvider('paid_models')}
-                className="mt-1 text-[#C8A860] focus:ring-[#C8A860]"
+                className="mt-1 text-[#E0A526] focus:ring-[#E0A526]"
               />
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#0A1628]">
-                    Paid Commercial Models Chain
+                  <span className="text-sm font-semibold text-[#141923]">
+                    Operator-enabled models
                   </span>
-                  <span className="text-[10px] font-bold uppercase bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                    Commercial Grade
+                  <span className="text-[10px] font-bold  bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
+                    Optional
                   </span>
                 </div>
-                <p className="text-xs text-[#1C1C1C]/70 mt-1">
-                  Ultra-low latency with enterprise commercial APIs via Validore infrastructure.
+                <p className="text-xs text-[#364152]/70 mt-1">
+                  Use the paid models enabled by the workspace operator. Availability depends on the configured providers.
                 </p>
-                <div className="mt-3 p-2 bg-[#FAFAF7] rounded border border-[#E8E0D0] text-[11px] font-mono text-[#0A1628]">
-                  <div className="text-[10px] uppercase text-[#1C1C1C]/50 font-sans font-semibold mb-1">
-                    Cascade Execution Order:
+                <div className="mt-3 p-2 bg-[#FFFFFF] rounded border border-[#E5E7EB] text-[11px] tabular-nums text-[#141923]">
+                  <div className="text-[10px]  text-[#364152]/50 font-sans font-semibold mb-1">
+                    How research works:
                   </div>
                   <div>
                     Google → Anthropic → OpenAI, with configured models and request budgets
@@ -663,14 +575,14 @@ function SettingsContent() {
                 </div>
               </div>
             </div>
-          </label>
+          </label>}
 
           {/* Mode 3: Custom OpenRouter Key (BYOK) */}
           <label
-            className={`block p-4 rounded border cursor-pointer transition-all ${
+            className={`block p-4 rounded border cursor-pointer transition-colors ${
               aiProvider === 'custom_openrouter'
-                ? 'border-[#C8A860] bg-white shadow-sm ring-1 ring-[#C8A860]'
-                : 'border-[#E8E0D0] bg-white/70 hover:border-[#C8A860]/40'
+                ? 'border-[#E0A526] bg-white shadow-sm ring-1 ring-[#E0A526]'
+                : 'border-[#E5E7EB] bg-white/70 hover:border-[#E0A526]/40'
             }`}
           >
             <div className="flex items-start gap-3">
@@ -680,60 +592,43 @@ function SettingsContent() {
                 value="custom_openrouter"
                 checked={aiProvider === 'custom_openrouter'}
                 onChange={() => setAiProvider('custom_openrouter')}
-                className="mt-1 text-[#C8A860] focus:ring-[#C8A860]"
+                className="mt-1 text-[#E0A526] focus:ring-[#E0A526]"
               />
               <div className="flex-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[#0A1628]">
-                    Custom OpenRouter API Key (BYOK)
+                  <span className="text-sm font-semibold text-[#141923]">
+                    Your OpenRouter account
                   </span>
-                  <span className="text-[10px] font-bold uppercase bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
-                    Direct Account Access
+                  <span className="text-[10px] font-bold  bg-purple-100 text-purple-800 px-2 py-0.5 rounded">
+                    Personal quota
                   </span>
                 </div>
-                <p className="text-xs text-[#1C1C1C]/70 mt-1">
+                <p className="text-xs text-[#364152]/70 mt-1">
                   Use your personal OpenRouter quota. Workspace credits and request limits still apply.
                 </p>
-
-                {aiProvider === 'custom_openrouter' && (
-                  <div className="mt-4 pt-3 border-t border-[#E8E0D0]" onClick={e => e.stopPropagation()}>
-                    <label className="block text-[11px] font-medium text-[#0A1628] mb-1">
-                      OpenRouter API Key:
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showApiKey ? 'text' : 'password'}
-                        value={customApiKey}
-                        onChange={e => setCustomApiKey(e.target.value)}
-                        placeholder={hasSavedKey ? 'A key is saved. Enter a replacement to change it.' : 'sk-or-v1-...'}
-                        maxLength={512} autoComplete="off" spellCheck={false} aria-label="OpenRouter API key"
-                        className="w-full px-3 py-2 pr-10 text-xs font-mono bg-white border border-[#E8E0D0] rounded focus:outline-none focus:border-[#C8A860]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                        aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[#1C1C1C]/50 hover:text-[#0A1628]"
-                      >
-                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <p className="text-[10px] text-[#1C1C1C]/60 mt-1">
-                      The key is encrypted on the server and used for your analyses. Its value is never returned to this page.
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </label>
         </div>
 
+        {aiProvider === 'custom_openrouter' && <div className="mt-5 rounded-lg border border-[#E5E7EB] p-4">
+          <label htmlFor="openrouter-key" className="block text-sm font-medium mb-2">OpenRouter API key</label>
+          <div className="relative">
+            <input id="openrouter-key" type={showApiKey ? 'text' : 'password'} value={customApiKey} onChange={event => setCustomApiKey(event.target.value)}
+              placeholder={hasSavedKey ? 'A key is saved. Enter a replacement to change it.' : 'sk-or-v1-...'} maxLength={512} autoComplete="off" spellCheck={false}
+              className="w-full min-h-11 px-3 py-2 pr-12 text-sm bg-white border border-[#E5E7EB] rounded" />
+            <button type="button" onClick={() => setShowApiKey(!showApiKey)} aria-label={showApiKey ? 'Hide API key' : 'Show API key'} aria-pressed={showApiKey}
+              className="absolute right-0 top-0 h-full w-11 grid place-items-center text-[#364152]/70">{showApiKey ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+          </div>
+          <p className="text-xs text-[#364152]/70 mt-2">Stored encrypted on the server and used only for your analyses. Workspace credits and research limits still apply.</p>
+        </div>}
+
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          {hasSavedKey && <button onClick={removeCustomKey} disabled={savingAiPrefs} className="px-4 py-2 text-xs border border-[#E8E0D0] rounded">Remove stored key</button>}
+          {hasSavedKey && <button onClick={removeCustomKey} disabled={savingAiPrefs || loading || !profile} className="px-4 py-2 text-xs border border-[#E5E7EB] rounded">Remove stored key</button>}
           <button
             onClick={handleSaveAiPreferences}
-            disabled={savingAiPrefs}
-            className="px-5 py-2 text-xs font-semibold bg-[#0A1628] text-[#FAFAF7] hover:bg-[#C8A860] hover:text-[#0A1628] rounded transition-colors inline-flex items-center gap-2"
+            disabled={savingAiPrefs || loading || !profile}
+            className="px-5 py-2 text-xs font-semibold bg-[#141923] text-[#FFFFFF] hover:bg-[#E0A526] hover:text-[#141923] rounded transition-colors inline-flex items-center gap-2"
           >
             {savingAiPrefs ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -745,126 +640,49 @@ function SettingsContent() {
         </div>
       </section>
 
-      {/* Notification Preferences Section */}
-      <section className="card-angular p-6 bg-[#FAFAF7]">
-        <div className="flex items-center gap-2 mb-6">
-          <Bell className="w-4 h-4 text-[#96792b]" />
-          <h2 className="text-base font-normal text-[#0A1628]">Notification Preferences</h2>
-        </div>
-
-        <p className="text-xs text-[#1C1C1C]/70 mb-4">Preferences are saved in this browser. Email notifications are not enabled yet.</p>
-        <div className="space-y-4">
-          <label className="flex items-start justify-between p-3.5 bg-white border border-[#E8E0D0] rounded cursor-pointer hover:border-[#C8A860]/50 transition-colors">
-            <div className="pr-4">
-              <span className="text-xs font-medium text-[#0A1628] block">
-                Validation Analysis Alerts
-              </span>
-              <span className="text-[11px] text-[#1C1C1C]/60 mt-0.5 block">
-                Receive an immediate email alert when your AI deep market feasibility and viability report completes.
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={notifications.validationComplete}
-              onChange={e =>
-                setNotifications(prev => ({ ...prev, validationComplete: e.target.checked }))
-              }
-              className="mt-1 text-[#C8A860] focus:ring-[#C8A860] rounded"
-            />
-          </label>
-
-          <label className="flex items-start justify-between p-3.5 bg-white border border-[#E8E0D0] rounded cursor-pointer hover:border-[#C8A860]/50 transition-colors">
-            <div className="pr-4">
-              <span className="text-xs font-medium text-[#0A1628] block">
-                Weekly Startup Digest
-              </span>
-              <span className="text-[11px] text-[#1C1C1C]/60 mt-0.5 block">
-                Curated briefing of startup failure post-mortems, market demand trends, and pricing shifts.
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={notifications.weeklyDigest}
-              onChange={e =>
-                setNotifications(prev => ({ ...prev, weeklyDigest: e.target.checked }))
-              }
-              className="mt-1 text-[#C8A860] focus:ring-[#C8A860] rounded"
-            />
-          </label>
-
-          <label className="flex items-start justify-between p-3.5 bg-white border border-[#E8E0D0] rounded cursor-pointer hover:border-[#C8A860]/50 transition-colors">
-            <div className="pr-4">
-              <span className="text-xs font-medium text-[#0A1628] block">
-                Product Updates & Engine Releases
-              </span>
-              <span className="text-[11px] text-[#1C1C1C]/60 mt-0.5 block">
-                Stay updated on new scoring modules, export formats, and predictive benchmark datasets.
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={notifications.productUpdates}
-              onChange={e =>
-                setNotifications(prev => ({ ...prev, productUpdates: e.target.checked }))
-              }
-              className="mt-1 text-[#C8A860] focus:ring-[#C8A860] rounded"
-            />
-          </label>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <button
-            onClick={handleSaveNotifications}
-            disabled={savingPrefs}
-            className="px-5 py-2 text-xs font-semibold bg-[#0A1628] text-[#FAFAF7] hover:bg-[#C8A860] hover:text-[#0A1628] rounded transition-colors inline-flex items-center gap-2"
-          >
-            {savingPrefs ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-            <span>Save Preferences</span>
-          </button>
-        </div>
+      <section className="card-angular p-6">
+        <div className="flex items-center gap-2 mb-3"><Bell size={17} className="text-[#89620B]" /><h2 className="text-base font-medium">Report notifications</h2></div>
+        <p className="text-sm text-[#364152]/70 leading-relaxed">Track analyses from Your reports. Email alerts and digests are not available yet.</p>
       </section>
 
       {/* Account Security & Sign Out Section */}
-      <section className="card-angular p-6 bg-[#FAFAF7]">
+      <PrivacyControls />
+      <section className="card-angular p-6 bg-[#FFFFFF]">
         <div className="flex items-center gap-2 mb-6">
-          <KeyRound className="w-4 h-4 text-[#96792b]" />
-          <h2 className="text-base font-normal text-[#0A1628]">Security & Credentials</h2>
+          <KeyRound className="w-4 h-4 text-[#89620B]" />
+          <h2 className="text-base font-normal text-[#141923]">Security & Credentials</h2>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-white border border-[#E8E0D0] rounded mb-6">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 p-4 bg-white border border-[#E5E7EB] rounded mb-6">
           <div>
-            <span className="text-xs font-medium text-[#0A1628] block">
+            <span className="text-xs font-medium text-[#141923] block">
               Change Password
             </span>
-            <span className="text-[11px] text-[#1C1C1C]/60 mt-0.5 block">
+            <span className="text-[11px] text-[#364152]/60 mt-0.5 block">
               We will send a secure password reset link to your verified email address.
             </span>
           </div>
 
           <button
             onClick={handlePasswordReset}
-            disabled={resettingPassword}
-            className="px-4 py-2 text-xs font-medium border border-[#E8E0D0] hover:border-[#C8A860] hover:bg-[#FAFAF7] text-[#0A1628] rounded transition-colors inline-flex items-center justify-center gap-2 shrink-0"
+            disabled={resettingPassword || loading || !profile}
+            className="px-4 py-2 text-xs font-medium border border-[#E5E7EB] hover:border-[#E0A526] hover:bg-[#FFFFFF] text-[#141923] rounded transition-colors inline-flex items-center justify-center gap-2 shrink-0"
           >
             {resettingPassword ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#96792b]" />
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#89620B]" />
             ) : (
-              <KeyRound className="w-3.5 h-3.5 text-[#96792b]" />
+              <KeyRound className="w-3.5 h-3.5 text-[#89620B]" />
             )}
             <span>Send Reset Email</span>
           </button>
         </div>
 
-        <div className="pt-4 border-t border-[#E8E0D0] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+        <div className="pt-4 border-t border-[#E5E7EB] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
           <div>
-            <span className="text-xs font-medium text-[#0A1628] block">
+            <span className="text-xs font-medium text-[#141923] block">
               Sign Out of Session
             </span>
-            <span className="text-[11px] text-[#1C1C1C]/60 mt-0.5 block">
+            <span className="text-[11px] text-[#364152]/60 mt-0.5 block">
               Terminate your authenticated session on this browser.
             </span>
           </div>
@@ -887,12 +705,12 @@ function SettingsContent() {
       {/* Cancel Subscription Confirmation Dialog */}
       {cancelDialogOpen && (
         <DialogShell title="Cancel subscription" onClose={() => { if (!cancellingSub) setCancelDialogOpen(false) }}>
-          <div className="card-angular p-6 bg-[#FAFAF7] max-w-md w-full shadow-xl border border-[#E8E0D0] relative">
+          <div className="card-angular p-6 bg-[#FFFFFF] max-w-md w-full shadow-xl border border-[#E5E7EB] relative">
             <button
               onClick={() => setCancelDialogOpen(false)}
               disabled={cancellingSub}
               aria-label="Close cancellation dialog"
-              className="absolute top-4 right-4 text-[#1C1C1C]/40 hover:text-[#0A1628]"
+              className="absolute top-4 right-4 text-[#364152]/40 hover:text-[#141923]"
             >
               <X className="w-5 h-5" />
             </button>
@@ -901,21 +719,21 @@ function SettingsContent() {
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-[#0A1628]">Cancel Subscription?</h3>
-                <p className="text-xs text-[#1C1C1C]/60">Confirm Subscription Modification</p>
+                <h3 className="text-base font-semibold text-[#141923]">Cancel Subscription?</h3>
+                <p className="text-xs text-[#364152]/60">Confirm Subscription Modification</p>
               </div>
             </div>
-            <p className="text-xs text-[#1C1C1C]/80 leading-relaxed mb-4">
+            <p className="text-xs text-[#364152]/80 leading-relaxed mb-4">
               You will retain full access to all your current plan features, monthly compute credits, and export tools until <strong>{renewalDateDisplay}</strong>. After this date, your account will automatically revert to the Free tier.
             </p>
-            <p className="text-xs text-[#1C1C1C]/60 leading-relaxed mb-6">
+            <p className="text-xs text-[#364152]/60 leading-relaxed mb-6">
               Saved ideas, reports, and generated lean canvases will not be deleted.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setCancelDialogOpen(false)}
               disabled={cancellingSub}
-                className="px-4 py-2 text-xs font-medium border border-[#E8E0D0] text-[#0A1628] rounded hover:bg-[#E8E0D0]"
+                className="px-4 py-2 text-xs font-medium border border-[#E5E7EB] text-[#141923] rounded hover:bg-[#E5E7EB]"
               >
                 Keep Subscription
               </button>
@@ -945,7 +763,7 @@ export default function SettingsPage() {
     <Suspense
       fallback={
         <div className="min-h-[50vh] flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-[#C8A860]" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#E0A526]" />
         </div>
       }
     >

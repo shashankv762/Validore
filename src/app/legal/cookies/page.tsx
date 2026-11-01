@@ -1,94 +1,23 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import { PolicyPage } from '@/components/legal/PolicyPage'
+import { CookieSettingsButton } from '@/components/CookieNotice'
 
-export const metadata = {
-  title: 'Cookie Policy | Validore',
-  description: 'Cookie Policy for Validore - AI-powered startup validation.',
-}
+export const metadata = { title: 'Cookie Policy', description: 'Essential cookies and browser storage used by Validore. Optional tracking is off.' }
 
-export default function LegalPage() {
-  return (
-    <div className="min-h-screen bg-[#F5F0E8] flex flex-col">
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
-        </Link>
-        <div className="flex items-center gap-6">
-          <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#96792b] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
-            Sign In
-          </Link>
-        </div>
-      </nav>
-
-      <main className="flex-1 max-w-3xl w-full mx-auto px-8 py-16">
-        <div className="card-angular p-10 bg-[#FAFAF7]">
-          
-<h1 className="text-3xl font-light text-[#0A1628] mb-8">Cookie Policy</h1>
-<div className="text-sm text-[#1C1C1C] opacity-70 mb-8">Last updated: September 30, 2026</div>
-
-<div className="prose prose-sm max-w-none text-[#1C1C1C]">
-  <p className="mb-6 text-lg">We value your privacy and aim to be completely transparent about our use of cookies.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Strictly Necessary Cookies Only</h2>
-  <p className="mb-4">We use <strong>strictly necessary cookies only</strong> for authentication and session management (powered by Supabase auth). Without these cookies, you would not be able to log in to your Validore workspace.</p>
-  
-  <p className="mb-4">We do <strong>NOT</strong> use tracking cookies, advertising cookies, or third-party analytics cookies that store data on your device.</p>
-
-  <p className="mb-4">We use Vercel Analytics for monitoring our website traffic, which is a <strong>cookieless</strong> solution. It does not place any cookies on your device or track you across the internet.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Cookie Consent</h2>
-  <p className="mb-4 p-4 bg-[#F5F0E8] border-l-4 border-[#C8A860]">
-    Since we only use strictly necessary cookies, <strong>no cookie consent banner is required</strong> under the GDPR or the ePrivacy Directive.
-  </p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Cookies We Use</h2>
-  <div className="overflow-x-auto my-6">
-    <table className="min-w-full text-left border-collapse border border-[#E8E0D0]">
-      <thead>
-        <tr className="bg-[#F5F0E8]">
-          <th className="border border-[#E8E0D0] px-4 py-2 font-medium">Cookie Name</th>
-          <th className="border border-[#E8E0D0] px-4 py-2 font-medium">Purpose</th>
-          <th className="border border-[#E8E0D0] px-4 py-2 font-medium">Duration</th>
-          <th className="border border-[#E8E0D0] px-4 py-2 font-medium">Type</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td className="border border-[#E8E0D0] px-4 py-2 text-sm font-mono">sb-*-auth-token</td>
-          <td className="border border-[#E8E0D0] px-4 py-2 text-sm">Maintains your authenticated session across the platform.</td>
-          <td className="border border-[#E8E0D0] px-4 py-2 text-sm">Session / Persistent (varies)</td>
-          <td className="border border-[#E8E0D0] px-4 py-2 text-sm">Essential</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Future Changes</h2>
-  <p className="mb-4">If we ever introduce non-essential cookies (e.g., marketing pixels or traditional analytics), we will update this policy and implement a strict consent mechanism before any such cookies are placed on your device.</p>
-</div>
-
-        </div>
-      </main>
-
-      <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
-        <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-2">
-             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
-           </div>
-           <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
-              <Link href="/legal/privacy" className="hover:text-[#96792b]">Privacy Policy</Link>
-              <Link href="/legal/terms" className="hover:text-[#96792b]">Terms of Service</Link>
-              <Link href="/legal/cookies" className="hover:text-[#96792b]">Cookie Policy</Link>
-              <Link href="/legal/refund" className="hover:text-[#96792b]">Refund Policy</Link>
-           </div>
-        </div>
-        <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
-        </div>
-      </footer>
-    </div>
-  )
+export default function CookiesPage() {
+  return <PolicyPage eyebrow="Just the essentials" title="Cookies & browser storage" summary="We use storage for sign-in, security, and saving your work. Optional analytics, advertising, and session-replay trackers are not enabled." sections={[
+    { id: 'approach', title: 'Our approach', content: <><p>Cookies send small values with requests. Local and session storage keep information in your browser. We use these technologies for the service functions below. Essential storage is not an optional marketing preference.</p><p>“Got it” acknowledges the notice. It does not opt you into advertising, analytics, or model training. There is no “accept all” setting because no optional trackers are configured.</p></> },
+    { id: 'inventory', title: 'Storage inventory', content: <div className="policy-table-wrap"><table><thead><tr><th>Name or pattern</th><th>Purpose</th><th>Location / duration</th></tr></thead><tbody>
+      <tr><td><code>sb-*-auth-token</code> and chunks</td><td>Supabase sign-in and session refresh.</td><td>Cookie; expiry and renewal follow Supabase session settings. Sign-out clears local session cookies.</td></tr>
+      <tr><td><code>sb-*-auth-token-code-verifier</code></td><td>Proves an authentication or recovery flow began in this browser.</td><td>Temporary cookie managed by Supabase; removed or expired by the authentication flow.</td></tr>
+      <tr><td><code>validore:essential-notice:v1</code></td><td>Remembers the notice and policy version.</td><td>Local storage; treated as expired after 180 days or a policy-version change.</td></tr>
+      <tr><td><code>validore:device:v1</code></td><td>Random identifier for recent account activity and abuse controls; not an advertising ID.</td><td>Local storage; renewed after 30 days.</td></tr>
+      <tr><td><code>validore_device_registered:*</code></td><td>Avoids repeatedly registering the signed-in browser.</td><td>Session storage; this tab.</td></tr>
+      <tr><td><code>validore:brief:*</code></td><td>Restores the same account’s unfinished brief.</td><td>Session storage; cleared when a report is ready or the tab session ends.</td></tr>
+      <tr><td><code>validore:account-refresh</code></td><td>A timestamp telling other tabs to refresh your balance. It contains no account or report data.</td><td>Local storage; replaced after the next account update or removed with site data.</td></tr>
+    </tbody></table></div> },
+    { id: 'external', title: 'External service cookies', content: <p>Authentication pages and Stripe checkout can set their own cookies when visited. Their notices apply there. Validore does not load advertising or payment-tracking scripts on ordinary pages. See our <Link href="/legal/privacy">Privacy Policy</Link> for provider processing.</p> },
+    { id: 'controls', title: 'Your controls', content: <><p>Use <CookieSettingsButton className="policy-inline-button" /> to review the notice. Browser settings can clear or block storage, although this may prevent sign-in or draft restoration. Sign out and clear site data on shared devices.</p><p>Clearing browser storage does not delete saved reports or answers. Clear an interview in its controls or request deletion through the <Link href="/legal/privacy#choices">privacy contact</Link>.</p></> },
+    { id: 'future', title: 'If optional tracking is introduced', content: <p>We will update this inventory and implement required choices before enabling non-essential tracking. Optional consent will not be bundled with account creation, essential security, or workspace access.</p> },
+  ]} />
 }

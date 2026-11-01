@@ -1,252 +1,79 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
+import { ArrowUpRight, Check, ChartNoAxesCombined, Layers, Presentation, Search, ShieldCheck, Target, Plus } from 'lucide-react'
+import { Brand } from '@/components/Brand'
+import { LandingNav } from '@/components/marketing/LandingNav'
+import { ReportPreview } from '@/components/marketing/ReportPreview'
+import { billingAvailability } from '@/lib/billing-availability'
+import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import './landing.css'
 
 export const metadata: Metadata = {
-  title: 'Validore — Know it\'s gold before you dig.',
-  description: 'AI-powered startup idea validation. Validate your startup with market research, competitor analysis, financial modelling, and a GO/NO-GO score — before you invest a single rupee.',
-  openGraph: {
-    title: 'Validore — Know it\'s gold before you dig.',
-    description: 'AI-powered startup idea validation platform. Get your Validation Score /100 in minutes.',
-    url: process.env.NEXT_PUBLIC_APP_URL,
-    siteName: 'Validore',
-    type: 'website',
-    images: [{ url: `${process.env.NEXT_PUBLIC_APP_URL}/og-image.svg`, width: 1200, height: 630 }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'Validore — Know it\'s gold before you dig.',
-    description: 'AI-powered startup idea validation. Get your GO/NO-GO score in minutes.',
-  },
+  title: { absolute: "Validore — Know it's gold before you dig." },
+  description: 'Explore your startup idea with AI-assisted market research, competitor analysis, financial models, and a practical plan for what to test next.',
+  alternates: { canonical: '/' },
 }
 
+const modules = [
+  { icon: Search, name: 'Validation report', text: 'Understand your market, customers, competition, and risks. See the reasoning behind your score, with assumptions clearly marked.', detail: 'A decision you can work with', featured: true },
+  { icon: Layers, name: 'Lean Canvas', text: 'Bring your business model onto one page. Write it yourself, or use AI to help you explore it.', detail: 'From scattered thoughts to a clear model' },
+  { icon: ChartNoAxesCombined, name: 'Pricing simulator', text: 'Explore pricing and unit economics. Change the assumptions and see what your business needs to work.', detail: 'Make the numbers make sense' },
+  { icon: Target, name: 'Crowdfunding analysis', text: 'Examine campaign assumptions and readiness using illustrative benchmarks. Build a plan for testing demand.', detail: 'Prepare before asking for support' },
+  { icon: Presentation, name: 'Pitch deck builder', text: 'Turn your idea and analysis into a structured story, ready to refine and export for your next conversation.', detail: 'A starting point for your pitch' },
+]
+const questions = [
+  { question: 'What do I get with the free plan?', answer: 'One active idea, two Lite validations per month, a weighted score, key risks, and proposed next steps. You can also write and save a manual Lean Canvas. No payment card is needed to create an account.' },
+  { question: 'Can an AI report prove that my idea will work?', answer: 'No. Validore helps you organise research and identify assumptions. Scores and financial projections are estimates, not guarantees. Use the report to plan customer interviews and real-world experiments before you invest.' },
+  { question: 'Where does the research come from?', answer: 'When live search is available, reports include retrieved sources and label their evidence. If sources are unavailable, the report marks claims as unverified estimates. Crowdfunding benchmarks are synthetic examples, not a verified history of real campaigns.' },
+  { question: 'Can I return to my report later?', answer: 'Yes. Your saved reports and Lean Canvas versions stay in your workspace. You can revisit your findings, refine your assumptions, and decide what to test next.' },
+]
+
 export default function LandingPage() {
-  return (
-    <main className="min-h-screen" style={{ background: 'var(--cream)' }}>
-      <a href="#landing-content" className="skip-link">Skip to content</a>
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-4 sm:px-8 py-3 sm:py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
-        <div className="flex items-center gap-3">
-          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
-        </div>
-        <div className="flex items-center gap-3 sm:gap-6">
-          <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#C8A860] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
-            Sign In
-          </Link>
-          <Link
-            href="/auth/signup"
-            className="min-h-11 px-3 sm:px-5 py-3 text-sm font-medium text-[#0A1628] transition-all hover:opacity-90 focus:ring-2 focus:ring-[#0A1628] outline-none"
-            style={{ background: 'var(--gold-gradient)', borderRadius: '2px 10px 2px 10px' }}
-          >
-            Start Free
-          </Link>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section id="landing-content" tabIndex={-1} className="max-w-5xl mx-4 sm:mx-8 lg:mx-auto px-6 sm:px-8 py-14 sm:py-24 text-center bg-[#0A1628] rounded-xl my-4 sm:my-8 card-angular" style={{ background: 'var(--navy)' }}>
-        <h1 className="text-4xl sm:text-5xl md:text-6xl font-light text-[#F5F0E8] leading-tight mb-6" style={{ letterSpacing: '-0.02em' }}>
-          Know it&apos;s gold<br />
-          <span style={{ color: 'var(--gold)' }}>
-            before you dig.
-          </span>
-        </h1>
-        <p className="text-base sm:text-lg md:text-xl text-[#F5F0E8] opacity-85 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Validate your startup idea with AI-driven market research, competitor analysis, financial modelling, and a scored GO / NO-GO recommendation — before you invest time or money.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link
-            href="/auth/signup"
-            className="px-8 py-4 text-base font-medium text-[#0A1628] transition-all hover:opacity-90 focus:ring-2 focus:ring-white outline-none"
-            style={{ background: 'var(--gold-gradient)', borderRadius: '2px 14px 2px 14px' }}
-          >
-            Validate Your Idea Free →
-          </Link>
-          <Link
-            href="#pricing"
-            className="px-8 py-4 text-base font-medium text-[#F5F0E8] border border-[#E8E0D0] hover:border-[#C8A860] transition-colors card-angular focus:ring-2 focus:ring-white outline-none"
-            style={{ background: 'transparent' }}
-          >
-            See Pricing
-          </Link>
-        </div>
-        
-        <p className="mt-6 text-sm"><Link href="/demo" className="text-[#C8A860] underline underline-offset-4">Explore a sample validation report</Link></p>
-
-        {/* Visual Representation */}
-        <div className="mt-16 mx-auto max-w-3xl bg-[#FAFAF7] p-4 sm:p-8 rounded-xl card-angular shadow-xl relative overflow-hidden">
-          <div className="mb-4 flex justify-end"><span className="rounded border border-[#B8963E] px-2 py-1 text-xs font-medium text-[#0A1628]">Demo data</span></div>
-          <div className="flex items-center justify-between mb-8 border-b border-[#E8E0D0] pb-4">
-             <div className="text-left">
-                <div className="text-sm text-[#1C1C1C] opacity-60">Validation Report</div>
-                <div className="text-xl font-medium text-[#0A1628]">Project Alpha</div>
-             </div>
-             <div className="w-16 h-16 rounded-full border-4 border-[#C8A860] flex items-center justify-center relative">
-                <span className="text-xl font-bold text-[#1C1C1C]">78</span>
-             </div>
+  const billing = billingAvailability()
+  const plans = [
+    { name: PLAN_CATALOG.free.name, price: formatUsd(PLAN_CATALOG.free.monthlyPriceUsd), period: '', description: 'Explore your first idea.', available: true, features: [`${PLAN_CATALOG.free.activeIdeaLimit} active idea`, `${PLAN_CATALOG.free.validationLimit} Lite validations per month`, 'Weighted score, risks, and next steps', 'Manual Lean Canvas', 'PDF and editable Word downloads'], href: '/auth/signup', action: 'Start for free' },
+    { name: PLAN_CATALOG.premium.name, price: formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd), period: '/ month', description: 'Go deeper into your business model.', available: billing.premium, features: [`${PLAN_CATALOG.premium.monthlyCredits.toLocaleString()} monthly credits`, `${PLAN_CATALOG.premium.activeIdeaLimit} active ideas · ${PLAN_CATALOG.premium.validationLimit} validation limit`, 'Full report and AI Lean Canvas', 'Pricing simulator and CSV exports', 'PDF and editable Word downloads'], href: '/auth/signup?next=/dashboard/settings', action: 'Explore Premium' },
+    { name: PLAN_CATALOG.max_premium.name, price: formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd), period: '/ month', description: 'Prepare your fundraising story.', available: billing.maxPremium, features: [`${PLAN_CATALOG.max_premium.monthlyCredits.toLocaleString()} monthly credits`, `${PLAN_CATALOG.max_premium.validationLimit} validation limit · credits apply`, 'Premium features plus campaign planning', 'Pitch decks, PPTX and white-label PDF'], href: '/auth/signup?next=/dashboard/settings', action: 'Explore Max Premium' },
+  ]
+  return <div className="landing">
+    <a href="#landing-content" className="skip-link">Skip to content</a>
+    <LandingNav />
+    <main id="landing-content" tabIndex={-1}>
+      <section className="landing-hero" aria-labelledby="hero-title">
+        <div className="hero-contours" aria-hidden="true"><span /><span /><span /><span /></div>
+        <div className="landing-container hero-layout">
+          <div className="hero-copy">
+            <div className="hero-intro"><span aria-hidden="true" />A clearer starting point for your startup</div>
+            <h1 id="hero-title">Know it&apos;s gold<br />before you dig.</h1>
+            <p className="hero-description">Big ideas deserve a closer look. Explore your market, question your assumptions, and find your next move before you go all in.</p>
+            <div className="hero-actions"><Link href="/auth/signup" className="button button-gold">Validate your idea<ArrowUpRight size={18} aria-hidden="true" /></Link><Link href="/demo" className="button button-quiet">Explore a sample report</Link></div>
+            <p className="hero-note"><Check size={15} aria-hidden="true" />Free to start. No card needed.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
-             <div className="p-4 bg-[#F5F0E8] rounded-lg">
-                <div className="text-xs text-[#1C1C1C] opacity-70">Market Size</div>
-                <div className="text-lg font-medium text-[#0A1628]">$2.4B</div>
-             </div>
-             <div className="p-4 bg-[#F5F0E8] rounded-lg">
-                <div className="text-xs text-[#1C1C1C] opacity-70">Competitors</div>
-                <div className="text-lg font-medium text-[#0A1628]">12 Found</div>
-             </div>
-             <div className="p-4 bg-[#F5F0E8] rounded-lg">
-                <div className="text-xs text-[#1C1C1C] opacity-70">Recommendation</div>
-                <div className="text-lg font-medium text-[#C8A860]">GO</div>
-             </div>
-          </div>
+          <div className="hero-preview"><ReportPreview /></div>
         </div>
+        <div className="landing-container hero-foundation"><p>Look at your idea from every angle.</p><ul aria-label="Analysis perspectives"><li>Market</li><li>Customers</li><li>Competition</li><li>Finance</li><li>Risk</li><li>Next steps</li></ul></div>
       </section>
-
-      {/* Features */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-8 py-14 sm:py-20">
-         <h2 className="text-3xl font-light text-center text-[#0A1628] mb-12">Five Modules to De-Risk Your Startup</h2>
-         <div className="grid md:grid-cols-2 gap-8">
-            <div className="card-angular p-6 hover:shadow-md transition-shadow">
-               <h3 className="text-xl font-medium text-[#0A1628] mb-2">1. Validation Report</h3>
-               <p className="text-[#1C1C1C] opacity-80 text-sm">A 40-section deep analysis including market research, competitor benchmarking, and a GO/NO-GO score.</p>
-            </div>
-            <div className="card-angular p-6 hover:shadow-md transition-shadow">
-               <h3 className="text-xl font-medium text-[#0A1628] mb-2">2. Lean Canvas Automation</h3>
-               <p className="text-[#1C1C1C] opacity-80 text-sm">Automatically generate and iterate on your 1-page business plan using AI insights.</p>
-            </div>
-            <div className="card-angular p-6 hover:shadow-md transition-shadow">
-               <h3 className="text-xl font-medium text-[#0A1628] mb-2">3. Pricing Simulator</h3>
-               <p className="text-[#1C1C1C] opacity-80 text-sm">Run dynamic financial models and scenarios to find the perfect price point for your product.</p>
-            </div>
-            <div className="card-angular p-6 hover:shadow-md transition-shadow">
-               <h3 className="text-xl font-medium text-[#0A1628] mb-2">4. Crowdfunding Predictor</h3>
-               <p className="text-[#1C1C1C] opacity-80 text-sm">Estimate campaign success probability based on a 300-campaign benchmark dataset.</p>
-            </div>
-            <div className="card-angular p-6 hover:shadow-md transition-shadow md:col-span-2 text-center max-w-2xl mx-auto">
-               <h3 className="text-xl font-medium text-[#0A1628] mb-2">5. Pitch Deck Builder</h3>
-               <p className="text-[#1C1C1C] opacity-80 text-sm">Export a ready-to-present pitch deck in PDF format, complete with white-label styling.</p>
-            </div>
-         </div>
+      <section id="workflow" className="landing-container workflow-section" aria-labelledby="workflow-title">
+        <div className="section-intro"><h2 id="workflow-title">Less guesswork.<br />A better next move.</h2><p>You don&apos;t need a finished business plan. Start with the idea you have, and build clarity from there.</p></div>
+        <ol className="workflow-steps">
+          <li><span className="step-number" aria-hidden="true">01</span><h3>Tell us what you&apos;re building</h3><p>A few guided questions about your customer, the problem, and how you plan to solve it.</p></li>
+          <li><span className="step-number" aria-hidden="true">02</span><h3>See the whole picture</h3><p>Review the opportunity, the tradeoffs, and the gaps. Follow the reasoning behind each finding.</p></li>
+          <li><span className="step-number" aria-hidden="true">03</span><h3>Choose what to test next</h3><p>Leave with a practical action plan. Talk to customers, test the riskiest assumptions, and refine your idea.</p></li>
+        </ol>
       </section>
-
-      {/* Social Proof */}
-      <section className="max-w-5xl mx-auto px-8 pb-20">
-         <div className="bg-[#0A1628] rounded-xl p-10 card-angular text-center text-[#F5F0E8]">
-            <h2 className="text-2xl font-light mb-8 text-[#C8A860]">Powered by verifiable data & models</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-               <div>
-                  <div className="text-3xl font-light mb-1">5</div>
-                  <div className="text-xs opacity-70">AI Models</div>
-               </div>
-               <div>
-                  <div className="text-3xl font-light mb-1">18</div>
-                  <div className="text-xs opacity-70">Financial Formulas</div>
-               </div>
-               <div>
-                  <div className="text-3xl font-light mb-1">300+</div>
-                  <div className="text-xs opacity-70">Campaign Benchmarks</div>
-               </div>
-               <div>
-                  <div className="text-3xl font-light mb-1">40</div>
-                  <div className="text-xs opacity-70">Analysis Sections</div>
-               </div>
-            </div>
-         </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="pricing" className="max-w-5xl mx-auto px-4 sm:px-8 py-14 sm:py-20">
-        <h2 className="text-3xl font-light text-center text-[#0A1628] mb-4">Simple, honest pricing</h2>
-        <p className="text-center text-[#1C1C1C] opacity-60 mb-12">No lock-in. Cancel anytime.</p>
-        <div className="grid md:grid-cols-3 gap-6">
-          {[
-            {
-              name: 'Free',
-              price: '$0',
-              description: 'The Validator',
-              features: ['1 active idea', '2 AI validations/mo', 'Lite score + GO/NO-GO', 'Public shareable report', 'Manual Lean Canvas'],
-              cta: 'Start Free',
-              href: '/auth/signup',
-              highlight: false,
-            },
-            {
-              name: 'Premium',
-              price: '$29',
-              per: '/mo',
-              description: 'The Business Model Suite',
-              features: ['10 ideas · 15 validations/mo', '40-section deep report', 'Lean Canvas Automation', 'Smart Pricing Simulator', 'PDF + CSV exports'],
-              cta: 'Start Premium',
-              href: '/auth/signup?plan=premium',
-              highlight: true,
-            },
-            {
-              name: 'Max Premium',
-              price: '$79',
-              per: '/mo',
-              description: 'The Fundraising Suite',
-              features: ['50 validations/mo', 'Crowdfunding Predictor', 'Pitch Deck Builder', 'PPTX + White-label PDF', 'Portfolio site export'],
-              cta: 'Go Max Premium',
-              href: '/auth/signup?plan=max',
-              highlight: false,
-            },
-          ].map((plan) => (
-            <div
-              key={plan.name}
-              className={`card-angular p-8 relative ${plan.highlight ? 'border-[#C8A860] ring-1 ring-[#C8A860]' : ''}`}
-            >
-              {plan.highlight && (
-                <div className="absolute top-0 right-8 transform -translate-y-1/2 bg-[#C8A860] text-[#0A1628] text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                  Most Popular
-                </div>
-              )}
-              <div className="text-sm font-medium text-[#C8A860] mb-1">{plan.description}</div>
-              <div className="text-3xl font-light text-[#0A1628] mb-1">
-                {plan.price}<span className="text-base opacity-60">{plan.per}</span>
-              </div>
-              <div className="text-xl font-light text-[#1C1C1C] mb-6">{plan.name}</div>
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-[#1C1C1C]">
-                    <span className="text-[#C8A860] mt-0.5">✦</span> {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href={plan.href}
-                className={`block w-full text-center py-3 text-sm font-medium transition-all focus:ring-2 focus:ring-[#C8A860] outline-none ${
-                  plan.highlight
-                    ? 'text-[#0A1628]'
-                    : 'text-[#1C1C1C] border border-[#E8E0D0] hover:border-[#C8A860]'
-                }`}
-                style={plan.highlight ? { background: 'var(--gold-gradient)', borderRadius: '2px 10px 2px 10px' } : { borderRadius: '2px 10px 2px 10px' }}
-              >
-                {plan.cta}
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
-        <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-2">
-             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
-           </div>
-           <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
-              <Link href="/legal/privacy" className="hover:text-[#C8A860]">Privacy Policy</Link>
-              <Link href="/legal/terms" className="hover:text-[#C8A860]">Terms of Service</Link>
-              <Link href="/legal/cookies" className="hover:text-[#C8A860]">Cookie Policy</Link>
-              <Link href="/legal/refund" className="hover:text-[#C8A860]">Refund Policy</Link>
-           </div>
-        </div>
-        <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
-        </div>
-      </footer>
+      <section id="inside" className="tools-section" aria-labelledby="tools-title"><div className="landing-container">
+        <div className="section-intro"><h2 id="tools-title">One idea.<br />Room to explore it.</h2><p>Keep your research, business model, and launch thinking connected in one workspace.</p></div>
+        <div className="tools-grid">{modules.map(({ icon: Icon, ...module }) => <article key={module.name} className={'tool-card' + (module.featured ? ' tool-featured' : '')}><Icon size={25} strokeWidth={1.5} aria-hidden="true" /><h3>{module.name}</h3><p>{module.text}</p><span className="tool-detail">{module.detail}</span>{module.featured && <Link href="/demo" className="text-link">Read the sample report<ArrowUpRight size={17} aria-hidden="true" /></Link>}</article>)}</div>
+        <p className="tools-note">Modules depend on your plan. The free plan includes Lite validation and a manual Lean Canvas.</p>
+      </div></section>
+      <section className="landing-container evidence-section" aria-labelledby="evidence-title"><div className="evidence-symbol" aria-hidden="true"><ShieldCheck size={36} strokeWidth={1.25} /></div><div><h2 id="evidence-title">Clarity includes knowing<br />what you don&apos;t know.</h2><p>A promising score is a starting point. Validore distinguishes retrieved sources from AI estimates, flags gaps, and gives you assumptions to test with real customers.</p></div><Link href="/demo" className="text-link">See how a report reads<ArrowUpRight size={18} aria-hidden="true" /></Link></section>
+      <section id="pricing" className="pricing-section" aria-labelledby="pricing-title"><div className="landing-container">
+        <div className="section-intro"><h2 id="pricing-title">Start with curiosity.<br />Start for free.</h2><p>{billing.premium || billing.maxPremium ? 'Choose the depth that fits your next decision. Manage your plan from your workspace.' : 'Explore Lite validation today. Paid plans are coming soon; start with the free workspace.'}</p></div>
+        <div className="pricing-grid">{plans.map((plan, index) => <article className={'plan-card' + (index === 0 ? ' plan-free' : '')} key={plan.name}><div className="plan-heading"><h3>{plan.name}</h3><span className="plan-status">{index === 0 ? 'Start here' : plan.available ? 'Available' : 'Coming soon'}</span></div><p className="plan-description">{plan.description}</p><p className="plan-price">{!plan.available && <span className="planned-price">Planned pricing</span>}{plan.price}<span>{plan.period}</span></p><ul>{plan.features.map(feature => <li key={feature}><Check size={16} aria-hidden="true" />{feature}</li>)}</ul>{plan.available ? <Link href={plan.href} className={'button ' + (index === 0 ? 'button-navy' : 'button-outline')}>{plan.action}<ArrowUpRight size={17} aria-hidden="true" /></Link> : <p className="plan-unavailable">Paid signups aren&apos;t open yet.</p>}</article>)}</div>
+      </div></section>
+      <section className="landing-container faq-section" aria-labelledby="faq-title"><div><h2 id="faq-title">A few things<br />you might be wondering.</h2><p>The details, before you get started.</p></div><div className="faq-list">{questions.map(item => <details className="faq-item" key={item.question}><summary>{item.question}<Plus size={19} aria-hidden="true" /></summary><p>{item.answer}</p></details>)}</div></section>
+      <section className="landing-container closing-section" aria-labelledby="closing-title"><Brand light /><h2 id="closing-title">Your next big idea.<br />Your first clear step.</h2><Link href="/auth/signup" className="button button-gold">Let&apos;s explore your idea<ArrowUpRight size={18} aria-hidden="true" /></Link></section>
     </main>
-  )
+    <footer className="landing-footer landing-container"><div className="footer-top"><Brand /><p>Know it&apos;s gold before you dig.</p><nav aria-label="Legal and contact"><a href="mailto:aegixchainai@gmail.com">Contact</a><Link href="/legal/privacy">Privacy</Link><Link href="/legal/terms">Terms</Link><Link href="/legal/cookies">Cookies</Link><Link href="/legal/refund">Refunds</Link></nav></div><div className="footer-bottom"><p>© {new Date().getFullYear()} Validore</p><p>Built for founders, by Shashank V, Bengaluru, Karnataka, India.</p></div></footer>
+  </div>
 }

@@ -1,27 +1,48 @@
 import { db } from '@/db'
 import { ideas, users, validationJobs, validationReports } from '@/db/schema'
-import { eq, and, inArray, or, lt, isNull } from 'drizzle-orm'
+import { eq, and, inArray, or, lt, isNull, sql } from 'drizzle-orm'
 import { NonRetriableError } from 'inngest'
 import { randomUUID } from 'node:crypto'
 import { runLiteValidation, runFullValidation } from './engine'
 import { decryptApiKey } from '@/lib/byok-crypto'
 import { refundValidationCredits } from '@/lib/credits'
+import { runInlineStep, type RunValidationStep } from './steps'
+import type { IdeaInput } from './schemas'
+import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
+import { loadFounderContext } from '@/lib/interview/context'
 
 type GeneratedReport = Awaited<ReturnType<typeof runLiteValidation>> | NonNullable<Awaited<ReturnType<typeof runFullValidation>>>
 
-export async function generateValidationReport(jobId: string): Promise<GeneratedReport> {
-  const job = await db.query.validationJobs.findFirst({ where: eq(validationJobs.id, jobId) })
-  if (!job) throw new Error('Validation job not found')
-  const user = await db.query.users.findFirst({ where: eq(users.id, job.userId) })
-  const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, job.ideaId), eq(ideas.userId, job.userId)) })
-  if (!user || !idea) throw new Error('Validation owner or idea not found')
-  const [claimed] = await db.update(validationJobs).set({ status: 'running', updatedAt: new Date() }).where(and(
-    eq(validationJobs.id, jobId), inArray(validationJobs.status, ['pending', 'running']),
-  )).returning({ id: validationJobs.id })
-  if (!claimed) throw new NonRetriableError('Validation job is no longer active')
+export async function generateValidationReport(jobId: string, options?: { runStep: RunValidationStep }): Promise<GeneratedReport> {
+  const executeStep = options?.runStep ?? runInlineStep
+  const context = await executeStep('prepare-validation', async () => {
+    const job = await db.query.validationJobs.findFirst({ where: eq(validationJobs.id, jobId) })
+    if (!job) throw new NonRetriableError('Validation job not found')
+    const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, job.ideaId), eq(ideas.userId, job.userId)) })
+    if (!idea) throw new NonRetriableError('Validation idea not found')
+    const [claimed] = await db.update(validationJobs).set({ status: 'running', updatedAt: new Date() }).where(and(
+      eq(validationJobs.id, jobId), inArray(validationJobs.status, ['pending', 'running']),
+    )).returning({ id: validationJobs.id })
+    if (!claimed) throw new NonRetriableError('Validation job is no longer active')
+    const input: IdeaInput = { name: idea.name, industry: idea.industry, product: idea.product,
+      targetCustomer: idea.targetCustomer, location: idea.location, businessModel: idea.businessModel,
+      coreProblem: idea.coreProblem, proposedSolution: idea.proposedSolution }
+    const privateContext = await loadFounderContext(idea.id, job.userId)
+    return { userId: job.userId, isLite: job.isLite, idea: input, privateContext }
+  })
+  // Keys are read afresh on the server, never returned from a durable step.
+  const user = await db.query.users.findFirst({ where: eq(users.id, context.userId) })
+  if (!user) throw new NonRetriableError('Validation owner not found')
   const opts = { preferredAiProvider: user.preferredAiProvider,
-    customOpenRouterKey: user.encryptedOpenrouterKey ? decryptApiKey(user.encryptedOpenrouterKey) : null }
-  const report = job.isLite ? await runLiteValidation(idea, opts) : await runFullValidation(idea, jobId, opts)
+    privateContext: context.privateContext,
+    customOpenRouterKey: user.encryptedOpenrouterKey ? decryptApiKey(user.encryptedOpenrouterKey) : null,
+    runStep: options?.runStep,
+    researchBudgetId: jobId,
+    onProgress: async (completed: number, total: number) => {
+      await db.update(validationJobs).set({ completedSections: sql`greatest(${validationJobs.completedSections}, ${completed})`, totalSections: total, updatedAt: new Date() })
+        .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+    } }
+  const report = context.isLite ? await runLiteValidation(context.idea, opts) : await runFullValidation(context.idea, jobId, opts)
   if (!report) throw new Error('AI generation failed')
   return report
 }
@@ -45,7 +66,7 @@ export async function completeValidationJob(jobId: string, report: GeneratedRepo
       decision: report.decision, decisionReasons: report.decisionReasons, keyEvidence: report.keyEvidence,
       keyRisks: report.keyRisks, actionPlan: report.actionPlan, reportData: report, isLite: job.isLite, status,
     }).returning({ id: validationReports.id })
-    await tx.update(validationJobs).set({ status, completedSections: job.isLite ? 1 : 6,
+    await tx.update(validationJobs).set({ status, completedSections: job.isLite ? LITE_AGENT_COUNT : FULL_AGENT_COUNT, totalSections: job.isLite ? LITE_AGENT_COUNT : FULL_AGENT_COUNT,
       tokensUsed: report.tokensUsed, aiProvider: report.provider, errorMessage: null, updatedAt: new Date(),
     }).where(eq(validationJobs.id, jobId))
     return saved.id

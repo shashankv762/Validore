@@ -8,8 +8,12 @@ export function today(): string {
 }
 
 export type AgentOpts = {
+  privateContext?: string
   customOpenRouterKey?: string | null
   preferredAiProvider?: string | null
+  sources?: SearchResult[]
+  researchBudgetId?: string
+  reuseResearch?: boolean
 }
 
 export type AgentSearchCtx = {

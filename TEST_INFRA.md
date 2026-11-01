@@ -1,6 +1,6 @@
 # Validore — Historical Test Infrastructure Specification
 
-> Historical specification only. The commands, tier paths, API inventory, schema counts, and test contracts below may not match the current repository. Treat package.json and vitest.config.ts as the sources of truth for current scripts and test discovery; see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for current verification evidence and open checks.
+> Historical specification only. The commands, tier paths, API inventory, schema counts, and test contracts below may not match the current repository. Treat package.json and vitest.config.mts as the sources of truth for current scripts and test discovery; see [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for current verification evidence and open checks. `npm run verify:agents` checks the current agent pipeline without external AI calls. The historical `tests/e2e/` folder uses mocked services and is not hosted end-to-end acceptance.
 
 ## 1. Overview & Architecture
 

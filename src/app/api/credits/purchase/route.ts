@@ -9,6 +9,8 @@ import { eq, desc } from 'drizzle-orm'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
 import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { validAuthOrigin } from '@/lib/auth-form'
+import { billingAvailability } from '@/lib/billing-availability'
+import { billingOrigin } from '@/lib/billing'
 
 const PurchaseSchema = z.object({
   creditType: z.enum(['crowdfunding', 'pitch_deck', 'bundle', 'credit_topup']),
@@ -72,6 +74,7 @@ export async function GET() {
         currentPeriodEnd: dbUser.currentPeriodEnd,
       },
       packages: CREDIT_PACKAGES,
+      billing: billingAvailability(),
       purchases,
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   } catch (err: unknown) {
@@ -159,7 +162,7 @@ export async function POST(req: NextRequest) {
 
     // Default provider: Stripe
     const stripeSecret = process.env.STRIPE_SECRET_KEY
-    if (!isStripeConfigured(stripeSecret)) {
+    if (!isStripeConfigured(stripeSecret) || !billingAvailability().credits) {
       return NextResponse.json(
         {
           error: 'Payment provider not configured or temporarily unavailable. Please contact support.',
@@ -170,9 +173,9 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const stripe = new Stripe(stripeSecret!)
+      const stripe = new Stripe(stripeSecret!, { timeout: 10_000, maxNetworkRetries: 1 })
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      const appUrl = billingOrigin()
       const successUrl = `${appUrl}/dashboard/credits?success=true&session_id={CHECKOUT_SESSION_ID}`
       const cancelUrl = `${appUrl}/dashboard/credits?canceled=true`
 

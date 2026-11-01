@@ -64,11 +64,11 @@ export function RiskRegisterTable({
   const rows = Array.isArray(risks) ? risks.filter(item => item && typeof item === 'object') : []
   if (rows.length === 0) {
     return (
-      <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
+      <div className={`card-angular p-6 bg-[#FFFFFF] shadow-sm ${className}`}>
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>
+          <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>
           {badge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#C8A860]/40 bg-amber-50 text-amber-800">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#E0A526]/40 bg-amber-50 text-amber-800">
               {badge}
             </span>
           )}
@@ -79,29 +79,41 @@ export function RiskRegisterTable({
   }
 
   return (
-    <div className={`card-angular p-6 bg-[#FAFAF7] shadow-sm ${className}`}>
+    <div className={`card-angular p-6 bg-[#FFFFFF] shadow-sm ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div>
-          <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>
-          {subtitle && <p className="text-xs text-[#1C1C1C] opacity-60 mt-0.5">{subtitle}</p>}
+          <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>
+          {subtitle && <p className="text-xs text-[#364152] opacity-60 mt-0.5">{subtitle}</p>}
         </div>
         {badge && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#C8A860]/40 bg-amber-50 text-amber-800 uppercase tracking-wide">
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#E0A526]/40 bg-amber-50 text-amber-800 ">
             {badge}
           </span>
         )}
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left border-collapse">
+      <ul className="grid gap-4 md:hidden" aria-label={title}>
+        {rows.map((item, index) => {
+          const level = resolveRiskLevel(item)
+          return <li key={index} className="rounded-lg border border-slate-200 p-4">
+            <span className={`inline-block rounded border px-2 py-1 text-[11px] capitalize ${getBadgeStyle(level)}`}>{level}</span>
+            <p className="text-sm font-medium leading-relaxed mt-3 text-[#141923]">{item.risk}</p>
+            <p className="text-xs leading-relaxed text-slate-500 mt-2">Probability: {item.probability || 'Unassessed'} · Impact: {item.impact || 'Unassessed'}</p>
+            <div className="mt-4 border-t border-slate-100 pt-3 text-xs leading-relaxed"><p className="font-medium text-slate-500 mb-1">Mitigation</p><p className="text-slate-700">{item.mitigation || 'Mitigation not provided'}</p></div>
+            {showOwner && <p className="text-xs text-slate-500 mt-3">Owner: {item.owner || 'Not assigned'}</p>}
+          </li>
+        })}
+      </ul>
+      <div className="hidden md:block overflow-x-auto" role="region" aria-label={title + ' table'} tabIndex={0}>
+        <table className="w-full min-w-[640px] text-xs text-left border-collapse [overflow-wrap:normal]">
           <thead>
-            <tr className="border-b border-[#E8E0D0] bg-[#F5F0E8]/70">
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Identified Risk</th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-24">Probability</th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-24">Impact</th>
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-28">Severity</th>
-              {showOwner && <th className="py-2.5 px-3 font-semibold text-[#0A1628] w-28">Owner</th>}
-              <th className="py-2.5 px-3 font-semibold text-[#0A1628]">Mitigation Strategy</th>
+            <tr className="border-b border-[#E5E7EB] bg-[#F7F8FA]/70">
+              <th className="py-2.5 px-3 font-semibold text-[#141923]">Identified Risk</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923] w-24">Probability</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923] w-24">Impact</th>
+              <th className="py-2.5 px-3 font-semibold text-[#141923] w-28">Severity</th>
+              {showOwner && <th className="py-2.5 px-3 font-semibold text-[#141923] w-28">Owner</th>}
+              <th className="py-2.5 px-3 font-semibold text-[#141923]">Mitigation Strategy</th>
             </tr>
           </thead>
           <tbody>
@@ -111,19 +123,19 @@ export function RiskRegisterTable({
               return (
                 <tr
                   key={idx}
-                  className="border-b border-[#E8E0D0] last:border-0 hover:bg-[#F5F0E8]/40 transition-colors"
+                  className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F7F8FA]/40 transition-colors"
                 >
-                  <td className="py-3 px-3 font-medium text-[#0A1628] align-top">
+                  <td className="py-3 px-3 font-medium text-[#141923] align-top">
                     {item.risk}
                     {item.category && (
-                      <span className="block text-[10px] text-stone-500 uppercase tracking-wider mt-0.5">
+                      <span className="block text-[10px] text-stone-500  mt-0.5">
                         {item.category}
                       </span>
                     )}
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
                     {item.probability ? (
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200">
+                      <span className="text-[10px] tabular-nums  px-2 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200">
                         {item.probability}
                       </span>
                     ) : (
@@ -132,7 +144,7 @@ export function RiskRegisterTable({
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
                     {item.impact ? (
-                      <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200">
+                      <span className="text-[10px] tabular-nums  px-2 py-0.5 rounded bg-stone-100 text-stone-700 border border-stone-200">
                         {item.impact}
                       </span>
                     ) : (
@@ -141,7 +153,7 @@ export function RiskRegisterTable({
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
                     <span
-                      className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${levelBadgeClass}`}
+                      className={`text-[10px] font-bold  px-2 py-0.5 rounded border ${levelBadgeClass}`}
                     >
                       {level}
                     </span>
@@ -151,9 +163,9 @@ export function RiskRegisterTable({
                       {item.owner || 'Not assigned'}
                     </td>
                   )}
-                  <td className="py-3 px-3 text-[#1C1C1C] opacity-90 leading-relaxed align-top">
+                  <td className="py-3 px-3 text-[#364152] opacity-90 leading-relaxed align-top">
                     <div className="flex items-start gap-1.5">
-                      <span className="text-[#C8A860] font-bold mt-0.5 select-none">↳</span>
+                      <span className="text-[#E0A526] font-bold mt-0.5 select-none">↳</span>
                       <span>{item.mitigation || 'Mitigation not provided'}</span>
                     </div>
                   </td>

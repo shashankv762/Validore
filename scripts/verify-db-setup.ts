@@ -18,6 +18,10 @@ const client = postgres(process.env.DATABASE_URL, { prepare: false })
 const db = drizzle(client)
 
 const EXPECTED_TABLES = [
+  'credit_ledger',
+  'user_devices',
+  'founder_interviews',
+  'research_sources',
   'credit_purchases',
   'crowdfunding_analyses',
   'founding_member_counter',
@@ -55,7 +59,7 @@ async function verify() {
     process.exit(1)
   }
 
-  // 2. Verify all 12 tables
+  // 2. Verify application tables and browser-role isolation.
   console.log('\n--- 1. Tables Verification ---')
   const tablesResult = await client`
     SELECT table_name 
@@ -74,6 +78,28 @@ async function verify() {
   } else {
     console.log(`✅ All ${EXPECTED_TABLES.length} expected tables exist.`)
   }
+
+  const access = await client`
+    SELECT c.relname AS table_name, c.relrowsecurity AS rls
+    FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = ANY(${EXPECTED_TABLES})
+  `
+  for (const table of access) {
+    if (!table.rls) { console.error('RLS disabled on application table:', table.table_name); hasErrors = true }
+  }
+  const browserRoles = await client`SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')`
+  for (const role of browserRoles) {
+    const exposed = await client`
+      SELECT c.relname AS table_name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = ANY(${EXPECTED_TABLES}) AND
+      (has_table_privilege(${role.rolname}, c.oid, 'SELECT') OR has_table_privilege(${role.rolname}, c.oid, 'INSERT') OR
+       has_table_privilege(${role.rolname}, c.oid, 'UPDATE') OR has_table_privilege(${role.rolname}, c.oid, 'DELETE'))
+    `
+    if (exposed.length) { console.error('Unexpected Data API grants:', role.rolname, exposed.map(row => row.table_name)); hasErrors = true }
+  }
+  const indexes = await client`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'
+    AND indexname IN ('founder_interviews_idea_uidx', 'research_sources_search_idx', 'validation_reports_job_uidx')`
+  if (indexes.length !== 3) { console.error('Required interview/research/report indexes are missing.'); hasErrors = true }
 
   // 3. Verify all 4 enums
   console.log('\n--- 2. Enums Verification ---')
@@ -138,11 +164,11 @@ async function verify() {
   if (counters.length !== 1) {
     console.error(`❌ Expected 1 counter row, found ${counters.length}`)
     hasErrors = true
-  } else if (counters[0].id !== 1 || counters[0].count !== 0 || counters[0].cap !== 100) {
+  } else if (counters[0].id !== 1 || counters[0].count < 0 || counters[0].count > counters[0].cap || counters[0].cap !== 100) {
     console.error(`❌ founding_member_counter unexpected values: ${JSON.stringify(counters[0])}`)
     hasErrors = true
   } else {
-    console.log(`✅ founding_member_counter initialized correctly (id=1, count=0, cap=100).`)
+    console.log('✅ founding_member_counter is within its configured limits.')
   }
 
   // 6. Verify synthetic_campaigns rows
@@ -178,7 +204,7 @@ async function verify() {
     console.error('❌ VERIFICATION FAILED: Issues found in database setup.')
     process.exit(1)
   } else {
-    console.log('✅ ALL VERIFICATIONS PASSED: Database is production ready!')
+    console.log('✅ Schema, seed, RLS, and table-grant checks passed. Verify hosted auth, owner isolation, queues, backups, views and RPC access separately before launch.')
     console.log('==========================================')
   }
 }

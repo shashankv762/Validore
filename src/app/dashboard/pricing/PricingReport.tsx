@@ -18,12 +18,12 @@ const Badge = ({ label }: { label: string }) => {
 }
 
 const Section = ({ title, badge, children }: { title: string, badge?: string, children: React.ReactNode }) => (
-  <div className="mb-6 card-angular p-6 bg-white border border-[#E8E0D0]">
-    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#E8E0D0]">
-      <h3 className="text-sm font-bold text-[#0A1628] uppercase tracking-wider">{title}</h3>
+  <div className="mb-6 card-angular p-6 bg-white border border-[#E5E7EB]">
+    <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#E5E7EB]">
+      <h3 className="text-sm font-bold text-[#141923] ">{title}</h3>
       {badge && <Badge label={badge} />}
     </div>
-    <div className="text-sm text-[#1C1C1C] leading-relaxed space-y-4">
+    <div className="text-sm text-[#364152] leading-relaxed space-y-4">
       {children}
     </div>
   </div>
@@ -33,10 +33,10 @@ export function PricingReport({ data }: { data: any }) {
   if (!data) return null;
   return (
     <div className="space-y-8 mt-8">
-      <h2 className="text-xl font-light text-[#0A1628] mb-4 border-b border-[#E8E0D0] pb-2">Pricing Strategy Report</h2>
+      <h2 className="text-xl font-light text-[#141923] mb-4 border-b border-[#E5E7EB] pb-2">Pricing Strategy Report</h2>
       
       <Section title="1. Pricing Problem" badge="AI_ESTIMATE_UNVERIFIED">
-        <p className="text-xs text-[#1C1C1C] leading-relaxed">{data.pricingProblem}</p>
+        <p className="text-xs text-[#364152] leading-relaxed">{data.pricingProblem}</p>
       </Section>
 
       <Section title="2. Customer Segments" badge="ASSUMPTION">
@@ -55,8 +55,8 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="3. Customer Personas" badge="AI_ESTIMATE_UNVERIFIED">
         <div className="grid grid-cols-1 gap-4">
           {data.customerPersonas?.map((p: any, i: number) => (
-            <div key={i} className="border p-3 text-xs bg-[#FAFAF7]">
-              <div className="font-bold text-[#96792b]">{p.name}</div>
+            <div key={i} className="border p-3 text-xs bg-[#FFFFFF]">
+              <div className="font-bold text-[#89620B]">{p.name}</div>
               <div className="text-stone-600 mb-1">{p.description}</div>
               <div><b>Budget:</b> {p.budget}</div>
               <div><b>Decision Factors:</b> {p.decisionFactors?.join(', ')}</div>
@@ -68,7 +68,7 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="4. WTP Questionnaire" badge="PROPOSED_STRATEGY">
         <div className="space-y-2 text-xs">
           {data.wtpQuestionnaire?.map((q: any, i: number) => (
-            <div key={i} className="border p-2 bg-[#FAFAF7]">
+            <div key={i} className="border p-2 bg-[#FFFFFF]">
               <div className="font-semibold">Q: {q.question}</div>
               <div className="pl-4 text-stone-600 italic">Options: {q.options?.join(' | ')}</div>
               <div className="text-emerald-700 mt-1">Insight: {q.insight}</div>
@@ -80,7 +80,7 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="5. Competitor Pricing Matrix" badge="SYNTHETIC DATA">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead><tr className="border-b bg-[#F5F0E8]/70"><th className="p-2">Competitor</th><th className="p-2">Price</th><th className="p-2">Tier</th><th className="p-2">Features</th><th className="p-2">Positioning</th></tr></thead>
+            <thead><tr className="border-b bg-[#F7F8FA]/70"><th className="p-2">Competitor</th><th className="p-2">Price</th><th className="p-2">Tier</th><th className="p-2">Features</th><th className="p-2">Positioning</th></tr></thead>
             <tbody>
               {data.competitorPricingMatrix?.map((c: any, i: number) => (
                 <tr key={i} className="border-b"><td className="p-2">{c.competitor}</td><td className="p-2">${c.price}</td><td className="p-2">{c.tier}</td><td className="p-2">{c.features?.join(', ')}</td><td className="p-2">{c.positioning}</td></tr>
@@ -108,18 +108,18 @@ export function PricingReport({ data }: { data: any }) {
 
       <Section title="7. Cost Breakdown" badge="PROJECTION">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-xs">
-          <div className="border p-2 bg-[#FAFAF7]"><b>COGS:</b> ${data.costBreakdown?.cogs}</div>
-          <div className="border p-2 bg-[#FAFAF7]"><b>Fixed Costs:</b> ${data.costBreakdown?.fixedCosts}</div>
-          <div className="border p-2 bg-[#FAFAF7]"><b>Variable:</b> ${data.costBreakdown?.variableCosts}</div>
-          <div className="border p-2 bg-[#FAFAF7]"><b>Target Margin:</b> {data.costBreakdown?.targetMargin}%</div>
-          <div className="border p-2 bg-[#FAFAF7]"><b>Break-Even Price:</b> ${data.costBreakdown?.breakEvenPrice}</div>
+          <div className="border p-2 bg-[#FFFFFF]"><b>COGS:</b> ${data.costBreakdown?.cogs}</div>
+          <div className="border p-2 bg-[#FFFFFF]"><b>Fixed Costs:</b> ${data.costBreakdown?.fixedCosts}</div>
+          <div className="border p-2 bg-[#FFFFFF]"><b>Variable:</b> ${data.costBreakdown?.variableCosts}</div>
+          <div className="border p-2 bg-[#FFFFFF]"><b>Target Margin:</b> {data.costBreakdown?.targetMargin}%</div>
+          <div className="border p-2 bg-[#FFFFFF]"><b>Break-Even Price:</b> ${data.costBreakdown?.breakEvenPrice}</div>
         </div>
       </Section>
 
       <Section title="8. Pricing Models" badge="PROPOSED_STRATEGY">
         <div className="grid gap-4">
           {data.pricingModels?.map((m: any, i: number) => (
-            <div key={i} className="border p-3 text-xs bg-[#FAFAF7]">
+            <div key={i} className="border p-3 text-xs bg-[#FFFFFF]">
               <div className="font-bold flex justify-between"><span>{m.name}</span><span className="text-emerald-700">Suitability: {m.suitabilityScore}/100</span></div>
               <div className="text-stone-600 mb-2">{m.description}</div>
               <div className="mb-1"><b>Recommended Price:</b> ${m.recommendedPrice}</div>
@@ -135,8 +135,8 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="9. Psychological Pricing" badge="PROPOSED_STRATEGY">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
           {data.psychologicalPricing?.map((p: any, i: number) => (
-            <div key={i} className="border p-3 bg-[#FAFAF7]">
-              <div className="font-bold text-[#96792b]">{p.technique}</div>
+            <div key={i} className="border p-3 bg-[#FFFFFF]">
+              <div className="font-bold text-[#89620B]">{p.technique}</div>
               <div className="mt-1"><b>Example:</b> {p.example}</div>
               <div className="mt-1"><b>Impact:</b> {p.psychologicalImpact}</div>
               <div className="mt-1"><b>Use Case:</b> {p.recommendedUse}</div>
@@ -148,7 +148,7 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="10. Discount Sensitivity Table" badge="PROJECTION">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead><tr className="border-b bg-[#F5F0E8]/70"><th className="p-2">Discount Pct</th><th className="p-2">Volume Lift</th><th className="p-2">Revenue Impact</th><th className="p-2">Recommendation</th></tr></thead>
+            <thead><tr className="border-b bg-[#F7F8FA]/70"><th className="p-2">Discount Pct</th><th className="p-2">Volume Lift</th><th className="p-2">Revenue Impact</th><th className="p-2">Recommendation</th></tr></thead>
             <tbody>
               {data.discountSensitivityTable?.map((d: any, i: number) => (
                 <tr key={i} className="border-b"><td className="p-2">{d.discountPct}%</td><td className="p-2">{d.expectedVolumeLift}%</td><td className="p-2">${d.netRevenueImpact}</td><td className="p-2">{d.recommendation}</td></tr>
@@ -161,7 +161,7 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="11. Price Elasticity" badge="ASSUMPTION">
         <div className="text-xs space-y-2">
           <div><b>Coefficient:</b> {data.priceElasticity?.coefficient}</div>
-          <div><b>Type:</b> <span className="uppercase font-bold">{data.priceElasticity?.elasticityType}</span></div>
+          <div><b>Type:</b> <span className=" font-bold">{data.priceElasticity?.elasticityType}</span></div>
           <div><b>Interpretation:</b> {data.priceElasticity?.interpretation}</div>
           <div><b>Implications:</b> {data.priceElasticity?.implications?.join(', ')}</div>
         </div>
@@ -170,8 +170,8 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="12. What-If Analysis" badge="PROJECTION">
         <div className="grid gap-2 text-xs">
           {data.whatIfAnalysis?.map((w: any, i: number) => (
-            <div key={i} className="border p-2 bg-[#FAFAF7]">
-              <div className="font-bold text-[#96792b]">{w.scenario}</div>
+            <div key={i} className="border p-2 bg-[#FFFFFF]">
+              <div className="font-bold text-[#89620B]">{w.scenario}</div>
               <div className="mt-1"><b>Assumption:</b> {w.assumption}</div>
               <div className="mt-1"><b>Impact:</b> {w.financialImpact}</div>
               <div className="mt-1"><b>Recommendation:</b> {w.recommendation}</div>
@@ -183,10 +183,10 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="13. Pricing Decision Matrix" badge="AI_ESTIMATE_UNVERIFIED">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead><tr className="border-b bg-[#F5F0E8]/70"><th className="p-2">Option</th><th className="p-2">Score</th><th className="p-2">Evidence</th><th className="p-2">Risk</th><th className="p-2">Verdict</th></tr></thead>
+            <thead><tr className="border-b bg-[#F7F8FA]/70"><th className="p-2">Option</th><th className="p-2">Score</th><th className="p-2">Evidence</th><th className="p-2">Risk</th><th className="p-2">Verdict</th></tr></thead>
             <tbody>
               {data.pricingDecisionMatrix?.map((d: any, i: number) => (
-                <tr key={i} className="border-b"><td className="p-2">{d.option}</td><td className="p-2">{d.score}</td><td className="p-2">{d.evidence}</td><td className="p-2 uppercase">{d.risk}</td><td className="p-2">{d.verdict}</td></tr>
+                <tr key={i} className="border-b"><td className="p-2">{d.option}</td><td className="p-2">{d.score}</td><td className="p-2">{d.evidence}</td><td className="p-2 ">{d.risk}</td><td className="p-2">{d.verdict}</td></tr>
               ))}
             </tbody>
           </table>
@@ -196,7 +196,7 @@ export function PricingReport({ data }: { data: any }) {
       <Section title="14. Pricing Vs Volume Matrix" badge="PROJECTION">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
-            <thead><tr className="border-b bg-[#F5F0E8]/70"><th className="p-2">Price Point</th><th className="p-2">Est. Volume</th><th className="p-2">Revenue</th><th className="p-2">Margin</th></tr></thead>
+            <thead><tr className="border-b bg-[#F7F8FA]/70"><th className="p-2">Price Point</th><th className="p-2">Est. Volume</th><th className="p-2">Revenue</th><th className="p-2">Margin</th></tr></thead>
             <tbody>
               {data.pricingVsVolumeMatrix?.map((p: any, i: number) => (
                 <tr key={i} className="border-b"><td className="p-2">${p.pricePoint}</td><td className="p-2">{p.estimatedVolume}</td><td className="p-2">${p.revenue}</td><td className="p-2">${p.contributionMargin}</td></tr>
@@ -207,19 +207,19 @@ export function PricingReport({ data }: { data: any }) {
       </Section>
 
       <Section title="15. Customer WTP Insights" badge="ASSUMPTION">
-        <p className="text-xs text-[#1C1C1C] leading-relaxed">{data.customerWtpInsights}</p>
+        <p className="text-xs text-[#364152] leading-relaxed">{data.customerWtpInsights}</p>
       </Section>
 
       <Section title="16. Customer Value Analysis" badge="AI_ESTIMATE_UNVERIFIED">
-        <p className="text-xs text-[#1C1C1C] leading-relaxed">{data.customerValueAnalysis}</p>
+        <p className="text-xs text-[#364152] leading-relaxed">{data.customerValueAnalysis}</p>
       </Section>
 
       <Section title="17. Van Westendorp Insights" badge="PROJECTION">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-          <div className="p-2 border bg-[#FAFAF7]"><b>Too Expensive:</b><br/>{data.vanWestendorpInsights?.tooExpensive}</div>
-          <div className="p-2 border bg-[#FAFAF7]"><b>Expensive:</b><br/>{data.vanWestendorpInsights?.expensive}</div>
-          <div className="p-2 border bg-[#FAFAF7]"><b>Bargain:</b><br/>{data.vanWestendorpInsights?.bargain}</div>
-          <div className="p-2 border bg-[#FAFAF7]"><b>Too Cheap:</b><br/>{data.vanWestendorpInsights?.tooCheap}</div>
+          <div className="p-2 border bg-[#FFFFFF]"><b>Too Expensive:</b><br/>{data.vanWestendorpInsights?.tooExpensive}</div>
+          <div className="p-2 border bg-[#FFFFFF]"><b>Expensive:</b><br/>{data.vanWestendorpInsights?.expensive}</div>
+          <div className="p-2 border bg-[#FFFFFF]"><b>Bargain:</b><br/>{data.vanWestendorpInsights?.bargain}</div>
+          <div className="p-2 border bg-[#FFFFFF]"><b>Too Cheap:</b><br/>{data.vanWestendorpInsights?.tooCheap}</div>
           <div className="p-2 border bg-amber-50 col-span-full"><b>Acceptable Range:</b> {data.vanWestendorpInsights?.acceptableRange}</div>
         </div>
       </Section>
@@ -232,10 +232,10 @@ export function PricingReport({ data }: { data: any }) {
         </ul>
         {data.thirtyDayValidationPlan && (
           <div className="mb-4 mt-4">
-            <h4 className="font-bold text-xs mb-2 text-[#96792b]">30-Day Validation Plan</h4>
+            <h4 className="font-bold text-xs mb-2 text-[#89620B]">30-Day Validation Plan</h4>
             <div className="grid gap-2">
               {data.thirtyDayValidationPlan.map((p: any, i: number) => (
-                <div key={i} className="border p-3 text-xs bg-[#FAFAF7]">
+                <div key={i} className="border p-3 text-xs bg-[#FFFFFF]">
                   <div className="font-bold">{p.week}</div>
                   <div className="mt-1">{p.activity} <span className="opacity-60">({p.owner})</span></div>
                   <div className="mt-1 text-stone-600">KPI: {p.kpi} | Expected: {p.expectedOutput}</div>
@@ -246,10 +246,10 @@ export function PricingReport({ data }: { data: any }) {
         )}
         {data.riskRegister && (
           <div className="mt-4">
-            <h4 className="font-bold text-xs mb-2 text-[#96792b]">Risk Register</h4>
+            <h4 className="font-bold text-xs mb-2 text-[#89620B]">Risk Register</h4>
             <div className="grid gap-2">
               {data.riskRegister.map((r: any, i: number) => (
-                <div key={i} className="border p-3 text-xs bg-[#FAFAF7]">
+                <div key={i} className="border p-3 text-xs bg-[#FFFFFF]">
                   <div className="font-bold">{r.risk}</div>
                   <div className="mt-1 grid grid-cols-2 gap-2">
                     <div><b>Prob:</b> {r.probability}</div>

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { validAuthOrigin } from '@/lib/auth-form'
 import { createSubscriptionCheckout } from '@/lib/billing'
+import { billingAvailability } from '@/lib/billing-availability'
 const Input = z.object({ tier: z.enum(['premium', 'max_premium']) })
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +14,8 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const parsed = Input.safeParse(await request.json().catch(() => null))
     if (!parsed.success) return NextResponse.json({ error: 'Select a valid plan' }, { status: 400 })
+    const billing = billingAvailability()
+    if (!(parsed.data.tier === 'premium' ? billing.premium : billing.maxPremium)) return NextResponse.json({ error: 'Paid plans are not available yet.' }, { status: 503 })
     const profile = await getOrCreateDbUser(user)
     if (!profile) return NextResponse.json({ error: 'Billing account unavailable' }, { status: 409 })
     return NextResponse.json({ url: await createSubscriptionCheckout(profile.id, parsed.data.tier) })

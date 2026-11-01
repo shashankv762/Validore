@@ -10,6 +10,8 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { canUserAccessWithCredits } from '@/lib/tier-gate'
 import { consumeModulePack } from '@/lib/module-credits'
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief } from '@/lib/ai/research-brief'
+import { loadFounderContext } from '@/lib/interview/context'
 import { z } from 'zod'
 import { PITCH_WEIGHTS, clampScore } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
@@ -216,7 +218,8 @@ CRITICAL RULES:
 9. Generate 20 investor Q&As for the investorQA array.
 10. Generate all fields including: entrepreneurialSkillsMatrix, customerJourney, valuePropositionCanvas, moscowFeatures, competitorMatrix, positioningMap, swot, pestleAnalysis, useOfFundsBreakdown, gtmStrategy, salesFunnel, brandStrategy, kpiTargets, riskRegister, actionPlan, investorQA`
 
-    const aiResult = await generateWithFallback({ prompt, schema: PitchDeckAiSchema, temperature: 0.3, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
+    const aiResult = await generateWithFallback({
+    researchPrompt: publicResearchBrief(idea), prompt, privateContext: await loadFounderContext(idea.id, dbUser.id), schema: PitchDeckAiSchema, temperature: 0.3, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
     const ai = aiResult.data
 
     const qualityScore =

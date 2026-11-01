@@ -1,6 +1,6 @@
-# Ordinary developer launcher; Codex Luna verification still requires its R-only runner.
+# Optional local application launcher; production deployment is documented in docs/GO_LIVE.md.
 [CmdletBinding()]
-param([ValidateRange(1024,65535)][int]$Port = 3000, [switch]$InstallDependencies)
+param([ValidateRange(1024,65535)][int]$Port = 3100, [switch]$InstallDependencies)
 $ErrorActionPreference = 'Stop'
 $taskRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $nodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -21,8 +21,8 @@ try {
   }
   if (!(Test-Path -LiteralPath (Join-Path $taskRoot 'node_modules/next/package.json'))) { throw 'Run this script with -InstallDependencies first.' }
   $env:VALIDATION_RUNNER = 'local'
-  $env:NEXT_PUBLIC_APP_URL = 'http://localhost:' + $Port
-  Write-Host ('Validore: http://localhost:' + $Port)
+  $env:NEXT_PUBLIC_APP_URL = 'http://127.0.0.1:' + $Port
+  Write-Host ('Validore: http://127.0.0.1:' + $Port)
   Write-Host 'Keep this terminal open. Press Ctrl+C to stop. Local jobs run within the app process.'
   & $npmCommand.Source run dev -- --hostname 127.0.0.1 --port $Port
   if ($LASTEXITCODE -ne 0) { throw 'The local app stopped with an error. Review the output above.' }

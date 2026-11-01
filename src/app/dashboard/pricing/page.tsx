@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { toast } from 'sonner'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -11,6 +11,10 @@ import { ActionPlanTable, ActionPlanRow } from '@/components/ui/ActionPlanTable'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { DollarSign, Sparkles, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { PricingReport } from './PricingReport'
+import { useWorkspaceResources, WorkspaceResourceStatus } from '@/components/WorkspaceResources'
+import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { notifyAccountUpdated } from '@/components/AccountProvider'
 
 // Inline financial formulas (pure functions — no server imports)
 const cm = (p: number, vc: number) => p - vc
@@ -25,19 +29,21 @@ const fmt = (n: number) => n > 1e6 ? `₹${(n / 1e6).toFixed(1)}M` : n > 1e3 ? `
 const SliderRow = ({ label, value, min, max, step = 1, unit = '', onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string
   onChange: (v: number) => void
-}) => (
+}) => {
+  const id = useId()
+  return (
   <div className="mb-4">
     <div className="flex justify-between mb-1">
-      <label className="text-xs font-medium text-[#0A1628]">{label}</label>
-      <span className="text-xs font-semibold text-[#96792b]">{unit}{value.toLocaleString()}</span>
+      <label htmlFor={id} className="text-xs font-medium text-[#141923]">{label}</label>
+      <span className="text-xs font-semibold text-[#89620B]">{unit}{value.toLocaleString()}</span>
     </div>
-    <input type="range" min={min} max={max} step={step} value={value}
+    <input id={id} type="range" min={min} max={max} step={step} value={value} aria-valuetext={`${value.toLocaleString()} ${unit}`.trim()}
       onChange={e => onChange(Number(e.target.value))}
-      className="w-full h-1.5 appearance-none cursor-pointer rounded-full"
-      style={{ background: `linear-gradient(to right, #C8A860 ${((value - min) / (max - min)) * 100}%, #E8E0D0 0)` }}
+      className="w-full h-8 cursor-pointer accent-[#E0A526]"
     />
   </div>
 )
+}
 
 interface SensitivityCell {
   priceChange: number
@@ -129,9 +135,11 @@ interface PricingResult {
 }
 
 export default function PricingPage() {
-  const [ideas, setIdeas] = useState<Array<{ id: string; name: string }>>([])
+  const resources = useWorkspaceResources()
+  const { ideas, user } = resources
   const [selectedIdeaId, setSelectedIdeaId] = useState('')
-  const [isPremium, setIsPremium] = useState(false)
+  const isPremium = user?.tier === 'premium' || user?.tier === 'max_premium'
+  const balance = (user?.creditBalance ?? 0) + (user?.purchasedCredits ?? 0)
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState<PricingResult | null>(null)
 
@@ -144,13 +152,7 @@ export default function PricingPage() {
   const [retention, setRetention] = useState(18)
   const [showPowerBIGuide, setShowPowerBIGuide] = useState(false)
 
-  useEffect(() => {
-    fetch('/api/ideas').then(r => r.json()).then(d => setIdeas(d.ideas ?? []))
-    fetch('/api/me').then(r => r.json()).then(d => {
-      const tier = d.user?.tier
-      setIsPremium(tier === 'premium' || tier === 'max_premium')
-    })
-  }, [])
+  const updateInput = (set: (value: number) => void, value: number) => { set(value); setAiResult(null) }
 
   const metrics = useMemo(() => {
     const margin = cm(price, vc)
@@ -177,8 +179,8 @@ export default function PricingPage() {
     }), [price, customers, vc, fc])
 
   const scenarios = useMemo(() => [
-    { label: 'Conservative (60%)', mult: 0.6 },
-    { label: 'Pessimistic (80%)', mult: 0.8 },
+    { label: 'Pessimistic (60%)', mult: 0.6 },
+    { label: 'Conservative (80%)', mult: 0.8 },
     { label: 'Base (100%)', mult: 1.0 },
     { label: 'Optimistic (120%)', mult: 1.2 },
     { label: 'Best Case (150%)', mult: 1.5 },
@@ -191,9 +193,6 @@ export default function PricingPage() {
 
   // 0E-1: Live 5x5 Sensitivity Analysis Matrix
   const sensitivityMatrix: SensitivityCell[][] = useMemo(() => {
-    if (aiResult?.sensitivityMatrix && Array.isArray(aiResult.sensitivityMatrix) && aiResult.sensitivityMatrix.length === 5) {
-      return aiResult.sensitivityMatrix
-    }
     return [-20, -10, 0, 10, 20].map(priceChange => {
       return [-20, -10, 0, 10, 20].map(volumeChange => {
         const p = price * (1 + priceChange / 100)
@@ -203,7 +202,7 @@ export default function PricingPage() {
         return { priceChange, volumeChange, profit: Math.round(profit) }
       })
     })
-  }, [price, customers, vc, fc, aiResult])
+  }, [price, customers, vc, fc])
 
   async function runAi() {
     if (!selectedIdeaId) {
@@ -214,6 +213,7 @@ export default function PricingPage() {
     try {
       const res = await fetch('/api/pricing', {
         method: 'POST',
+        signal: AbortSignal.timeout(280_000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ideaId: selectedIdeaId, sellingPrice: price, expectedCustomers: customers,
@@ -231,24 +231,27 @@ export default function PricingPage() {
     } catch {
       toast.error('Network error during AI analysis')
     } finally {
+      notifyAccountUpdated()
       setAnalyzing(false)
     }
   }
+
+  if (resources.loading || resources.error) return <WorkspaceResourceStatus {...resources} />
 
   if (!isPremium) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center card-angular p-12">
         <span className="text-4xl mb-4 block">🔒</span>
-        <h2 className="text-xl font-light text-[#0A1628] mb-2">Pricing Simulator — Premium Feature</h2>
-        <p className="text-sm text-[#1C1C1C] opacity-60 mb-6">
+        <h2 className="text-xl font-light text-[#141923] mb-2">Pricing Simulator — Premium Feature</h2>
+        <p className="text-sm text-[#364152] opacity-60 mb-6">
           Interactive pricing simulator with 5 scenarios, sensitivity analysis, and AI competitor pricing insights.
         </p>
         <a
-          href="/auth/signup?plan=premium"
-          className="inline-block px-8 py-3 text-sm font-medium text-[#0A1628]"
-          style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 12px 2px 12px' }}
+          href="/dashboard/settings"
+          className="inline-block px-8 py-3 text-sm font-medium text-[#141923]"
+          style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 12px 2px 12px' }}
         >
-          Upgrade to Premium — $29/mo
+          Upgrade to Premium — {formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo
         </a>
       </div>
     )
@@ -258,7 +261,7 @@ export default function PricingPage() {
 
   // 0E-3: 9-Factor Pricing Scorecard Calculations
   const cmPct = metrics.grossMargin
-  const cmScore = Math.min(15, cmPct >= 60 ? 15 : Math.round((cmPct / 60) * 15))
+  const cmScore = Math.max(0, Math.min(15, cmPct >= 60 ? 15 : Math.round((cmPct / 60) * 15)))
   const beUnits = isFinite(metrics.be) ? metrics.be : Infinity
   const beScore = Math.min(10, beUnits <= customers * 0.5 ? 10 : Math.max(0, Math.round((1 - beUnits / (customers * 2)) * 10)))
   const ltvCac = metrics.ratio
@@ -292,48 +295,51 @@ export default function PricingPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-light text-[#0A1628] mb-1">Smart Pricing Simulator</h1>
-          <p className="text-sm text-[#1C1C1C] opacity-60">
+          <h1 className="text-2xl font-light text-[#141923] mb-1">Smart Pricing Simulator</h1>
+          <p className="text-sm text-[#364152] opacity-60">
             Real-time formula calculations. All projections labeled{' '}
-            <span className="text-[#0A1628] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">
+            <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">
               ASSUMPTION
             </span>.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <ExportToolbar
+          {aiResult && <ExportToolbar
             ideaId={selectedIdeaId}
             deckType="pricing"
-            formats={['pdf', 'csv', 'pptx']}
+            formats={['pdf', 'docx', 'csv', 'pptx']}
             compact={true}
-          />
-          <select value={selectedIdeaId} onChange={e => setSelectedIdeaId(e.target.value)}
-            className="px-3 py-2 border border-[#E8E0D0] rounded bg-[#FAFAF7] text-sm focus:border-[#C8A860] focus:outline-none">
+          />}
+          <label htmlFor="pricing-idea" className="sr-only">Idea for pricing analysis</label>
+          <select id="pricing-idea" value={selectedIdeaId} disabled={analyzing} onChange={e => { setSelectedIdeaId(e.target.value); setAiResult(null) }}
+            className="max-w-full px-3 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:border-[#E0A526] focus:outline-none">
             <option value="">— Idea for AI analysis —</option>
             {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <button onClick={runAi} disabled={analyzing || !selectedIdeaId}
-            className="px-5 py-2 text-sm font-medium text-[#0A1628] disabled:opacity-40 cursor-pointer shadow-xs"
-            style={{ background: 'linear-gradient(135deg, #D4AF37, #C8A860, #B8963E)', borderRadius: '2px 10px 2px 10px' }}>
-            {analyzing ? '⏳ Analysing…' : '✦ AI Analysis'}
+          <button onClick={runAi} disabled={analyzing || !selectedIdeaId || balance < CREDIT_COSTS.PRICING}
+            className="px-5 py-2 text-sm font-medium text-[#141923] disabled:opacity-40 cursor-pointer shadow-xs"
+            style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}>
+            {analyzing ? 'Analysing…' : `AI analysis · ${CREDIT_COSTS.PRICING} credits`}
           </button>
         </div>
       </div>
 
+      {balance < CREDIT_COSTS.PRICING && <p className="text-sm text-slate-600">Your balance is {balance.toLocaleString()} credits. <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a> to run AI analysis. The simulator is ready to use.</p>}
       <div className="grid grid-cols-12 gap-6">
         {/* Sliders */}
-        <div className="col-span-12 lg:col-span-3 card-angular p-5 bg-[#FAFAF7] h-fit">
-          <h2 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-4">
+        <fieldset disabled={analyzing} className="col-span-12 lg:col-span-3 card-angular p-5 bg-[#FFFFFF] h-fit min-w-0">
+          <h2 className="text-xs font-semibold text-[#141923]  mb-4">
             Inputs <span className="text-amber-600 font-normal">ASSUMPTION</span>
           </h2>
-          <SliderRow label="Selling Price (₹)" value={price} min={100} max={10000} step={50} unit="₹" onChange={setPrice} />
-          <SliderRow label="Monthly Customers" value={customers} min={1} max={5000} step={10} onChange={setCustomers} />
-          <SliderRow label="Variable Cost/Unit (₹)" value={vc} min={0} max={Math.max(price - 1, 1)} step={10} unit="₹" onChange={setVc} />
-          <SliderRow label="Fixed Cost/Month (₹)" value={fc} min={0} max={500000} step={5000} unit="₹" onChange={setFc} />
-          <SliderRow label="Discount %" value={discount} min={0} max={50} unit="%" onChange={setDiscount} />
-          <SliderRow label="Estimated CAC (₹)" value={cac} min={0} max={10000} step={100} unit="₹" onChange={setCac} />
-          <SliderRow label="Retention (months)" value={retention} min={1} max={60} onChange={setRetention} />
-        </div>
+          <SliderRow label="Selling Price (₹)" value={price} min={100} max={10000} step={50} unit="₹" onChange={value => updateInput(setPrice, value)} />
+          <SliderRow label="Monthly Customers" value={customers} min={1} max={5000} onChange={value => updateInput(setCustomers, value)} />
+          <SliderRow label="Variable Cost/Unit (₹)" value={vc} min={0} max={10000} step={10} unit="₹" onChange={value => updateInput(setVc, value)} />
+          <SliderRow label="Fixed Cost/Month (₹)" value={fc} min={0} max={500000} step={5000} unit="₹" onChange={value => updateInput(setFc, value)} />
+          <SliderRow label="Discount %" value={discount} min={0} max={50} unit="%" onChange={value => updateInput(setDiscount, value)} />
+          <SliderRow label="Estimated CAC (₹)" value={cac} min={0} max={10000} step={100} unit="₹" onChange={value => updateInput(setCac, value)} />
+          <SliderRow label="Retention (months)" value={retention} min={1} max={60} onChange={value => updateInput(setRetention, value)} />
+          <p className="text-xs leading-relaxed text-slate-500">Changing inputs updates the projections. Run AI analysis again to refresh the research and downloads.</p>
+        </fieldset>
 
         {/* Metrics + Charts */}
         <div className="col-span-12 lg:col-span-9 space-y-5">
@@ -352,21 +358,21 @@ export default function PricingPage() {
                 l: 'Discount Break-Even',
                 v: isFinite(metrics.discountBreakEven) ? `${Math.ceil(metrics.discountBreakEven).toLocaleString()} units` : '∞',
                 s: `Needed at ${discount}% discount (ASSUMPTION)`,
-                c: '#C8A860',
+                c: '#E0A526',
               },
             ].map(k => (
-              <div key={k.l} className="card-angular p-4 bg-[#FAFAF7]">
-                <div className="text-base font-medium mb-0.5" style={{ color: k.c ?? '#0A1628' }}>{k.v}</div>
-                <div className="text-xs font-semibold text-[#0A1628]">{k.l}</div>
+              <div key={k.l} className="card-angular p-4 bg-[#FFFFFF]">
+                <div className="text-base font-medium mb-0.5" style={{ color: k.c ?? '#141923' }}>{k.v}</div>
+                <div className="text-xs font-semibold text-[#141923]">{k.l}</div>
                 <div className="text-[11px] opacity-60 truncate" style={{ color: k.c }}>{k.s}</div>
               </div>
             ))}
           </div>
 
           {/* Markup ≠ Margin note */}
-          <div className="card-angular p-4 border-l-4 border-[#C8A860] bg-[#FAFAF7]">
-            <p className="text-xs text-[#1C1C1C] leading-relaxed">
-              <span className="font-semibold text-[#96792b]">Markup ≠ Margin — </span>
+          <div className="card-angular p-4 border-l-4 border-[#E0A526] bg-[#FFFFFF]">
+            <p className="text-xs text-[#364152] leading-relaxed">
+              <span className="font-semibold text-[#89620B]">Markup ≠ Margin — </span>
               Markup ({metrics.markup.toFixed(1)}%) = (Price−Cost)/Cost × 100 <em>(calculated on cost)</em>.{' '}
               Gross Margin ({metrics.grossMargin.toFixed(1)}%) = (Price−Cost)/Price × 100 <em>(calculated on revenue)</em>.{' '}
               Both are distinct figures — use Gross Margin with investors and Markup with procurement/suppliers.
@@ -374,44 +380,45 @@ export default function PricingPage() {
           </div>
 
           {/* Price vs Revenue/Profit chart */}
-          <div className="card-angular p-5 bg-[#FAFAF7]">
-            <h3 className="text-sm font-semibold text-[#0A1628] mb-1">
-              Price → Revenue &amp; Profit <span className="text-[#0A1628] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
+          <div className="card-angular p-5 bg-[#FFFFFF]">
+            <h3 className="text-sm font-semibold text-[#141923] mb-1">
+              Price → Revenue &amp; Profit <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
             </h3>
-            <p className="text-xs text-[#1C1C1C] opacity-40 mb-4">Demand elasticity modelled at 1.5× — validate with real market data.</p>
+            <p className="text-xs text-[#364152] opacity-40 mb-4">Demand elasticity modelled at 1.5× — validate with real market data.</p>
             <div tabIndex={0} aria-label="Data Chart" role="img" className="w-full">
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={priceRangeData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E8E0D0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis dataKey="price" tick={{ fontSize: 10 }} tickFormatter={v => `₹${v}`} />
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => fmt(v as number)} />
                   <Tooltip formatter={(v: unknown) => [fmt(Number(v)), '']} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <ReferenceLine x={price} stroke="#C8A860" strokeDasharray="4 4" />
-                  <Line type="monotone" dataKey="revenue" stroke="#C8A860" strokeWidth={2} dot={false} name="Revenue" />
-                  <Line type="monotone" dataKey="profit" stroke="#0A1628" strokeWidth={2} dot={false} name="Profit" />
+                  <ReferenceLine x={price} stroke="#E0A526" strokeDasharray="4 4" />
+                  <Line type="monotone" dataKey="revenue" stroke="#E0A526" strokeWidth={2} dot={false} name="Revenue" />
+                  <Line type="monotone" dataKey="profit" stroke="#141923" strokeWidth={2} dot={false} name="Profit" />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </div>
 
           {/* Scenarios table */}
-          <div className="card-angular p-5 bg-[#FAFAF7]">
-            <h3 className="text-sm font-semibold text-[#0A1628] mb-4">
-              5 Scenarios <span className="text-[#0A1628] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
+          <div className="card-angular p-5 bg-[#FFFFFF]">
+            <h3 className="text-sm font-semibold text-[#141923] mb-4">
+              5 Scenarios <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
             </h3>
-            <table className="w-full text-xs">
+            <div className="overflow-x-auto" role="region" aria-label="Pricing scenarios" tabIndex={0}>
+            <table className="w-full min-w-[460px] text-xs">
               <thead>
-                <tr className="border-b border-[#E8E0D0]">
+                <tr className="border-b border-[#E5E7EB]">
                   {['Scenario', 'Customers', 'Revenue', 'Profit', 'Breakeven?'].map(h => (
-                    <th key={h} className={`py-2 font-medium ${h === 'Scenario' ? 'text-left text-[#96792b]' : 'text-right text-[#1C1C1C] opacity-60'}`}>{h}</th>
+                    <th key={h} className={`py-2 font-medium ${h === 'Scenario' ? 'text-left text-[#89620B]' : 'text-right text-[#364152] opacity-60'}`}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {scenarios.map((s, i) => (
-                  <tr key={i} className={`border-b border-[#E8E0D0] ${i === 2 ? 'bg-[#C8A860]/5' : ''}`}>
-                    <td className="py-2 font-medium text-[#0A1628]">{s.label}</td>
+                  <tr key={i} className={`border-b border-[#E5E7EB] ${i === 2 ? 'bg-[#E0A526]/5' : ''}`}>
+                    <td className="py-2 font-medium text-[#141923]">{s.label}</td>
                     <td className="py-2 text-right">{s.customers.toLocaleString()}</td>
                     <td className="py-2 text-right">{fmt(s.revenue)}</td>
                     <td className="py-2 text-right" style={{ color: s.profit >= 0 ? '#22c55e' : '#ef4444' }}>{fmt(s.profit)}</td>
@@ -424,31 +431,32 @@ export default function PricingPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           {/* 0E-1: 5×5 Sensitivity Analysis Heatmap */}
-          <div className="card-angular p-5 bg-[#FAFAF7]">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-[#0A1628] flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#C8A860]" />
+          <div className="card-angular p-5 bg-[#FFFFFF]">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-[#141923] flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-[#E0A526]" />
                 5×5 Price vs Volume Sensitivity Heatmap
               </h3>
-              <span className="text-[#0A1628] bg-amber-200 px-1.5 py-0.5 rounded font-bold text-[10px]">
+              <span className="text-[#141923] bg-amber-200 px-1.5 py-0.5 rounded font-bold text-[10px]">
                 ASSUMPTION
               </span>
             </div>
-            <p className="text-xs text-[#1C1C1C] opacity-60 mb-3">
+            <p className="text-xs text-[#364152] opacity-60 mb-3">
               Net operating profit (₹) across ±20% price and volume variances. Center cell highlights base plan.
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-center border-collapse">
                 <thead>
                   <tr>
-                    <th className="p-2 text-left font-medium text-[#96792b] bg-[#F5F0E8]/70 border border-[#E8E0D0]">
+                    <th className="p-2 text-left font-medium text-[#89620B] bg-[#F7F8FA]/70 border border-[#E5E7EB]">
                       Price \ Vol
                     </th>
                     {[-20, -10, 0, 10, 20].map(v => (
-                      <th key={v} className="p-2 font-medium text-[#0A1628] bg-[#F5F0E8]/70 border border-[#E8E0D0]">
+                      <th key={v} className="p-2 font-medium text-[#141923] bg-[#F7F8FA]/70 border border-[#E5E7EB]">
                         {v === 0 ? 'Base Vol' : `${v > 0 ? '+' : ''}${v}%`}
                       </th>
                     ))}
@@ -459,7 +467,7 @@ export default function PricingPage() {
                     const pChange = row[0]?.priceChange ?? 0
                     return (
                       <tr key={rIdx}>
-                        <td className="p-2 font-medium text-left text-[#0A1628] bg-[#F5F0E8]/40 border border-[#E8E0D0] whitespace-nowrap">
+                        <td className="p-2 font-medium text-left text-[#141923] bg-[#F7F8FA]/40 border border-[#E5E7EB] whitespace-nowrap">
                           {pChange === 0 ? 'Base Price' : `${pChange > 0 ? '+' : ''}${pChange}%`}
                         </td>
                         {row.map((cell, cIdx) => {
@@ -468,13 +476,13 @@ export default function PricingPage() {
                           return (
                             <td
                               key={cIdx}
-                              className={`p-2 border transition-colors font-mono text-[11px] ${
-                                isBase ? 'ring-2 ring-[#C8A860] font-bold z-10 relative' : ''
+                              className={`p-2 border transition-colors tabular-nums text-[11px] ${
+                                isBase ? 'ring-2 ring-[#E0A526] font-bold z-10 relative' : ''
                               }`}
                               style={{
                                 backgroundColor: isProfitable ? 'rgba(34, 197, 94, 0.12)' : 'rgba(239, 68, 68, 0.12)',
                                 color: isProfitable ? '#166534' : '#991b1b',
-                                borderColor: '#E8E0D0',
+                                borderColor: '#E5E7EB',
                               }}
                             >
                               {fmt(cell.profit)}
@@ -487,7 +495,7 @@ export default function PricingPage() {
                 </tbody>
               </table>
             </div>
-            <div className="flex items-center gap-4 mt-3 text-[11px] text-[#1C1C1C] opacity-70">
+            <div className="flex flex-wrap items-center gap-4 mt-3 text-[11px] text-[#364152] opacity-70">
               <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-xs bg-emerald-100 border border-emerald-400" /> Profitable
               </span>
@@ -495,7 +503,7 @@ export default function PricingPage() {
                 <span className="w-2.5 h-2.5 rounded-xs bg-rose-100 border border-rose-400" /> Operating Loss
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs border-2 border-[#C8A860]" /> Current Base Case
+                <span className="w-2.5 h-2.5 rounded-xs border-2 border-[#E0A526]" /> Current Base Case
               </span>
             </div>
           </div>
@@ -504,21 +512,21 @@ export default function PricingPage() {
           {aiResult && (
             <div className="space-y-5">
               {/* 0E-3: 9-Factor Pricing Scorecard */}
-              <div className="card-angular p-5 bg-[#FAFAF7]">
+              <div className="card-angular p-5 bg-[#FFFFFF]">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-[#0A1628] flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-[#C8A860]" /> 9-Factor Pricing Scorecard
+                    <h3 className="text-sm font-semibold text-[#141923] flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-[#E0A526]" /> 9-Factor Pricing Scorecard
                     </h3>
-                    <p className="text-xs text-[#1C1C1C] opacity-60">
+                    <p className="text-xs text-[#364152] opacity-60">
                       Evaluates unit economics, competitive moat, buyer psychology, and elasticity.
                     </p>
                   </div>
                   <div className="text-right">
-                    <span className="text-3xl font-light text-[#96792b]">
+                    <span className="text-3xl font-light text-[#89620B]">
                       {aiResult.pricingScore ?? 0}
                     </span>
-                    <span className="text-xs text-[#1C1C1C] opacity-50"> / 100</span>
+                    <span className="text-xs text-[#364152] opacity-50"> / 100</span>
                   </div>
                 </div>
                 <ScorecardGrid scores={factorScores} columns={3} />
@@ -526,70 +534,70 @@ export default function PricingPage() {
 
               {/* 0E-2: Van Westendorp Price Sensitivity Meter */}
               {aiResult.aiAnalysis?.vanWestendorpInsights && (
-                <div className="card-angular p-5 bg-[#FAFAF7]">
+                <div className="card-angular p-5 bg-[#FFFFFF]">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-semibold text-[#0A1628] flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-[#C8A860]" />
+                    <h3 className="text-sm font-semibold text-[#141923] flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-[#E0A526]" />
                       Van Westendorp Price Sensitivity Range
                     </h3>
-                    <span className="text-[#0A1628] bg-amber-200 px-1.5 py-0.5 rounded font-bold text-[10px]">
+                    <span className="text-[#141923] bg-amber-200 px-1.5 py-0.5 rounded font-bold text-[10px]">
                       ASSUMPTION
                     </span>
                   </div>
-                  <p className="text-xs text-[#1C1C1C] opacity-60 mb-4">
+                  <p className="text-xs text-[#364152] opacity-60 mb-4">
                     Psychological price barriers modelled from customer personas and competitive benchmarks.
                   </p>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     <div className="p-3 bg-blue-50/70 border border-blue-200 rounded">
-                      <span className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Too Cheap</span>
-                      <p className="text-xs text-[#1C1C1C]">{aiResult.aiAnalysis.vanWestendorpInsights.tooCheap}</p>
+                      <span className="text-[10px] font-bold text-blue-800  block mb-1">Too Cheap</span>
+                      <p className="text-xs text-[#364152]">{aiResult.aiAnalysis.vanWestendorpInsights.tooCheap}</p>
                     </div>
                     <div className="p-3 bg-emerald-50/70 border border-emerald-200 rounded">
-                      <span className="text-[10px] font-bold text-emerald-800 uppercase block mb-1">Bargain / Value</span>
-                      <p className="text-xs text-[#1C1C1C]">{aiResult.aiAnalysis.vanWestendorpInsights.bargain}</p>
+                      <span className="text-[10px] font-bold text-emerald-800  block mb-1">Bargain / Value</span>
+                      <p className="text-xs text-[#364152]">{aiResult.aiAnalysis.vanWestendorpInsights.bargain}</p>
                     </div>
                     <div className="p-3 bg-amber-50/70 border border-amber-200 rounded">
-                      <span className="text-[10px] font-bold text-amber-800 uppercase block mb-1">Expensive</span>
-                      <p className="text-xs text-[#1C1C1C]">{aiResult.aiAnalysis.vanWestendorpInsights.expensive}</p>
+                      <span className="text-[10px] font-bold text-amber-800  block mb-1">Expensive</span>
+                      <p className="text-xs text-[#364152]">{aiResult.aiAnalysis.vanWestendorpInsights.expensive}</p>
                     </div>
                     <div className="p-3 bg-rose-50/70 border border-rose-200 rounded">
-                      <span className="text-[10px] font-bold text-rose-800 uppercase block mb-1">Too Expensive</span>
-                      <p className="text-xs text-[#1C1C1C]">{aiResult.aiAnalysis.vanWestendorpInsights.tooExpensive}</p>
+                      <span className="text-[10px] font-bold text-rose-800  block mb-1">Too Expensive</span>
+                      <p className="text-xs text-[#364152]">{aiResult.aiAnalysis.vanWestendorpInsights.tooExpensive}</p>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[#C8A860]/10 border border-[#C8A860]/30 rounded flex flex-wrap items-center justify-between gap-2">
+                  <div className="p-3 bg-[#E0A526]/10 border border-[#E0A526]/30 rounded flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="text-xs font-semibold text-[#96792b] block">Acceptable Price Corridor</span>
-                      <span className="text-sm font-medium text-[#0A1628]">
+                      <span className="text-xs font-semibold text-[#89620B] block">Acceptable Price Corridor</span>
+                      <span className="text-sm font-medium text-[#141923]">
                         {aiResult.aiAnalysis.vanWestendorpInsights.acceptableRange}
                       </span>
                     </div>
-                    <div className="text-xs text-[#1C1C1C] opacity-70">
-                      Current Test Price: <span className="font-semibold text-[#0A1628]">₹{price}</span>
+                    <div className="text-xs text-[#364152] opacity-70">
+                      Current Test Price: <span className="font-semibold text-[#141923]">₹{price}</span>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* 0E-4: Customer Value Analysis & Strategy */}
-              <div className="card-angular p-5 bg-[#FAFAF7]">
-                <h3 className="text-sm font-semibold text-[#0A1628] mb-4">Pricing Strategy &amp; Customer Value</h3>
+              <div className="card-angular p-5 bg-[#FFFFFF]">
+                <h3 className="text-sm font-semibold text-[#141923] mb-4">Pricing Strategy &amp; Customer Value</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div className="p-3 rounded bg-[#C8A860]/10 border border-[#C8A860]/30">
-                    <p className="text-xs font-medium text-[#96792b] mb-1">Recommended Price to Test</p>
-                    <p className="text-sm text-[#0A1628] font-medium">
+                  <div className="p-3 rounded bg-[#E0A526]/10 border border-[#E0A526]/30">
+                    <p className="text-xs font-medium text-[#89620B] mb-1">Recommended Price to Test</p>
+                    <p className="text-sm text-[#141923] font-medium">
                       {aiResult.aiAnalysis?.recommendedPriceToTest ?? 'N/A'}
                     </p>
                     <p className="text-xs text-amber-600 mt-1">Hypothesis only — not a guaranteed optimum.</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-[#96792b] mb-2">Competitor Benchmark Pricing</p>
+                    <p className="text-xs font-medium text-[#89620B] mb-2">Competitor Benchmark Pricing</p>
                     {(aiResult.aiAnalysis?.competitorPrices ?? []).map((c, i) => (
-                      <div key={i} className="flex justify-between text-xs py-1.5 border-b border-[#E8E0D0] last:border-0">
-                        <span className="font-medium text-[#0A1628]">{c.name}</span>
-                        <span className="text-[#96792b] font-mono">{c.price}</span>
+                      <div key={i} className="flex justify-between text-xs py-1.5 border-b border-[#E5E7EB] last:border-0">
+                        <span className="font-medium text-[#141923]">{c.name}</span>
+                        <span className="text-[#89620B] tabular-nums">{c.price}</span>
                         <span className="opacity-50 text-[10px]">Checked: {c.dateChecked}</span>
                       </div>
                     ))}
@@ -597,22 +605,22 @@ export default function PricingPage() {
                 </div>
 
                 {aiResult.aiAnalysis?.customerValueAnalysis && (
-                  <div className="border-t border-[#E8E0D0] pt-4 mt-2">
-                    <h4 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-2">
+                  <div className="border-t border-[#E5E7EB] pt-4 mt-2">
+                    <h4 className="text-xs font-semibold text-[#141923]  mb-2">
                       Customer Value Analysis
                     </h4>
-                    <p className="text-xs text-[#1C1C1C] leading-relaxed">
+                    <p className="text-xs text-[#364152] leading-relaxed">
                       {aiResult.aiAnalysis.customerValueAnalysis}
                     </p>
                   </div>
                 )}
 
                 {aiResult.aiAnalysis?.customerWtpInsights && (
-                  <div className="border-t border-[#E8E0D0] pt-4 mt-3">
-                    <h4 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-2">
+                  <div className="border-t border-[#E5E7EB] pt-4 mt-3">
+                    <h4 className="text-xs font-semibold text-[#141923]  mb-2">
                       Willingness-to-Pay (WTP) Behavioral Insights
                     </h4>
-                    <p className="text-xs text-[#1C1C1C] leading-relaxed">
+                    <p className="text-xs text-[#364152] leading-relaxed">
                       {aiResult.aiAnalysis.customerWtpInsights}
                     </p>
                   </div>
@@ -644,35 +652,35 @@ export default function PricingPage() {
           )}
 
           {/* FIX-W5.1: Power BI Integration Guide */}
-          <div className="card-angular bg-[#FAFAF7] mt-4">
+          <div className="card-angular bg-[#FFFFFF] mt-4">
             <button
               onClick={() => setShowPowerBIGuide(prev => !prev)}
               className="w-full flex items-center justify-between p-5 text-left"
             >
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-[#C8A860]" />
-                <span className="text-sm font-semibold text-[#0A1628]">Power BI Integration Guide</span>
-                <span className="text-[9px] font-bold uppercase px-2 py-0.5 rounded bg-[#C8A860]/15 text-[#96792b]">
+                <TrendingUp className="w-4 h-4 text-[#E0A526]" />
+                <span className="text-sm font-semibold text-[#141923]">Power BI Integration Guide</span>
+                <span className="text-[9px] font-bold  px-2 py-0.5 rounded bg-[#E0A526]/15 text-[#89620B]">
                   AI_ESTIMATE_UNVERIFIED
                 </span>
               </div>
               {showPowerBIGuide ? (
-                <ChevronUp className="w-4 h-4 text-[#1C1C1C]/50" />
+                <ChevronUp className="w-4 h-4 text-[#364152]/50" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-[#1C1C1C]/50" />
+                <ChevronDown className="w-4 h-4 text-[#364152]/50" />
               )}
             </button>
 
             {showPowerBIGuide && (
-              <div className="px-5 pb-6 space-y-5 border-t border-[#E8E0D0] pt-4">
-                <p className="text-xs text-[#1C1C1C]/70">
+              <div className="px-5 pb-6 space-y-5 border-t border-[#E5E7EB] pt-4">
+                <p className="text-xs text-[#364152]/70">
                   Connect this pricing dataset to Power BI for dynamic dashboards. All figures are{' '}
                   <span className="font-bold text-amber-700">ASSUMPTION</span>-labelled projections — validate with real sales data before board presentations.
                 </p>
 
                 {/* DAX Measures */}
                 <div>
-                  <h4 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-3">
+                  <h4 className="text-xs font-semibold text-[#141923]  mb-3">
                     Recommended DAX Measures
                   </h4>
                   <div className="space-y-2">
@@ -698,9 +706,9 @@ export default function PricingPage() {
                         dax: `PaybackMonths = DIVIDE([Estimated CAC], [Selling Price] - [Variable Cost], 0)`,
                       },
                     ].map((m, i) => (
-                      <div key={i} className="p-3 bg-white border border-[#E8E0D0] rounded">
-                        <div className="text-[10px] font-bold text-[#96792b] uppercase mb-1">{m.name}</div>
-                        <code className="text-[11px] text-[#0A1628] font-mono leading-relaxed block">{m.dax}</code>
+                      <div key={i} className="p-3 bg-white border border-[#E5E7EB] rounded">
+                        <div className="text-[10px] font-bold text-[#89620B]  mb-1">{m.name}</div>
+                        <code className="text-[11px] text-[#141923] tabular-nums leading-relaxed block">{m.dax}</code>
                       </div>
                     ))}
                   </div>
@@ -708,10 +716,10 @@ export default function PricingPage() {
 
                 {/* Slicer Recommendations */}
                 <div>
-                  <h4 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-3">
+                  <h4 className="text-xs font-semibold text-[#141923]  mb-3">
                     Slicer Recommendations
                   </h4>
-                  <ul className="space-y-1.5 text-xs text-[#1C1C1C]">
+                  <ul className="space-y-1.5 text-xs text-[#364152]">
                     {[
                       'Selling Price — Range slicer (₹100–₹10,000) to simulate price points',
                       'Monthly Customers — Volume slicer for demand scenario modelling',
@@ -720,7 +728,7 @@ export default function PricingPage() {
                       'Retention Months — LTV sensitivity across customer lifecycle lengths',
                     ].map((s, i) => (
                       <li key={i} className="flex gap-2 items-start">
-                        <span className="text-[#C8A860] font-bold flex-shrink-0">•</span>
+                        <span className="text-[#E0A526] font-bold flex-shrink-0">•</span>
                         <span>{s}</span>
                       </li>
                     ))}
@@ -729,10 +737,10 @@ export default function PricingPage() {
 
                 {/* Sensitivity Heatmap Instructions */}
                 <div>
-                  <h4 className="text-xs font-semibold text-[#0A1628] uppercase tracking-wider mb-3">
+                  <h4 className="text-xs font-semibold text-[#141923]  mb-3">
                     Sensitivity Heatmap Instructions
                   </h4>
-                  <ol className="space-y-1.5 text-xs text-[#1C1C1C] list-decimal list-inside">
+                  <ol className="space-y-1.5 text-xs text-[#364152] list-decimal list-inside">
                     <li>Export the 5×5 sensitivity matrix above as CSV via the Export toolbar</li>
                     <li>Import into Power BI using Get Data → Text/CSV</li>
                     <li>Create a Matrix visual with Price Change (rows) × Volume Change (columns)</li>

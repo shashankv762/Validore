@@ -1,4 +1,5 @@
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief } from '@/lib/ai/research-brief'
 import { RiskAgentSchema } from '../schemas'
 import type { IdeaInput } from '../schemas'
 import { today, type AgentOpts } from './shared'
@@ -35,11 +36,16 @@ Other agents handle market, customers, competitors, financials, and the final de
 
 export async function runRiskAgent(idea: IdeaInput, researchDigest: string, opts?: AgentOpts) {
   return generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
     agentRole: 'risk',
+    researchMode: opts?.reuseResearch ? 'reuse' : 'auto',
+    sources: opts?.sources,
     prompt: buildRiskPrompt(idea, researchDigest),
     schema: RiskAgentSchema,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
+    privateContext: opts?.privateContext,
+    researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
   })
 }

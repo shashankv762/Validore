@@ -1,118 +1,28 @@
 import Link from 'next/link'
-import Image from 'next/image'
+import { PolicyPage } from '@/components/legal/PolicyPage'
+import { LEGAL } from '@/lib/legal'
 
-export const metadata = {
-  title: 'Privacy Policy | Validore',
-  description: 'Privacy Policy for Validore - AI-powered startup validation.',
-}
+export const metadata = { title: 'Privacy Policy', description: 'How Validore handles your founder answers, account, AI research, and privacy choices.' }
 
-export default function LegalPage() {
-  return (
-    <div className="min-h-screen bg-[#F5F0E8] flex flex-col">
-      <nav className="sticky top-0 z-50 flex items-center justify-between px-8 py-5 border-b border-[#E8E0D0] bg-[#FAFAF7]">
-        <Link href="/" className="flex items-center gap-3">
-          <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={36} height={36} />
-          <span className="text-xl font-light tracking-widest text-[#1C1C1C]">validore</span>
-        </Link>
-        <div className="flex items-center gap-6">
-          <Link href="/auth/signin" className="text-sm text-[#1C1C1C] hover:text-[#96792b] transition-colors focus:ring-2 focus:ring-[#C8A860] outline-none">
-            Sign In
-          </Link>
-        </div>
-      </nav>
-
-      <main className="flex-1 max-w-3xl w-full mx-auto px-8 py-16">
-        <div className="card-angular p-10 bg-[#FAFAF7]">
-          
-<h1 className="text-3xl font-light text-[#0A1628] mb-8">Privacy Policy</h1>
-<div className="text-sm text-[#1C1C1C] opacity-70 mb-8">Last updated: September 30, 2026</div>
-
-<div className="prose prose-sm max-w-none text-[#1C1C1C]">
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">1. Data Controller</h2>
-  <p className="mb-4">Validore is operated as a sole proprietorship by Shashank V.<br/>Address: Bengaluru, Karnataka, India<br/>Contact Email: legal@validore.app</p>
-  
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">2. What data we collect</h2>
-  <p className="mb-2">We collect only the minimum data necessary to provide our service:</p>
-  <ul className="list-disc pl-5 mb-4 space-y-2">
-    <li><strong>Account data:</strong> email address, authentication provider (Google/email).</li>
-    <li><strong>Startup idea data:</strong> idea name, industry, product description, target customer, location, business model, core problem, proposed solution (all user-provided via forms).</li>
-    <li><strong>Payment data:</strong> processed securely by Stripe/Razorpay (we do NOT store credit card numbers).</li>
-    <li><strong>Usage data:</strong> tier, validation count, credit balance, subscription status.</li>
-    <li><strong>Analytics:</strong> cookieless, privacy-first analytics via Vercel Analytics (no personal data collected).</li>
-  </ul>
-  
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">3. What we do NOT collect</h2>
-  <p className="mb-4">We do NOT use cookies for tracking, session recording, or advertising. We do not use Google Analytics, Meta Pixel, or Hotjar.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">4. Legal basis for processing</h2>
-  <p className="mb-4">Under GDPR Article 6, we process data based on:</p>
-  <ul className="list-disc pl-5 mb-4 space-y-2">
-    <li><strong>Contract performance:</strong> Account management and service delivery.</li>
-    <li><strong>Legitimate interest:</strong> Fraud prevention and service improvement.</li>
-    <li><strong>Consent:</strong> Marketing emails (if applicable).</li>
-  </ul>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">5. Data sharing &amp; Sub-processors</h2>
-  <p className="mb-4">We share data only with essential sub-processors:</p>
-  <ul className="list-disc pl-5 mb-4 space-y-2">
-    <li><strong>Supabase (US):</strong> Authentication and database hosting.</li>
-    <li><strong>Stripe (US) / Razorpay (India):</strong> Payment processing.</li>
-    <li><strong>Vercel (US):</strong> Hosting and cookieless analytics.</li>
-    <li><strong>OpenRouter / OpenAI / Google / Anthropic:</strong> AI processing. Startup idea data is sent to these providers for analysis.</li>
-  </ul>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">6. AI Data Processing Disclosure</h2>
-  <p className="mb-4">Your startup idea data is sent to AI providers to generate the validation reports. <strong>We do not train our own AI models on your data</strong>. The respective AI providers&apos; data policies apply regarding their use of API data (which generally exclude API data from model training).</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">7. Data retention</h2>
-  <ul className="list-disc pl-5 mb-4 space-y-2">
-    <li><strong>Account data:</strong> Retained while the account is active, and for 90 days after a deletion request.</li>
-    <li><strong>Financial records:</strong> 7 years (as required by law).</li>
-    <li><strong>AI-generated reports:</strong> Deleted upon account deletion.</li>
-  </ul>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">8. Your rights</h2>
-  <p className="mb-2">Depending on your location, you have rights under the GDPR, CCPA, and India DPDPA (2023):</p>
-  <ul className="list-disc pl-5 mb-4 space-y-2">
-    <li><strong>GDPR (EU):</strong> Right to access, rectify, erase, port, restrict, or object to processing.</li>
-    <li><strong>CCPA (California):</strong> Right to know, delete, and opt-out of the sale of personal information (we do not sell your data).</li>
-    <li><strong>DPDPA (India):</strong> Right to access, correction, erasure, and grievance redressal.</li>
-  </ul>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">9. Data Protection Officer / Grievance Officer</h2>
-  <p className="mb-4">Name: Shashank V<br/>Email: legal@validore.app</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">10. Children&apos;s Privacy</h2>
-  <p className="mb-4">Our service is not intended for users under the age of 18.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">11. International transfers</h2>
-  <p className="mb-4">Your data is transferred to US-based processors (Supabase, Stripe, Vercel, AI providers). These transfers rely on Standard Contractual Clauses where applicable.</p>
-
-  <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">12. Changes to this policy</h2>
-  <p className="mb-4">We will notify registered users by email of any material changes to this Privacy Policy.</p>
-</div>
-
-        </div>
-      </main>
-
-      <footer className="border-t border-[#E8E0D0] py-12 bg-[#FAFAF7]">
-        <div className="max-w-5xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
-           <div className="flex items-center gap-2">
-             <Image src="/logo/validore-icon.svg" alt="Validore Logo" width={24} height={24} />
-             <span className="text-sm font-light tracking-widest text-[#1C1C1C]">validore</span>
-           </div>
-           <div className="flex flex-wrap justify-center gap-6 text-sm text-[#1C1C1C] opacity-70">
-              <Link href="/legal/privacy" className="hover:text-[#96792b]">Privacy Policy</Link>
-              <Link href="/legal/terms" className="hover:text-[#96792b]">Terms of Service</Link>
-              <Link href="/legal/cookies" className="hover:text-[#96792b]">Cookie Policy</Link>
-              <Link href="/legal/refund" className="hover:text-[#96792b]">Refund Policy</Link>
-           </div>
-        </div>
-        <div className="max-w-5xl mx-auto px-8 mt-8 text-center md:text-left text-xs text-[#1C1C1C] opacity-40 flex flex-col md:flex-row justify-between">
-           <p>© 2026 Validore. All rights reserved.</p>
-           <p>Validore is operated by Shashank V, Bengaluru, Karnataka, India. Contact: support@validore.app</p>
-        </div>
-      </footer>
-    </div>
-  )
+export default function PrivacyPage() {
+  return <PolicyPage eyebrow="Your data, explained" title="Privacy policy" summary="Your ideas and founder answers belong in your workspace. Here is what we store, what AI providers receive, and the choices you have." sections={[
+    { id: 'operator', title: 'Who is responsible', content: <p>Validore is operated by {LEGAL.operator} in {LEGAL.country}. For privacy questions, access or deletion requests, or a grievance, contact <a href={'mailto:' + LEGAL.contact}>{LEGAL.contact}</a>. Identify the account involved; do not email passwords, full payment-card details, or API keys.</p> },
+    { id: 'collected', title: 'Information we handle', content: <ul>
+      <li><strong>Account:</strong> email, authentication identifier, sign-in information, plan, and preferences. Supabase handles passwords and authentication.</li>
+      <li><strong>Your work:</strong> briefs, interview questions and answers, self-reported evidence, clarity feedback, reports, and planning documents. We record the processing-notice version when you start the optional founder interview.</li>
+      <li><strong>Usage and payments:</strong> job status, model usage, credits, payment references, subscription status, and purchases. Card details are handled by the payment processor, not stored in Validore.</li>
+      <li><strong>Security:</strong> a random browser identifier, user agent, and network address may be used to limit abuse and recognize recent account activity. Hosting and authentication providers also maintain operational logs.</li>
+      <li><strong>Public research:</strong> source URLs, short excerpts, official observations, units, observation periods, retrieval dates, and expiry information.</li>
+    </ul> },
+    { id: 'purpose', title: 'Why we use it', content: <><p>We use information to authenticate you, save your work, tailor follow-up questions, run requested analysis, provide exports, account for credits and payments, prevent abuse, and respond to support or rights requests.</p><p>Where applicable, processing relies on providing the requested service, legal obligations, and legitimate interests in operating and securing it. Where consent is required, we request it for the relevant activity. Optional interviews can be skipped or stopped. Essential service processing remains necessary to deliver requested reports.</p></> },
+    { id: 'ai', title: 'AI processing and live search', content: <><p>When you request analysis, relevant brief details, answers, and evidence are sent to the configured AI gateway and downstream model provider. Routing supports PixRouter, OpenCode, and OpenRouter; direct OpenAI, Google, or Anthropic processing is possible when enabled. Fallbacks can involve more than one configured provider. A custom OpenRouter key uses that account and its provider settings.</p><p>Provider retention, training, and international-processing practices vary by service, model, and account. We do not promise that every free model or gateway offers zero retention or excludes training. We do not train our own models on private briefs or answers, or add them to the shared public research library.</p><p>Live research sends topical queries to search services and retrieves public pages. Queries should use public market terms. Avoid confidential inventions, contact details, credentials, health information, or customer records in your brief. Clarity feedback is decision support, not a measure of intelligence or a guarantee of business success.</p></> },
+    { id: 'memory', title: 'Private answers and shared research', content: <><p>Interview history and feedback are scoped to your account and idea. Agents use them to identify unanswered questions and inform your reports and planning tools. Other founders cannot request your answers through the research library.</p><p>Public source material can be saved internally and refreshed after live retrieval, so later analysis can reuse it. Records preserve provenance, observation dates, and expiry. Search snippets remain weak evidence. Storing text does not verify a claim, and the research library is not a public listing of your startup.</p><p>Reports containing your answers or derived feedback remain account data. Downloaded copies are under your control. The report-sharing route currently requires the owner to sign in.</p></> },
+    { id: 'processors', title: 'Providers and transfers', content: <><div className="policy-table-wrap"><table><thead><tr><th>Service</th><th>Purpose</th></tr></thead><tbody>
+      <tr><td>Vercel</td><td>Application hosting and operational request logs.</td></tr><tr><td>Supabase / PostgreSQL</td><td>Authentication and saved workspace data.</td></tr><tr><td>Upstash Redis</td><td>Rate limits, temporary locks, and public research caches.</td></tr><tr><td>Inngest</td><td>Background jobs and durable steps, including relevant briefs and intermediate research.</td></tr><tr><td>Configured AI providers</td><td>Context needed for requested analysis and tailored questions.</td></tr><tr><td>Search and open-data services</td><td>Topical queries and public requests: public indexes, World Bank, optional SearXNG, Tavily, Serper, and SerpAPI.</td></tr><tr><td>Stripe</td><td>Payments when checkout is enabled. Razorpay checkout is currently unavailable.</td></tr>
+    </tbody></table></div><p>Only configured services are used. Processing may occur outside India; locations depend on provider settings. The operator must maintain appropriate vendor agreements and transfer arrangements where required. We may disclose information when legally required or necessary to protect the service or people. We do not sell personal data or use it for advertising.</p></> },
+    { id: 'retention', title: 'Retention and deletion', content: <><p>Account information and saved work are kept while needed for your workspace. Clear an interview from its controls and download account data in <Link href="/dashboard/settings">Settings</Link>. Clearing an interview does not rewrite existing reports or exported files.</p><p>For account closure or deletion of reports and briefs, email the privacy contact from your account address. We verify the request, explain any information that must be retained, and respond within applicable legal deadlines. Accounting records may need statutory retention. Routine retrieval excludes expired public records; scheduled maintenance removes old research revisions and old browser-activity records.</p><p>Backups, authentication logs, hosting logs, and background-job history follow the retention configured with those providers. Active-storage deletion is not an immediate purge of every backup or downloaded copy. Ask for retention details before submitting sensitive material.</p></> },
+    { id: 'choices', title: 'Your rights and choices', content: <><p>Depending on applicable law, you may request access, correction, export, erasure, restriction, objection, consent withdrawal, or grievance redressal, and complain to the appropriate authority. Rights may have legal exceptions. Contact {LEGAL.contact}; we may need proportionate information to verify ownership.</p><p>Our <Link href="/legal/cookies">Cookie Policy</Link> explains essential storage. Optional analytics and advertising trackers are not enabled. Founder clarity feedback does not make legally binding decisions about you.</p></> },
+    { id: 'security', title: 'Security and age limits', content: <p>The service is for people aged 18 or over. Access controls, request limits, server-side credentials, and provider transport security reduce risk, but no online system is risk-free. Use a unique password, protect your email, and report suspected exposure to the contact above.</p> },
+    { id: 'changes', title: 'Changes to this notice', content: <p>The version above identifies this notice. Updates are published here, with additional notice or fresh consent where applicable law requires it. Review the notice before a new use of the service.</p> },
+  ]} />
 }

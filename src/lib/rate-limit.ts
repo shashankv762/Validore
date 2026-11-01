@@ -1,8 +1,8 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
-export type RateLimitScope = 'validate' | 'ai-module' | 'canvas-manual' | 'recovery'
-const limits: Record<RateLimitScope, number> = { validate: 1, 'ai-module': 3, 'canvas-manual': 10, recovery: 1 }
+export type RateLimitScope = 'validate' | 'ai-module' | 'canvas-manual' | 'recovery' | 'export' | 'interview' | 'interview-daily' | 'ideas' | 'device' | 'privacy-export' | 'privacy-page'
+const limits: Record<RateLimitScope, number> = { validate: 1, 'ai-module': 3, 'canvas-manual': 10, recovery: 1, export: 8, interview: 8, 'interview-daily': 60, ideas: 10, device: 4, 'privacy-export': 2, 'privacy-page': 120 }
 
 export async function rateLimitCheck(userId: string, scope: RateLimitScope = 'validate') {
   try {
@@ -13,10 +13,10 @@ export async function rateLimitCheck(userId: string, scope: RateLimitScope = 'va
       }
       return { success: true } // Dev/staging: allow through
     }
-    const redis = Redis.fromEnv()
+    const redis = Redis.fromEnv({ retry: { retries: 0 }, signal: () => AbortSignal.timeout(2500) })
     const ratelimit = new Ratelimit({
       redis,
-      limiter: Ratelimit.slidingWindow(limits[scope], '60 s'),
+      limiter: Ratelimit.slidingWindow(limits[scope], scope === 'interview-daily' ? '1 d' : '60 s'),
       prefix: 'validore:rate:' + scope,
     })
     return await ratelimit.limit(userId)

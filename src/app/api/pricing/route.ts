@@ -9,6 +9,8 @@ import { checkCredits, deductCredits } from '@/lib/credits'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
+import { loadFounderContext } from '@/lib/interview/context'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
 import { finiteOrNull } from '@/lib/numbers'
@@ -188,7 +190,7 @@ export async function POST(request: NextRequest) {
     })
 
     // Web search for competitor pricing
-    const searchResp = await webSearch(`${idea.industry} pricing competitors ${idea.location} ${new Date().getFullYear()}`, 5)
+    const searchResp = await webSearch(publicResearchQuery(idea, 'pricing competitors'), 5)
 
     // AI analysis
     const today = new Date().toISOString().split('T')[0]
@@ -199,7 +201,8 @@ Product: ${idea.product}
 Target Customer: ${idea.targetCustomer}
 Business Model: ${idea.businessModel}
 
-CURRENT PRICE INPUT: ${i.sellingPrice} (local currency)
+All input monetary amounts are in Indian rupees (INR), matching the simulator. Use INR for your recommendations. If comparing a foreign-currency source, retain its original currency and label any conversion assumption.
+CURRENT PRICE INPUT: ${i.sellingPrice} INR
 Variable Cost: ${i.variableCostPerUnit}
 Fixed Cost/Month: ${i.fixedCostMonthly}
 Expected Customers: ${i.expectedCustomers}
@@ -238,6 +241,8 @@ CRITICAL RULES:
 - Generate all fields including: pricingProblem, customerSegments, customerPersonas, wtpQuestionnaire, competitorPricingMatrix, competitivePricingMap, costBreakdown, pricingModels, psychologicalPricing, discountSensitivityTable, priceElasticity, whatIfAnalysis, pricingDecisionMatrix, pricingVsVolumeMatrix`
 
     const aiResult = await generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
+      privateContext: await loadFounderContext(idea.id, dbUser.id),
       prompt,
       schema: PricingAiSchema,
       temperature: 0,

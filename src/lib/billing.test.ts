@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-const mocks = vi.hoisted(() => ({ customer: vi.fn(), subscriptions: vi.fn(), sessions: vi.fn(), expire: vi.fn(), checkout: vi.fn(), portal: vi.fn() }))
+const mocks = vi.hoisted(() => ({ customer: vi.fn(), subscriptions: vi.fn(), sessions: vi.fn(), expire: vi.fn(), checkout: vi.fn(), portal: vi.fn(), price: vi.fn() }))
 vi.mock('stripe', () => ({ default: class {
   customers = { create: mocks.customer }
+  prices = { retrieve: mocks.price }
   subscriptions = { list: mocks.subscriptions }
   checkout = { sessions: { list: mocks.sessions, expire: mocks.expire, create: mocks.checkout } }
   billingPortal = { sessions: { create: mocks.portal } }
@@ -20,13 +21,34 @@ beforeEach(() => {
   mocks.checkout.mockResolvedValue({ url: 'https://checkout.stripe.com/new' })
   mocks.portal.mockResolvedValue({ url: 'https://billing.stripe.com/account' })
   mocks.expire.mockResolvedValue(undefined)
+  mocks.price.mockResolvedValue({ active: true, currency: 'usd', unit_amount: 2900, recurring: { interval: 'month', interval_count: 1 } })
 })
 afterEach(() => vi.unstubAllEnvs())
 describe('Subscription checkout lifecycle', () => {
+  it.each([
+    { active: true, currency: 'usd', unit_amount: 1900, recurring: { interval: 'month', interval_count: 1 } },
+    { active: true, currency: 'inr', unit_amount: 2900, recurring: { interval: 'month', interval_count: 1 } },
+    { active: true, currency: 'usd', unit_amount: 2900, recurring: { interval: 'year', interval_count: 1 } },
+    { active: false, currency: 'usd', unit_amount: 2900, recurring: { interval: 'month', interval_count: 1 } },
+  ])('blocks checkout when the configured price does not match the advertised plan', async price => {
+    mocks.price.mockResolvedValue(price)
+    await expect(createSubscriptionCheckout(user.id, 'premium')).rejects.toThrow('does not match')
+    expect(mocks.checkout).not.toHaveBeenCalled()
+    expect(mocks.sessions).not.toHaveBeenCalled()
+  })
   it('reuses an open checkout for the selected plan', async () => {
-    mocks.sessions.mockResolvedValue({ data: [{ id: 'cs_open', mode: 'subscription', metadata: { purpose: 'validore_subscription', tier: 'premium' }, url: 'https://checkout.stripe.com/open' }] })
+    mocks.sessions.mockResolvedValue({ data: [{ id: 'cs_open', mode: 'subscription', metadata: { purpose: 'validore_subscription', tier: 'premium', priceId: 'price_premium' }, url: 'https://checkout.stripe.com/open' }] })
     expect(await createSubscriptionCheckout(user.id, 'premium')).toBe('https://checkout.stripe.com/open')
     expect(mocks.checkout).not.toHaveBeenCalled()
+  })
+  it('replaces an old checkout instead of charging an outdated price for the same tier', async () => {
+    mocks.sessions.mockResolvedValue({ data: [{ id: 'cs_old_price', mode: 'subscription', metadata: { purpose: 'validore_subscription', tier: 'premium', priceId: 'price_previous' }, url: 'https://checkout.stripe.com/previous' }] })
+    expect(await createSubscriptionCheckout(user.id, 'premium')).toBe('https://checkout.stripe.com/new')
+    expect(mocks.expire).toHaveBeenCalledWith('cs_old_price')
+    expect(mocks.checkout).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({ tier: 'premium', priceId: 'price_premium' }),
+      line_items: [{ price: 'price_premium', quantity: 1 }],
+    }))
   })
   it('sends an existing subscriber to the portal instead of creating another subscription', async () => {
     mocks.subscriptions.mockResolvedValue({ data: [{ status: 'active' }] })

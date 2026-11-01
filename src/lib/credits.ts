@@ -87,8 +87,8 @@ export type CreditTransaction = Parameters<Parameters<typeof db.transaction>[0]>
 export async function refundValidationCredits(userId: string, jobId: string, transaction?: CreditTransaction): Promise<void> {
   if (!/^[a-f0-9-]{36}$/i.test(jobId)) throw new Error('Invalid refund job reference')
   const refund = async (tx: CreditTransaction) => {
-    const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
-    if (!user) throw new Error('Credit recipient not found')
+    const [lockedUser] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
+    if (!lockedUser) throw new Error('Credit recipient not found')
     const reference = 'Job: ' + jobId
     const [refunded] = await tx.select().from(creditLedger).where(and(
       eq(creditLedger.userId, userId), eq(creditLedger.transactionType, 'VALIDATION_REFUND'), eq(creditLedger.description, reference),
@@ -103,13 +103,22 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
     assertAmount(sources.monthly, true)
     assertAmount(sources.purchased, true)
     if (sources.monthly + sources.purchased !== -spend.amount) throw new Error('Refund ledger mismatch')
+    const user = await applyDueCycleReset(tx, lockedUser)
+    const now = new Date()
+    const cycleStart = user.creditResetAt ? new Date(user.creditResetAt.getTime() - 30 * 86_400_000) : null
+    const sameCycle = !spend.createdAt || !cycleStart || spend.createdAt >= cycleStart
+    const sameValidationMonth = !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const monthlyRefund = sameCycle ? Math.min(sources.monthly, Math.max(0, TIER_MONTHLY_CREDITS[user.tier] - user.creditBalance)) : 0
+    const refundedAmount = monthlyRefund + sources.purchased
+    // Expired plan credits cannot refill a new cycle or erase its spending.
+    // Purchased credits never expire and always return to their original pool.
     await tx.update(users).set({
-      creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${sources.monthly})`,
+      creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${monthlyRefund})`,
       purchasedCredits: sql`${users.purchasedCredits} + ${sources.purchased}`,
-      creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${-spend.amount})`,
-      validationsThisMonth: sql`greatest(0, ${users.validationsThisMonth} - 1)`,
+      creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${sameCycle ? refundedAmount : 0})`,
+      validationsThisMonth: sql`greatest(0, ${users.validationsThisMonth} - ${sameValidationMonth ? 1 : 0})`,
     }).where(eq(users.id, userId))
-    await tx.insert(creditLedger).values({ userId, amount: -spend.amount, transactionType: 'VALIDATION_REFUND', description: reference })
+    await tx.insert(creditLedger).values({ userId, amount: refundedAmount, transactionType: 'VALIDATION_REFUND', description: reference })
   }
   if (transaction) await refund(transaction)
   else await db.transaction(refund)

@@ -1,4 +1,5 @@
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief } from '@/lib/ai/research-brief'
 import { FinanceAgentSchema } from '../schemas'
 import type { IdeaInput } from '../schemas'
 import { STARTUP_WEIGHTS } from '@/lib/scoring'
@@ -34,17 +35,23 @@ INTEGRITY RULES:
 2. Do not invent traction, revenue, or customer numbers.
 3. Estimation should be grounded in the research digest above when it contains market pricing evidence.
 4. Score honestly — if the numbers don't work (e.g. variable cost near price), the financialScore should reflect it.
+5. Use USD for all monetary assumptions so they match the report's financial tables. estimatedCACMonthly means acquisition cost per NEW customer, not total monthly marketing spend.
 
 Other agents handle market, customers, competitors, and the final decision — stay in your scope.`
 }
 
 export async function runFinanceAgent(idea: IdeaInput, researchDigest: string, opts?: AgentOpts) {
   return generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
     agentRole: 'finance',
+    researchMode: opts?.reuseResearch ? 'reuse' : 'auto',
+    sources: opts?.sources,
     prompt: buildFinancePrompt(idea, researchDigest),
     schema: FinanceAgentSchema,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
+    privateContext: opts?.privateContext,
+    researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
   })
 }

@@ -10,6 +10,8 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { canUserAccessWithCredits } from '@/lib/tier-gate'
 import { consumeModulePack } from '@/lib/module-credits'
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
+import { loadFounderContext } from '@/lib/interview/context'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
 import { toDatabaseInteger } from '@/lib/numbers'
@@ -178,7 +180,7 @@ export async function POST(request: NextRequest) {
       : 38 // fallback overall avg
 
     // ── Web search ──────────────────────────────────────────────────────────────
-    const searchResp = await webSearch(`${i.category} crowdfunding campaigns ${i.country} success rate ${new Date().getFullYear()}`, 4)
+    const searchResp = await webSearch(publicResearchQuery({ industry: i.category, location: i.country }, 'crowdfunding campaigns success rate'), 4)
     const today = new Date().toISOString().split('T')[0]
 
     const prompt = `You are a crowdfunding campaign expert analyzing a campaign's readiness.
@@ -234,7 +236,8 @@ CRITICAL RULES:
 - Scenarios (conservative/base/optimistic) = ASSUMPTION only
 - Generate all fields including: founderAssumptions, fundingBands, goalBands, backerSegments, rewardEconomics, campaignDurationAnalysis, categoryBenchmark, campaignPageScorecard, campaignStoryScorecard, earlyMomentumAnalysis, marketingFunnel, socialProofAnalysis, preLaunchChecklist, preLaunchReadinessScore, firstDayTarget, firstWeekTarget.`
 
-    const aiResult = await generateWithFallback({ prompt, schema: CrowdfundingAiSchema, temperature: 0, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
+    const aiResult = await generateWithFallback({
+    researchPrompt: publicResearchBrief(idea), prompt, privateContext: await loadFounderContext(idea.id, dbUser.id), schema: CrowdfundingAiSchema, temperature: 0, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
     const ai = aiResult.data
 
     // Calculate total performance score

@@ -6,6 +6,7 @@ import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { encryptApiKey } from '@/lib/byok-crypto'
 import { validAuthOrigin } from '@/lib/auth-form'
+import { effectiveAiPreference } from '@/lib/ai/model-policy'
 
 const PreferenceSchema = z.object({
   preferredAiProvider: z.enum(['free_models', 'paid_models', 'custom_openrouter']),
@@ -20,7 +21,8 @@ export async function PATCH(req: NextRequest) {
   const parsed = PreferenceSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Invalid AI preferences', details: parsed.error.issues }, { status: 400 })
   const { preferredAiProvider, customOpenRouterKey } = parsed.data
-  const values: Partial<typeof users.$inferInsert> = { preferredAiProvider }
+  const effectiveProvider = effectiveAiPreference(preferredAiProvider)
+  const values: Partial<typeof users.$inferInsert> = { preferredAiProvider: effectiveProvider }
   if (customOpenRouterKey !== undefined) {
     try { values.encryptedOpenrouterKey = customOpenRouterKey ? encryptApiKey(customOpenRouterKey) : null }
     catch { return NextResponse.json({ error: 'API key storage is unavailable. Contact support.' }, { status: 503 }) }
@@ -28,7 +30,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const [updated] = await db.update(users).set(values).where(eq(users.supabaseId, user.id)).returning({ id: users.id })
     if (!updated) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    return NextResponse.json({ preferredAiProvider })
+    return NextResponse.json({ preferredAiProvider: effectiveProvider })
   } catch (error) {
     console.error('[preferences] Saving failed:', error)
     return NextResponse.json({ error: 'Unable to save preferences. Please try again.' }, { status: 500 })

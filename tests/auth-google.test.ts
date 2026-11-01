@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
+import { LEGAL } from '@/lib/legal'
 
 const oauth = vi.hoisted(() => vi.fn())
 const settings = vi.hoisted(() => vi.fn())
@@ -19,6 +20,20 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('Google sign-in', () => {
+  it('requires current terms acceptance for the Google signup form', async () => {
+    const signup = (body: object) => new NextRequest('https://validore.tech/api/auth/google', { method: 'POST',
+      headers: { origin: 'https://validore.tech', 'content-type': 'application/json' }, body: JSON.stringify({ intent: 'signup', ...body }) })
+    expect((await POST(signup({}))).status).toBe(400)
+    expect(oauth).not.toHaveBeenCalled()
+    expect((await POST(signup({ consent: true, policyVersion: LEGAL.version }))).status).toBe(303)
+    expect(oauth).toHaveBeenCalledOnce()
+  })
+  it.each(['/dashboard/settings', '//untrusted.example'])('validates the return path %s before including it in the callback', async next => {
+    await POST(new NextRequest('https://validore.tech/api/auth/google', { method: 'POST', headers: { origin: 'https://validore.tech', 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ next }) }))
+    const target = new URL(oauth.mock.calls[0][0].options.redirectTo)
+    expect(target.origin).toBe('https://validore.tech')
+    expect(target.searchParams.get('next')).toBe(next.startsWith('//') ? null : next)
+  })
   it('keeps a disabled provider on the app instead of redirecting to a Supabase error', async () => {
     settings.mockResolvedValue({ external: { google: false } })
     const response = await POST(request())

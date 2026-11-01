@@ -145,7 +145,7 @@ export const CompetitorSchema = z.object({
 
 export const CompetitorAgentSchema = z.object({
   competitiveScore: z.number(),
-  competitors: z.array(CompetitorSchema).min(3).max(10),
+  competitors: z.array(CompetitorSchema).max(10),
   competitorPositioning: z.array(z.object({
     name: z.string(),
     x: z.number(),
@@ -227,7 +227,9 @@ export const SynthesisAgentSchema = z.object({
   founderAssumptions: z.array(z.object({
     id: z.number(),
     assumption: z.string(),
-    category: z.enum(['PROBLEM', 'CUSTOMER', 'MARKET', 'PRICING', 'SOLUTION', 'CHANNEL', 'REVENUE', 'COST', 'COMPETITION', 'EXECUTION']),
+    // This is a descriptive grouping, not a decision or permission. An unknown
+    // grouping must not discard an otherwise valid report or spend another call.
+    category: z.enum(['PROBLEM', 'CUSTOMER', 'MARKET', 'PRICING', 'SOLUTION', 'CHANNEL', 'REVENUE', 'COST', 'COMPETITION', 'EXECUTION', 'OTHER']).catch('OTHER'),
     preResearchBelief: z.string(),
     postResearchFinding: z.string(),
     validated: z.boolean(),
@@ -256,6 +258,17 @@ export const FullReportSchema = z.object({
 })
 
 export type FullReport = z.infer<typeof FullReportSchema>
+
+export const ProductAgentSchema = FullReportSchema.pick({ uvpOptions: true, selectedUvp: true, moscowFeatures: true,
+  mvpDescription: true, oneLineConcept: true, landingPageCopy: true })
+export const GrowthAgentSchema = FullReportSchema.pick({ actionPlan: true, nextStepRecommendation: true, nextStepRationale: true })
+export const EvidenceReviewSchema = z.object({
+  summary: z.string(),
+  checks: z.array(z.object({ claim: z.string(), url: z.string(),
+    assessment: z.enum(['supports', 'contradicts', 'inconclusive']), rationale: z.string() })).max(8),
+  gaps: z.array(z.string()).max(8),
+})
+export type EvidenceReview = z.infer<typeof EvidenceReviewSchema>
 
 // Max score weights per category — used by agent prompts (informational only;
 // the engine clamps all scores deterministically after generation).

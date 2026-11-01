@@ -44,11 +44,11 @@ export function ScorecardGrid({
       {(title || subtitle || badge) && (
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div>
-            {title && <h3 className="text-sm font-semibold text-[#0A1628]">{title}</h3>}
-            {subtitle && <p className="text-xs text-[#1C1C1C] opacity-60 mt-0.5">{subtitle}</p>}
+            {title && <h3 className="text-sm font-semibold text-[#141923]">{title}</h3>}
+            {subtitle && <p className="text-xs text-[#364152] opacity-60 mt-0.5">{subtitle}</p>}
           </div>
           {badge && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#C8A860]/40 bg-amber-50 text-amber-800 uppercase tracking-wide">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-[#E0A526]/40 bg-amber-50 text-amber-800 ">
               {badge}
             </span>
           )}
@@ -61,15 +61,15 @@ export function ScorecardGrid({
           const valid = Number.isFinite(max) && max > 0 && Number.isFinite(item.score) && item.score >= 0 && item.score <= max
           const pct = valid ? (item.score / max) * 100 : 0
           const color =
-            pct >= 75 ? '#22c55e' : pct >= 50 ? '#C8A860' : '#ef4444'
+            pct >= 75 ? '#22c55e' : pct >= 50 ? '#E0A526' : '#ef4444'
 
           return (
             <div
               key={idx}
-              className="card-angular p-3.5 bg-[#FAFAF7] border border-[#E8E0D0] hover:border-[#C8A860] transition-colors shadow-sm"
+              className="card-angular p-3.5 bg-[#FFFFFF] border border-[#E5E7EB] hover:border-[#E0A526] transition-colors shadow-sm"
             >
               <div
-                className="text-[11px] font-medium uppercase tracking-wider text-[#1C1C1C] opacity-70 mb-1.5 truncate"
+                className="text-[11px] font-medium  text-[#364152] opacity-70 mb-1.5 truncate"
                 title={item.label}
               >
                 {item.label}
@@ -78,12 +78,12 @@ export function ScorecardGrid({
                 <span className="text-xl font-light" style={{ color }}>
                   {valid ? item.score : '—'}
                 </span>
-                <span className="text-[10px] text-stone-400 font-mono">/{Number.isFinite(max) && max > 0 ? max : '—'}</span>
+                <span className="text-[10px] text-stone-400 tabular-nums">/{Number.isFinite(max) && max > 0 ? max : '—'}</span>
               </div>
-              <div className="mt-2 h-1 w-full bg-[#E8E0D0] rounded-full overflow-hidden">
+              <div className="mt-2 h-1 w-full bg-[#E5E7EB] rounded-full overflow-hidden">
                 <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${pct}%`, backgroundColor: color }}
+                  className="progress-fill rounded-full"
+                  style={{ transform: `scaleX(${pct / 100})`, backgroundColor: color }}
                 />
               </div>
               {item.rationale && (

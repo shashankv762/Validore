@@ -36,7 +36,7 @@ export async function fulfillCreditPurchase(payment: Fulfillment): Promise<boole
       status: 'completed',
     }).onConflictDoNothing().returning({ id: creditPurchases.id })
     if (!purchase) return false
-    const universal = payment.creditType === 'credit_topup' ? 2000 * payment.quantity : 0
+    const universal = payment.creditType === 'credit_topup' ? CREDIT_PACKAGES.credit_topup.credits.universalCredits * payment.quantity : 0
     const [recipient] = await tx.update(users).set({
       crowdfundingCredits: sql`${users.crowdfundingCredits} + ${pack.credits.crowdfunding * payment.quantity}`,
       pitchDeckCredits: sql`${users.pitchDeckCredits} + ${pack.credits.pitchDeck * payment.quantity}`,

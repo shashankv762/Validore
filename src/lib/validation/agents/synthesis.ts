@@ -1,4 +1,5 @@
 import { generateWithFallback } from '@/lib/ai/generate'
+import { publicResearchBrief } from '@/lib/ai/research-brief'
 import { SynthesisAgentSchema } from '../schemas'
 import type { IdeaInput } from '../schemas'
 import { STARTUP_WEIGHTS } from '@/lib/scoring'
@@ -63,17 +64,25 @@ INTEGRITY RULES:
 4. Do not recommend fundraising by default.
 5. The integrityNote must list verified vs assumed items clearly.
 6. actionPlan entries are PROPOSED_STRATEGY — future plans, never presented as achieved.
+7. You perform desk research only. Set founderAssumptions.validated to false: article mentions, a large ecosystem, and an absence of contradictory evidence do not validate this specific product's demand, pricing or feasibility. Explain tentative support in postResearchFinding and propose a direct test.
+8. Preserve 'Not established' market sizes. Do not reconstruct missing TAM/SAM/SOM from arbitrary spending or market-share assumptions. Do not use unsupported amounts as reasons for the verdict.
+9. Compare source relevance, customer segment, timeframe and pricing. An incubator or adviser may be a partner or indirect substitute; distinguish that from software offering the same job to the same customer.
 
 Stay in your scope — the research sections are owned by other agents.`
 }
 
 export async function runSynthesisAgent(idea: IdeaInput, researchDigest: string, opts?: AgentOpts) {
   return generateWithFallback({
+    researchPrompt: publicResearchBrief(idea),
     agentRole: 'synthesis',
+    sources: opts?.sources,
+    researchMode: opts?.reuseResearch ? 'reuse' : 'auto',
     prompt: buildSynthesisPrompt(idea, researchDigest),
     schema: SynthesisAgentSchema,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
+    privateContext: opts?.privateContext,
+    researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
   })
 }

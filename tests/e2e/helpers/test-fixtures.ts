@@ -1,6 +1,3 @@
-import { config } from 'dotenv'
-if (process.env.CI !== 'true') config({ path: '.env.local' })
-
 import { NextRequest } from 'next/server'
 
 export interface MockUserRecord {

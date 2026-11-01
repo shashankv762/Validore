@@ -5,6 +5,8 @@ import { ideas, users, validationJobs, tierConfig } from '@/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { IdeaInputSchema } from '@/lib/idea-input'
+import { isSameOriginMutation } from '@/lib/api-security'
+import { rateLimitCheck } from '@/lib/rate-limit'
 
 async function authenticatedUser() {
   const { data: { user } } = await (await createClient()).auth.getUser()
@@ -21,8 +23,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
     const user = await authenticatedUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!(await rateLimitCheck(user.id, 'ideas')).success) return NextResponse.json({ error: 'Please wait before saving another idea.' }, { status: 429 })
     const body = await request.json().catch(() => null)
     if (body?.website) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     const parsed = IdeaInputSchema.safeParse(body)
@@ -38,15 +42,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ idea }, { status: 201 })
     })
   } catch (error) {
-    console.error('[ideas] Saving failed:', error)
+    console.error('[ideas] Saving failed', { type: error instanceof Error ? error.name : 'UnknownError' })
     return NextResponse.json({ error: 'Unable to save your idea. Please try again.' }, { status: 503 })
   }
 }
 
 const EditSchema = IdeaInputSchema.extend({ ideaId: z.string().uuid() })
 export async function PATCH(request: NextRequest) {
+  if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
   const user = await authenticatedUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!(await rateLimitCheck(user.id, 'ideas')).success) return NextResponse.json({ error: 'Please wait before saving more changes.' }, { status: 429 })
   const parsed = EditSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Please check your idea details.', details: parsed.error.flatten() }, { status: 400 })
   const { ideaId, ...draft } = parsed.data
