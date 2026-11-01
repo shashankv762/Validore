@@ -79,6 +79,9 @@ function checkPrivacyBoundary() {
 }
 
 describe('real SDK and research pipeline with synthetic external services', () => {
+  // Includes a cold module graph and the full nine-agent SDK pipeline. Under
+  // parallel browser/PDF tests the five-second default can expire during import,
+  // leaving unfinished work to contaminate the following test's shared fixtures.
   it('completes all nine agents, recalls stored observations, merges searches and replays without another model request', async () => {
     const { runMultiAgentValidation } = await import('@/lib/validation/agents/orchestrator')
     const steps = durable()
@@ -106,7 +109,7 @@ describe('real SDK and research pipeline with synthetic external services', () =
     expect(mocks.read).toHaveBeenCalledTimes(4)
     expect(JSON.stringify([...steps.saved.values()])).not.toContain('synthetic-key')
     checkPrivacyBoundary()
-  })
+  }, 15_000)
 
   it('reuses cached public research on another report while recording only that report’s model usage', async () => {
     lite = true

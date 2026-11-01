@@ -68,7 +68,6 @@ scripts/generators
 scripts/probe-constraints-m1-2.ts
 
 # ── Documentation & config files not needed at runtime ───────────────────────
-vercel.json
 README.md
 PROJECT.md
 TEST_READY.md
@@ -100,3 +99,12 @@ venv
 # ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
 firebase-debug.log
+
+# Cloudflare local state and generated deployment bundle
+.open-next/
+.wrangler/
+.dev.vars*
+cloudflare-env.d.ts
+
+# Independent static marketing site; deploy its public folder separately.
+static webpage/

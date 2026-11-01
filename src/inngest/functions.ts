@@ -2,10 +2,18 @@ import { inngest } from './client'
 import { generateValidationReport, completeValidationJob, failValidationJob } from '@/lib/validation/jobs'
 import { z } from 'zod'
 import type { RunValidationStep } from '@/lib/validation/steps'
+import { maintainCredits } from '@/lib/credit-maintenance'
 
 const globalConcurrency = Number(process.env.VALIDATION_GLOBAL_CONCURRENCY || 2)
 if (!Number.isSafeInteger(globalConcurrency) || globalConcurrency < 1 || globalConcurrency > 50) throw new Error('VALIDATION_GLOBAL_CONCURRENCY must be an integer from 1 to 50')
 const JobEvent = z.object({ jobId: z.string().uuid(), userId: z.string().uuid() })
+
+// Render Free has no free cron service. Reuse the configured durable queue.
+// Registered only when CREDIT_MAINTENANCE_RUNNER=inngest; Workers keeps its cron.
+export const dailyCreditMaintenance = inngest.createFunction({
+  id: 'daily-credit-maintenance', name: 'Renew credits and clean expired records',
+  triggers: { cron: '0 0 * * *' }, retries: 2, concurrency: 1,
+}, async ({ step }) => step.run('maintain-credits', maintainCredits))
 
 export const validateStartup = inngest.createFunction({
   id: 'validate-startup', name: 'Validate startup with specialist agents',

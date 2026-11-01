@@ -1,0 +1,5 @@
+/auth/* https://validore.onrender.com/auth/:splat 302
+/dashboard https://validore.onrender.com/dashboard 302
+/dashboard/* https://validore.onrender.com/dashboard/:splat 302
+/legal/* https://validore.onrender.com/legal/:splat 302
+/demo https://validore.onrender.com/demo 302

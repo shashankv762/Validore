@@ -15,9 +15,7 @@ vi.mock('@/db', () => ({ db: { query: {
   crowdfundingAnalyses: { findFirst: mocks.crowdfunding }, pricingSimulations: { findFirst: mocks.pricing },
   ideas: { findFirst: mocks.idea },
 } } }))
-vi.mock('@react-pdf/renderer', () => ({
-  renderToBuffer: async () => Buffer.from('%PDF-1.4 test'), Document: 'div', Page: 'div', Text: 'span', View: 'div', Image: 'img', Font: { register: vi.fn() }, StyleSheet: { create: (styles: unknown) => styles },
-}))
+vi.mock('@/lib/exports/pdf', () => ({ renderReportPdf: async () => Buffer.from('%PDF-1.7 test') }))
 import { GET as csv } from '@/app/api/export/csv/route'
 import { GET as pdf } from '@/app/api/export/pdf/route'
 beforeEach(() => {

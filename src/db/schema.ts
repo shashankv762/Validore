@@ -28,13 +28,14 @@ export const users = pgTable('users', {
   validationResetAt: timestamp('validation_reset_at'),
   creditBalance: integer('credit_balance').notNull().default(0),
   purchasedCredits: integer('purchased_credits').notNull().default(0),
+  rewardCredits: integer('reward_credits').notNull().default(0),
   creditsUsedThisCycle: integer('credits_used_this_cycle').notNull().default(0),
   creditResetAt: timestamp('credit_reset_at'),
   preferredAiProvider: text('preferred_ai_provider').default('free_models'),
   encryptedOpenrouterKey: text('encrypted_openrouter_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-}).enableRLS()
+}, table => [check('users_reward_credits_nonnegative', sql`${table.rewardCredits} >= 0`)]).enableRLS()
 
 export const tierConfig = pgTable('tier_config', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -264,6 +265,26 @@ export const creditLedger = pgTable('credit_ledger', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('credit_ledger_user_created_idx').on(table.userId, table.createdAt),
+]).enableRLS()
+
+// Only a verified provider callback may award these sessions. Browser roles
+// have no table policy; session identifiers disclose no founder/account data.
+export const rewardedAdSessions = pgTable('rewarded_ad_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull().default('applixir'),
+  status: text('status').notNull().default('pending'),
+  providerTransactionId: text('provider_transaction_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  rewardedAt: timestamp('rewarded_at', { withTimezone: true }),
+}, table => [
+  uniqueIndex('rewarded_ads_transaction_uidx').on(table.provider, table.providerTransactionId),
+  index('rewarded_ads_user_created_idx').on(table.userId, table.createdAt),
+  index('rewarded_ads_rewarded_idx').on(table.rewardedAt),
+  index('rewarded_ads_pending_idx').on(table.status, table.expiresAt),
+  check('rewarded_ads_status_check', sql`${table.status} in ('pending', 'cancelled', 'rewarded')`),
+  check('rewarded_ads_time_check', sql`${table.expiresAt} > ${table.createdAt}`),
 ]).enableRLS()
 
 export const userDevices = pgTable('user_devices', {

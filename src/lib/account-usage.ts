@@ -1,20 +1,22 @@
 import { CREDIT_COSTS, TIER_MONTHLY_CREDITS } from './credit-costs'
 import { PLAN_CATALOG, type PlanTier } from './plans'
+import { affordableValidations, totalCredits } from './credit-allocation'
 
 type Balance = {
   tier: PlanTier
   creditBalance: number
   purchasedCredits: number
+  rewardCredits?: number
   crowdfundingCredits: number
   pitchDeckCredits: number
   validationsThisMonth: number
 }
 
-export function creditOverview(user: Pick<Balance, 'tier' | 'creditBalance' | 'purchasedCredits'>) {
+export function creditOverview(user: Pick<Balance, 'tier' | 'creditBalance' | 'purchasedCredits' | 'rewardCredits'>) {
   const allocation = TIER_MONTHLY_CREDITS[user.tier]
   const monthlyRemaining = Math.max(0, user.creditBalance)
   return { allocation, monthlyRemaining, purchasedRemaining: Math.max(0, user.purchasedCredits),
-    total: monthlyRemaining + Math.max(0, user.purchasedCredits),
+    rewardRemaining: Math.max(0, user.rewardCredits ?? 0), total: totalCredits(user),
     monthlySpent: Math.max(0, allocation - monthlyRemaining),
     percentage: Math.min(100, Math.max(0, (allocation - monthlyRemaining) / allocation * 100)),
   }
@@ -25,7 +27,7 @@ export function actionAllowance(user: Balance, action: keyof typeof CREDIT_COSTS
   if (action === 'PITCH_DECK' && user.tier !== 'max_premium') return { runs: Math.max(0, user.pitchDeckCredits), unit: 'module credit', permitted: user.pitchDeckCredits > 0 }
   const permitted = action === 'LITE_VALIDATION' ? user.tier === 'free' : user.tier !== 'free'
   let runs = permitted ? Math.floor(creditOverview(user).total / CREDIT_COSTS[action]) : 0
-  if (action === 'LITE_VALIDATION' || action === 'DEEP_VALIDATION') runs = Math.min(runs, Math.max(0, validationLimit - user.validationsThisMonth))
+  if (permitted && (action === 'LITE_VALIDATION' || action === 'DEEP_VALIDATION')) runs = affordableValidations(user, CREDIT_COSTS[action], validationLimit)
   return { runs, unit: 'credits', permitted }
 }
 
@@ -40,7 +42,8 @@ export function creditEntryDescription(description: string | null): string {
   try {
     const value = JSON.parse(description)
     if (typeof value?.monthly === 'number' && typeof value?.purchased === 'number') {
-      return `${value.monthly.toLocaleString()} plan credits · ${value.purchased.toLocaleString()} purchased credits`
+      return `${value.monthly.toLocaleString()} plan credits · ${value.purchased.toLocaleString()} purchased credits` +
+        (typeof value.reward === 'number' && value.reward > 0 ? ` · ${value.reward.toLocaleString()} earned credits` : '')
     }
     return 'Account credit adjustment'
   } catch { return description }

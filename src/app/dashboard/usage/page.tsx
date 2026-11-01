@@ -73,7 +73,7 @@ export default function UsagePage() {
           <p className="mt-1 text-sm text-[#53616A]">{overview.monthlyRemaining.toLocaleString()} of {overview.allocation.toLocaleString()} plan credits remaining. Renews {date(user.creditResetAt)}.</p></div>
           <Link href="/dashboard/credits" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium">Manage credits<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
         <progress aria-label="Plan credits used" max={overview.allocation} value={overview.monthlySpent} className="mt-5 h-2 w-full accent-[#89620B]" />
-        <p className="mt-3 text-xs text-[#53616A]">{overview.purchasedRemaining.toLocaleString()} purchased credits carry forward. Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p>
+        <p className="mt-3 text-xs text-[#53616A]">{overview.purchasedRemaining.toLocaleString()} purchased credits and {overview.rewardRemaining.toLocaleString()} earned credits carry forward. Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p>
       </section>
     </>}
     {usage && <>

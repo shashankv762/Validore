@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
-import { ideas, founderInterviews, validationReports, leanCanvases, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationJobs, creditLedger, creditPurchases, userDevices, users } from '@/db/schema'
+import { ideas, founderInterviews, validationReports, leanCanvases, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationJobs, creditLedger, creditPurchases, userDevices, users, rewardedAdSessions } from '@/db/schema'
 import { createClient } from '@/lib/supabase/server'
 import { PRIVATE_HEADERS } from '@/lib/api-security'
 import { rateLimitCheck } from '@/lib/rate-limit'
 import { EXPORT_SECTIONS, exportableProfile } from '@/lib/privacy-export'
 
 const tables = { ideas, interviews: founderInterviews, reports: validationReports, canvases: leanCanvases,
-  pricing: pricingSimulations, crowdfunding: crowdfundingAnalyses, pitchDecks, jobs: validationJobs, creditLedger, purchases: creditPurchases, devices: userDevices }
+  pricing: pricingSimulations, crowdfunding: crowdfundingAnalyses, pitchDecks, jobs: validationJobs, creditLedger, purchases: creditPurchases, devices: userDevices, adRewards: rewardedAdSessions }
 const QuerySchema = z.object({ section: z.enum(EXPORT_SECTIONS).optional(), after: z.string().uuid().optional() })
 export async function GET(request: NextRequest) {
   try {

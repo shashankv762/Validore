@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { totalCredits } from '@/lib/credit-allocation'
 import { toast } from 'sonner'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -119,7 +120,7 @@ export default function CrowdfundingPage() {
   const tier = user?.tier ?? 'free'
   const hasAccess = tier === 'max_premium' || (user?.crowdfundingCredits ?? 0) > 0
   const usesPack = tier !== 'max_premium' && (user?.crowdfundingCredits ?? 0) > 0
-  const balance = (user?.creditBalance ?? 0) + (user?.purchasedCredits ?? 0)
+  const balance = user ? totalCredits(user) : 0
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [interactiveFunding, setInteractiveFunding] = useState(100)

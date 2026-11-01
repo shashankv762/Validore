@@ -1,6 +1,6 @@
 # Optional local presentation
 
-The production launch path is [Vercel and validore.tech](GO_LIVE.md). This page only describes a local demonstration; it does not configure public hosting.
+The production launch path is [Cloudflare Worker and validore.tech](GO_LIVE.md). This page only describes a local demonstration; it does not configure public hosting.
 
 ## Start the app
 

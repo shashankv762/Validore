@@ -1,6 +1,6 @@
 # Release evidence — 2026-10-31
 
-> Historical Render checkpoint. This record predates the Vercel release preparation and removal of CI automation. For the current code and launch path, use [Implementation status](IMPLEMENTATION_STATUS.md) and [GO_LIVE.md](GO_LIVE.md). The original evidence below is retained unchanged.
+> Historical Render checkpoint. This record predates the previous-host release preparation and removal of CI automation. For the current code and launch path, use [Implementation status](IMPLEMENTATION_STATUS.md) and [GO_LIVE.md](GO_LIVE.md). The original evidence below is retained unchanged.
 
 This record persists the release checkpoint outside the volatile R-drive workspace. It contains no test credentials, sessions or private API keys.
 

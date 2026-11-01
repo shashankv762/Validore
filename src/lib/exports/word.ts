@@ -1,10 +1,9 @@
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readPublicAsset } from '../public-assets'
 import { Document, Packer, Paragraph, TextRun, ImageRun, Footer, Header, PageNumber, HeadingLevel, AlignmentType } from 'docx'
 import type { ReportDocument } from './document'
 
 export async function renderReportWord(report: ReportDocument): Promise<Buffer> {
-  const logo = await readFile(join(process.cwd(), 'public/logo/validore-report.png'))
+  const logo = await readPublicAsset('/logo/validore-report.png')
   const document = new Document({
     creator: 'Validore', title: report.title + ' — ' + report.subtitle, description: 'Startup research and decision support',
     styles: { default: { document: { run: { font: 'Arial', size: 21, color: '303948' }, paragraph: { spacing: { after: 120, line: 285 } } } },

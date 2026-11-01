@@ -18,14 +18,16 @@ const excluded = [
   '.tmp/provider-response.json', 'tmp/archive.json', 'src/data/market/snapshot.tmp',
   '.classroom/config.json', '.agents/session.json', '.docker-auth.test/config.json',
   'node_modules/example/index.js', '.next/server/app.js', 'coverage/index.html',
-  'debug.log', 'tsconfig.tsbuildinfo', '.vercel/project.json', '.venv/config.txt',
+  'debug.log', 'tsconfig.tsbuildinfo', '.wrangler/state/db.sqlite', '.open-next/worker.js', '.dev.vars', '.dev.vars.production', 'cloudflare-env.d.ts', '.venv/config.txt',
 ]
 const included = [
-  'package.json', 'package-lock.json', 'next.config.ts', 'vercel.json', 'tsconfig.json',
+  'package.json', 'package-lock.json', 'next.config.ts', 'wrangler.jsonc', 'open-next.config.ts', 'cloudflare/worker.mjs', 'cloudflare/handlers.ts', 'public/_headers', 'tsconfig.json',
   'src/app/layout.tsx', 'src/lib/interview/schema.ts', 'src/lib/ai/research-store.ts',
   'src/data/market/seed-sources.json', 'src/data/market/source-catalog.json',
   'src/data/market/world-bank-metadata.json', 'src/data/market/refresh-status.json',
-  'scripts/refresh-market-snapshot.mjs', 'drizzle/0003_founder_interviews_research.sql',
+  'scripts/refresh-market-snapshot.mjs', 'drizzle/0003_founder_interviews_research.sql', 'drizzle/0004_rewarded_ads.sql',
+  'scripts/ci-config.mjs', 'scripts/test-ci.mjs',
+  'src/lib/ads/rewards.ts', 'src/components/RewardedCredits.tsx', 'docs/FREE_PROTOTYPE_DEPLOYMENT.md', 'docs/REWARDED_ADS.md',
   'public/fonts/NotoSans-Regular.ttf', 'public/fonts/NOTO-LICENSE.txt',
   'public/logo/validore-report.png', 'public/templates/validore-report-template.pdf',
   'public/templates/validore-report-template.docx', 'README.md', 'LICENSE',
@@ -44,10 +46,10 @@ const temporary = mkdtempSync(resolve(temporaryRoot, 'validore-release-check-'))
 const checks = []
 try {
   git(temporary, ['init', '--quiet', '--template='])
-  for (const policy of ['.gitignore', '.vercelignore']) {
+  for (const policy of ['.gitignore']) {
     writeFileSync(resolve(temporary, '.gitignore'), readFileSync(resolve(root, policy)))
-    const keep = policy === '.gitignore' ? [...included, '.env.example'] : included
-    const reject = policy === '.vercelignore' ? [...excluded, '.env.example'] : excluded
+    const keep = [...included, '.env.example', '.env.production.example']
+    const reject = excluded
     const ignored = new Set(git(temporary, ['check-ignore', '--no-index', '-z', '--stdin'], [...reject, ...keep].join('\0') + '\0', [0, 1]).split('\0').filter(Boolean))
     for (const path of reject) assert(ignored.has(path), policy + ' must exclude ' + path)
     for (const path of keep) {
@@ -59,7 +61,7 @@ try {
   const trackedIgnored = git(root, ['ls-files', '-ci', '--exclude-standard', '-z']).split('\0').filter(path => path && existsSync(resolve(root, path)))
   assert.equal(trackedIgnored.length, 0, 'Ignored files are still tracked; review them explicitly: ' + trackedIgnored.join(', '))
   console.log(JSON.stringify({ status: 'passed', checks, trackedIgnoredFiles: trackedIgnored.length,
-    scope: 'Git ignore matching for source control and Vercel CLI upload inputs. No deployment or content-based secret scan.' }, null, 2))
+    scope: 'Git source-control boundaries. Cloudflare uploads the generated Worker and .open-next/assets only. No deployment or content-based secret scan.' }, null, 2))
 } finally {
   // Verify the absolute resolved target before recursively removing this script's
   // own temporary repository. Never remove any path in the source workspace.

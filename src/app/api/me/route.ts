@@ -44,6 +44,7 @@ export async function GET() {
       emailVerified: Boolean(user.email_confirmed_at),
       creditBalance: dbUser.creditBalance,
       purchasedCredits: dbUser.purchasedCredits,
+      rewardCredits: dbUser.rewardCredits,
       creditsUsedThisCycle: dbUser.creditsUsedThisCycle,
       creditResetAt: dbUser.creditResetAt,
       preferredAiProvider: effectiveAiPreference(dbUser.preferredAiProvider),

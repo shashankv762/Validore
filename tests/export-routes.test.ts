@@ -401,7 +401,7 @@ describe('Export Endpoints Comprehensive Test Suite', () => {
 
       const readme = await zip.file('README.md')!.async('string')
       expect(readme).toContain('GitHub Pages')
-      expect(readme).toContain('Vercel')
+      expect(readme).toContain('Cloudflare')
     })
   })
 

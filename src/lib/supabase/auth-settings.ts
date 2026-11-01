@@ -7,7 +7,7 @@ export async function getAuthSettings(): Promise<AuthSettings | null> {
   if (!url || !key) return null
   try {
     const response = await fetch(new URL('/auth/v1/settings', url), {
-      headers: { apikey: key }, next: { revalidate: 60 },
+      headers: { apikey: key }, cache: 'no-store',
       redirect: 'error', signal: AbortSignal.timeout(5000),
     })
     if (!response.ok) return null

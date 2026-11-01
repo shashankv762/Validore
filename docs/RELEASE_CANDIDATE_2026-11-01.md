@@ -2,7 +2,7 @@
 
 > Earlier checkpoint. The privacy/interview extension and new SDK pipeline checks are recorded in [PRIVACY_DATA_RELEASE_2026-11-01.md](PRIVACY_DATA_RELEASE_2026-11-01.md). Counts and live-model runs below describe the preceding revision and are preserved as historical evidence.
 
-Updated November 1, 2026 (Asia/Kolkata). This completes the continuation for synchronized prices, credits and usage, more efficient specialist research, server-side market memory, and free research tools. Changes remain local and uncommitted. Deployment instructions are in [GO_LIVE.md](GO_LIVE.md); no Vercel deployment, DNS change, customer database migration or payment was performed.
+Updated November 1, 2026 (Asia/Kolkata). This completes the continuation for synchronized prices, credits and usage, more efficient specialist research, server-side market memory, and free research tools. Changes remain local and uncommitted. Deployment instructions are in [GO_LIVE.md](GO_LIVE.md); no previous-host deployment, DNS change, customer database migration or payment was performed.
 
 ## Completed behavior
 
@@ -57,10 +57,10 @@ Local evidence:
 - `reports/production-smoke.json`
 - `reports/resume-release-package-check.json`
 
-These files are excluded from Git and Vercel uploads. The dated document preserves the summary independently of the temporary evidence.
+These files are excluded from Git and previous-host uploads. The dated document preserves the summary independently of the temporary evidence.
 
 ## Remaining launch work
 
-Follow [GO_LIVE.md](GO_LIVE.md): review and push the intended source; configure Vercel and its production secrets; review database deltas in staging; connect Inngest; copy Vercel's exact apex/www records into the active Namify DNS zone; save the final-domain Supabase and Google settings; verify email, queued reports, credits and exports on HTTPS. Test Stripe before enabling paid checkout. Keep one production worker/cron endpoint during cutover.
+Follow the current [Cloudflare launch guide](GO_LIVE.md) for deployment, nameservers, secrets and hosted acceptance. Earlier checks above do not verify the current Worker build.
 
 The latest fallback-account checks remain OpenRouter HTTP 401 and exhausted OpenCode allowance; those accounts were not retested here. Ollama and SearXNG adapters have not been accepted against a deployed instance. Restore sufficient provider capacity and complete hosted acceptance before a broad launch.

@@ -1,0 +1,10 @@
+{
+  "name": "validore-static-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone static marketing site. No dependencies and no production build step.",
+  "scripts": {
+    "check": "node --check public/site.js && node --check public/wake.js"
+  }
+}

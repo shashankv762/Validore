@@ -132,7 +132,7 @@ Every test case derives its expected output from authoritative sources:
 1. **Database Schema & Tiers**: Directly derived from `src/db/schema.ts`, `ORIGINAL_REQUEST.md §R1`, and `PROJECT.md §Tier Gating & Quotas`.
 2. **Export Specifications**:
    - CSV: RFC 4180 standard and `PROJECT.md §Export Endpoints Contracts`.
-   - White-Label PDF: `@react-pdf/renderer` specifications and `ORIGINAL_REQUEST.md §R2` (zero Validore branding).
+   - White-Label PDF: `pdf-lib + @pdf-lib/fontkit` specifications and `ORIGINAL_REQUEST.md §R2` (zero Validore branding).
    - Portfolio ZIP: `jszip` standards, containing responsive `index.html`, `styles.css`, and `README.md`.
    - PPTX: OpenXML presentation standards (`pptxgenjs`), 12 slides matching `pitchDecks.slides`.
 3. **Pricing & Credit Rules**: `ORIGINAL_REQUEST.md §R2` ($49 for crowdfunding, $49 for pitch deck, $79 for bundle).

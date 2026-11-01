@@ -69,6 +69,7 @@ export async function GET() {
         isFoundingMember: dbUser.isFoundingMember,
         creditBalance: dbUser.creditBalance,
         purchasedCredits: dbUser.purchasedCredits,
+        rewardCredits: dbUser.rewardCredits,
         creditsUsedThisCycle: dbUser.creditsUsedThisCycle,
         creditResetAt: dbUser.creditResetAt,
         currentPeriodEnd: dbUser.currentPeriodEnd,

@@ -1,7 +1,8 @@
 import { db } from '@/db'
 import { users, creditLedger } from '@/db/schema'
 import { eq, and, gt, like, sql } from 'drizzle-orm'
-import { TIER_MONTHLY_CREDITS } from './credit-costs'
+import { CREDIT_COSTS, TIER_MONTHLY_CREDITS } from './credit-costs'
+import { allocateCredits, canFundExtraLite, totalCredits } from './credit-allocation'
 
 function assertAmount(amount: number, allowZero = false) {
   if (!Number.isSafeInteger(amount) || amount < (allowZero ? 0 : 1)) {
@@ -13,12 +14,12 @@ export async function checkCredits(userId: string, cost: number): Promise<{ allo
   assertAmount(cost, true)
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { creditBalance: true, purchasedCredits: true, creditResetAt: true, tier: true },
+    columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, tier: true },
   })
   if (!user) return { allowed: false, balance: 0 }
   const monthlyBalance = !user.creditResetAt || user.creditResetAt <= new Date()
     ? TIER_MONTHLY_CREDITS[user.tier] : user.creditBalance
-  const balance = monthlyBalance + user.purchasedCredits
+  const balance = totalCredits({ ...user, creditBalance: monthlyBalance })
   return { allowed: balance >= cost, balance }
 }
 
@@ -29,19 +30,21 @@ export async function deductCredits(userId: string, cost: number, action: string
     const [lockedUser] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
     if (!lockedUser) return false
     const user = await applyDueCycleReset(tx, lockedUser)
-    if (user.creditBalance + user.purchasedCredits < cost) return false
-    if (action === 'VALIDATION' && validationLimit !== undefined && user.validationsThisMonth >= validationLimit) return false
-    const monthly = Math.min(user.creditBalance, cost)
-    const purchased = cost - monthly
+    const beyondIncluded = action === 'VALIDATION' && validationLimit !== undefined && user.validationsThisMonth >= validationLimit
+    if (beyondIncluded && (cost !== CREDIT_COSTS.LITE_VALIDATION || !canFundExtraLite(user))) return false
+    const sources = allocateCredits(user, cost, beyondIncluded)
+    if (!sources) return false
+    const { monthly, purchased, reward } = sources
     await tx.update(users).set({
       creditBalance: sql`${users.creditBalance} - ${monthly}`,
       purchasedCredits: sql`${users.purchasedCredits} - ${purchased}`,
+      rewardCredits: sql`${users.rewardCredits} - ${reward}`,
       creditsUsedThisCycle: sql`${users.creditsUsedThisCycle} + ${cost}`,
       ...(action === 'VALIDATION' ? { validationsThisMonth: sql`${users.validationsThisMonth} + 1` } : {}),
     }).where(eq(users.id, userId))
     await tx.insert(creditLedger).values({
       userId, amount: -cost, transactionType: action,
-      description: JSON.stringify({ entityId: entityId ?? null, monthly, purchased }),
+      description: JSON.stringify({ entityId: entityId ?? null, monthly, purchased, reward }),
     })
     return true
   }
@@ -99,22 +102,25 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
       like(creditLedger.description, '%"entityId":"' + jobId + '"%'),
     )).limit(1)
     if (!spend?.description) return
-    const sources = JSON.parse(spend.description) as { monthly: number; purchased: number }
+    const sources = JSON.parse(spend.description) as { monthly: number; purchased: number; reward?: number }
+    const reward = sources.reward ?? 0 // Older ledger entries predate rewarded credits.
     assertAmount(sources.monthly, true)
     assertAmount(sources.purchased, true)
-    if (sources.monthly + sources.purchased !== -spend.amount) throw new Error('Refund ledger mismatch')
+    assertAmount(reward, true)
+    if (sources.monthly + sources.purchased + reward !== -spend.amount) throw new Error('Refund ledger mismatch')
     const user = await applyDueCycleReset(tx, lockedUser)
     const now = new Date()
     const cycleStart = user.creditResetAt ? new Date(user.creditResetAt.getTime() - 30 * 86_400_000) : null
     const sameCycle = !spend.createdAt || !cycleStart || spend.createdAt >= cycleStart
     const sameValidationMonth = !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     const monthlyRefund = sameCycle ? Math.min(sources.monthly, Math.max(0, TIER_MONTHLY_CREDITS[user.tier] - user.creditBalance)) : 0
-    const refundedAmount = monthlyRefund + sources.purchased
+    const refundedAmount = monthlyRefund + sources.purchased + reward
     // Expired plan credits cannot refill a new cycle or erase its spending.
     // Purchased credits never expire and always return to their original pool.
     await tx.update(users).set({
       creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${monthlyRefund})`,
       purchasedCredits: sql`${users.purchasedCredits} + ${sources.purchased}`,
+      rewardCredits: sql`${users.rewardCredits} + ${reward}`,
       creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${sameCycle ? refundedAmount : 0})`,
       validationsThisMonth: sql`greatest(0, ${users.validationsThisMonth} - ${sameValidationMonth ? 1 : 0})`,
     }).where(eq(users.id, userId))

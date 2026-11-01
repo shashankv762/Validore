@@ -3,7 +3,7 @@ export const LEGAL = {
   operator: 'Shashank V',
   country: 'India',
   contact: 'aegixchainai@gmail.com',
-  version: '2026-11-01',
+  version: '2026-11-01-rewards',
   updated: '1 November 2026',
 } as const
 

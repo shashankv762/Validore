@@ -62,6 +62,19 @@ describe('cycle-aware validation refunds', () => {
     expect(mocks.changes).toEqual([])
     expect(mocks.insert).not.toHaveBeenCalled()
   })
+  it('restores earned credits even when the original plan-credit cycle has expired', async () => {
+    mocks.results = [[], [{ amount: -50, description: JSON.stringify({ monthly: 0, purchased: 0, reward: 50 }), createdAt: new Date('2026-09-20T12:00:00Z') }]]
+    await refundValidationCredits('owner', job)
+    expect(params('rewardCredits')).toEqual([50])
+    expect(params('purchasedCredits')).toEqual([0])
+    expect(params('creditBalance')).toEqual([100, 0])
+    expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ amount: 50, transactionType: 'VALIDATION_REFUND' }))
+  })
+  it('rejects a malformed reward allocation before changing balances', async () => {
+    mocks.results = [[], [{ amount: -50, description: JSON.stringify({ monthly: 0, purchased: 0, reward: 500 }), createdAt: new Date() }]]
+    await expect(refundValidationCredits('owner', job)).rejects.toThrow('Refund ledger mismatch')
+    expect(mocks.changes).toEqual([])
+  })
   it('keeps the ledger and cycle spend consistent when the current plan caps the refund', async () => {
     mocks.user.creditBalance = 95
     await refundValidationCredits('owner', job)

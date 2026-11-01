@@ -2,14 +2,19 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { ArrowLeft, ArrowRight, Check, Loader2, Network, Search, Calculator, ShieldCheck, FileText, Clock3 } from 'lucide-react'
 import { toast } from 'sonner'
 import { IdeaInputSchema, type IdeaDraft } from '@/lib/idea-input'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { totalCredits } from '@/lib/credit-allocation'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
-import { FounderInterview } from '@/components/FounderInterview'
 import { ValidationProgress } from '@/components/ValidationProgress'
+
+const FounderInterview = dynamic(() => import('@/components/FounderInterview').then(module => module.FounderInterview), {
+  loading: () => <p role="status" className="p-6 text-sm text-[#53616A]">Loading your founder interview…</p>,
+})
 
 const FIELDS: { key: keyof IdeaDraft; label: string; hint: string; placeholder: string; multiline?: boolean; max: number }[] = [
   { key: 'name', label: 'Startup name', hint: 'A working title is enough. You can refine it later.', placeholder: 'e.g. Validore', max: 100 },
@@ -208,7 +213,7 @@ export default function IdeaWizard() {
               <dd>{draft[item.key]}</dd>
             </div>)}</dl>
             <div className="brief-cost"><div><strong>{account?.tier === 'free' ? 'Lite validation' : 'Full validation'}</strong><span>{account ? (account.tier === 'free' ? LITE_AGENT_COUNT : FULL_AGENT_COUNT) + ' specialists · PDF and Word included' : 'Loading plan details…'}</span></div><strong>{account ? cost + ' credits' : '?'}</strong></div>
-            {account && cost > account.creditBalance + account.purchasedCredits && <p className="brief-balance-warning">You have {account.creditBalance + account.purchasedCredits} credits. <Link href="/dashboard/credits">View your credit options</Link> before starting.</p>}
+            {account && cost > totalCredits(account) && <p className="brief-balance-warning">You have {totalCredits(account)} credits. <Link href="/dashboard/credits">View your credit options</Link> before starting.</p>}
             <p className="brief-privacy">Your idea and any saved founder answers are processed by configured AI providers to prepare the report. See our <Link href="/legal/privacy">Privacy Policy</Link>. Credits are returned if the analysis fails without a report.</p>
           </div>}
           <input name="website" aria-hidden="true" hidden tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} />
@@ -216,7 +221,7 @@ export default function IdeaWizard() {
           {accountError && <p className="brief-error" role="status">Your account details could not load. Refresh the page before starting an analysis; your brief stays in this tab.</p>}
           <div className="brief-actions">
             <button type="button" disabled={step === 0 || savingBrief || interviewBusy} onClick={() => { setStep(value => Math.max(0, value - 1)); setError(''); setErrorField('') }} className="workspace-button-secondary"><ArrowLeft size={15} aria-hidden="true" />Back</button>
-            <button type="submit" disabled={loading || savingBrief || interviewBusy || (step === 2 && !account) || (step === 4 && (!account || cost > account.creditBalance + account.purchasedCredits))} className="workspace-button-primary">
+            <button type="submit" disabled={loading || savingBrief || interviewBusy || (step === 2 && !account) || (step === 4 && (!account || cost > totalCredits(account)))} className="workspace-button-primary">
               {savingBrief ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" />Saving brief…</> : step < 4 ? <>{step === 3 ? 'Continue to review' : 'Continue'}<ArrowRight size={15} aria-hidden="true" /></> : <>Start validation<ArrowRight size={15} aria-hidden="true" /></>}
             </button>
           </div>

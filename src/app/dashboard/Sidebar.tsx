@@ -7,6 +7,7 @@ import { Brand } from '@/components/Brand'
 import { CookieSettingsButton } from '@/components/CookieNotice'
 import { useAccount } from '@/components/AccountProvider'
 import { PLAN_CATALOG } from '@/lib/plans'
+import { totalCredits } from '@/lib/credit-allocation'
 import { Plus, Layers, BarChart3, Coins, Presentation, Settings, FileText, Menu, X, Network, ArrowUpRight, ChevronRight, BookOpen, Lock, type LucideIcon } from 'lucide-react'
 
 type NavItem = { href: string; label: string; icon: LucideIcon }
@@ -36,7 +37,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const active = (href: string) => href === '/dashboard' ? pathname === href :
     pathname === href || pathname.startsWith(href + '/') || (href.endsWith('/reports') && pathname.startsWith('/dashboard/report/'))
   const current = [...RESEARCH, ...BUILD, ...ACCOUNT].find(item => active(item.href))
-  const balance = account ? (account.creditBalance ?? 0) + (account.purchasedCredits ?? 0) : null
+  const balance = account ? totalCredits(account) : null
   const navLink = ({ href, label, icon: Icon }: NavItem) => {
     const locked = account && ((href.endsWith('/pricing') && account.tier === 'free') ||
       (href.endsWith('/crowdfunding') && account.tier !== 'max_premium' && !account.crowdfundingCredits) ||

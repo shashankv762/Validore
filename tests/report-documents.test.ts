@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import JSZip from 'jszip'
+import { PDFDocument } from 'pdf-lib'
 import { buildReportDocument } from '@/lib/exports/document'
 import { renderReportPdf } from '@/lib/exports/pdf'
 import { renderReportWord } from '@/lib/exports/word'
@@ -28,8 +29,9 @@ describe('complete report documents', () => {
     const buffer = await renderReportPdf(buildReportDocument(report, { name: 'Launch research sample' }, 'validation'))
     expect(buffer.subarray(0, 5).toString()).toBe('%PDF-')
     expect(buffer.length).toBeGreaterThan(10000)
-    expect(buffer.toString('latin1')).toMatch(/\/Subtype \/Image/)
-    expect(buffer.toString('latin1').match(/\/Type \/Page\b/g)!.length).toBeGreaterThan(1)
+    const parsed = await PDFDocument.load(buffer)
+    expect(parsed.getPageCount()).toBeGreaterThan(1)
+    expect(parsed.getTitle()).toContain('Launch research sample')
   }, 20000)
   it('creates an editable Word package with every section and the logo', async () => {
     const buffer = await renderReportWord(buildReportDocument(report, { name: 'Launch research sample' }, 'validation'))

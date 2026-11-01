@@ -1,6 +1,6 @@
 # Production setup
 
-The release target is Vercel at `https://validore.tech`. Follow [GO_LIVE.md](GO_LIVE.md) for the account and DNS steps. The source has durable validation jobs, billing availability controls, transactional credits, and refreshed UI/branding. Jenkins and GitHub CI automation have been removed; verification and releases are manual. Public launch still requires hosted integration checks.
+For the ten-user prototype, follow [the Render Free guide](FREE_PROTOTYPE_DEPLOYMENT.md). The current domain layout is **static marketing at `https://validore.tech` and the SaaS at `https://validore.onrender.com`**; see [the publishing guide](../static%20webpage/README.md). Keep app/auth/Inngest origins on the SaaS host. [GO_LIVE.md](GO_LIVE.md) describes an alternative full-app Cloudflare Workers deployment. The source has durable validation jobs, billing availability controls, transactional credits and optional rewarded ads. Verification and releases remain manual. Public launch requires hosted integration checks.
 
 ## Configuration
 
@@ -10,8 +10,8 @@ Use .env.example as the field reference. Keep .env.local ignored and out of sour
 | --- | --- |
 | NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Real public project configuration at build time; a legacy public NEXT_PUBLIC_SUPABASE_ANON_KEY is also supported; never use a private key |
 | NEXT_PUBLIC_APP_URL | Exact HTTPS origin in production; rebuild when it changes |
-| DATABASE_URL | Target Supabase transaction-pooler string for Vercel; URL-encode reserved password characters; the app sets prepare: false |
-| DB_MAX_CONNECTIONS | Start with 2 on Vercel (code default 5); total instances times pool size must fit database capacity |
+| DATABASE_URL | Target Supabase transaction-pooler string for Cloudflare Workers; URL-encode reserved password characters; the app sets prepare: false |
+| DB_MAX_CONNECTIONS | Start with 2 on Cloudflare Workers (code default 2); total instances times pool size must fit database capacity |
 | UPSTASH_REDIS_REST_URL / TOKEN | Production abuse controls; unavailable/missing Redis blocks costly calls and signup |
 | AI provider keys | Working `PIXROUTER_API_KEY`; OpenCode/OpenRouter are optional fallbacks after access/quota is restored |
 | Free model policy | `AI_FREE_ONLY=true`, gateway enable/order `pixrouter,opencode,openrouter`, rotation and direct paid priority disabled; use the curated IDs in `.env.example` |
@@ -36,6 +36,7 @@ Use a separate staging database and take a verified backup before changing an ex
 2. drizzle/0001_application_access_and_indexes.sql enables RLS, revokes application-table access from PUBLIC/anon/authenticated, and adds report/job/history indexes.
 3. drizzle/0002_free_model_default.sql changes the default AI preference for new accounts to free_models; existing preferences are preserved. The API also normalizes legacy paid preferences while free-only mode is active.
 4. drizzle/0003_founder_interviews_research.sql adds private founder interviews and durable public research, indexes, bounded JSON state, RLS and browser-role revocations. **Apply before serving this application revision.** It does not modify existing customer records.
+5. drizzle/0004_rewarded_ads.sql adds the nonnegative earned balance, reward sessions, replay-protection index and browser-role restrictions. **Required before this release even with ads disabled**, because account queries include the new column. It does not rewrite plan or purchased balances.
 
 These files are reviewed SQL deltas, not an automatically journaled migration chain. The second migration targets Supabase roles and is required even after db:push because the explicit grants are not represented by that command. Unique indexes deliberately fail if duplicate historical payments/reports need reconciliation. Inspect those rows and reconcile accounting; do not automatically delete customer records to satisfy an index.
 
@@ -63,17 +64,17 @@ The daily maintenance cron prunes public records more than 90 days past expiry a
 
 Configure Site URL to the public origin and allow the app's /auth/callback redirect for confirmation and recovery, plus explicit localhost/staging origins as needed. Use production SMTP/delivery settings and test registration, confirmation, sign-in, expired reset links, reset completion, sign-out, and refresh cookies. The server uses a PKCE callback before the reset page; custom email templates must support that flow.
 
-The included Nginx ingress replaces incoming forwarding headers. If deploying behind another ingress, configure equivalent trusted client-IP handling before relying on the signup IP quota. Signup retains the existing quota of three registrations per network in seven days; review that product policy for shared college/company networks before wider onboarding.
+The Worker replaces incoming forwarding headers using Cloudflare's visitor IP. Optional local Nginx also replaces incoming forwarding headers. With another ingress, verify equivalent trusted client-IP handling before relying on the signup IP quota. `SIGNUP_MAX_PER_IP_WEEK` defaults to three registrations per network in seven days, accepts 1–20, and can be set to ten for the shared-network pilot. Invalid settings fall back to three.
 
 The app's updated logo is included on sign-in, signup, recovery and workspace screens. Google's external consent screen needs the project owner to upload `public/logo/validore-google-consent.png` in Google Auth Platform's Branding settings. See the exact callback, origin and branding steps in [GO_LIVE.md](GO_LIVE.md#6-finish-authentication-and-payments).
 
 ## Durable AI jobs
 
-Set VALIDATION_RUNNER=inngest and configure the target Inngest environment to serve /api/inngest with matching signing/event keys. If INNGEST_SERVE_ORIGIN is set, use the reachable Vercel/canonical origin, not the old Render hostname. Drain the old deployment's queued work before switching the shared app endpoint.
+Set VALIDATION_RUNNER=inngest and configure the target Inngest environment to serve /api/inngest with matching signing/event keys. INNGEST_SERVE_ORIGIN must be the active host/canonical origin. Drain the old deployment's queued work before switching the shared app endpoint. On Render Free, use global concurrency one and `CREDIT_MAINTENANCE_RUNNER=inngest`, then sync both validation and maintenance functions.
 
 Full validation has nine specialists: market, customer, competition, finance, risk, source review, product, growth and synthesis. Lite has market, customer and synthesis. Fourteen tools are assigned by role across the team, including dated market memory and official World Bank indicators. Both workflows use separate durable preparation, research, agent and persistence steps. Inngest checkpointing is disabled so separate steps are not batched into one long invocation. Completed results are reused on replay. Cached preparation contains idea fields and references, never private API keys. Individual interrupted steps can still repeat provider spending; durable steps do not guarantee exactly-once external API calls.
 
-The /api/inngest handler and AI module routes declare maxDuration=300. Each specialist has a 240-second overall budget, at most six model calls, a 60-second research phase and individual final-report attempts capped at 120 seconds (150 for synthesis). SDK retries are disabled. Enable Vercel Fluid Compute and verify real execution under the chosen plan's limits. Check enqueue, retries, terminal failure refund, duplicate event handling, partial results, and report persistence in staging. Local after() work depends on the process/request lifetime and is only for development. See [Agent architecture](AI_AGENTS.md).
+The application retains explicit AI call/step deadlines. Each specialist has a 240-second overall budget, at most six model calls, a 60-second research phase and individual final-report attempts capped at 120 seconds (150 for synthesis). SDK retries are disabled. Wrangler configures a 300,000 ms CPU ceiling on Workers Paid; network waiting is distinct from CPU time. Verify real execution under production CPU, memory and Inngest request limits. Check enqueue, retries, terminal failure refund, duplicate event handling, partial results, and report persistence in staging. Local after() work depends on the process/request lifetime and is only for development. See [Agent architecture](AI_AGENTS.md).
 
 PixRouter's current account capacity supports a controlled pilot. Requests across workers share the Redis budget and fail closed when it cannot be checked. Keyed-search budgets also fail closed. Missing or exhausted providers return a controlled error/partial result through the existing credit/refund lifecycle. Before wider launch, restore working OpenRouter/OpenCode fallback access or arrange enough provider capacity, then measure real concurrent workloads. [AI_MODELS.md](AI_MODELS.md) records tested IDs and account limits.
 
@@ -81,7 +82,7 @@ PixRouter's current account capacity supports a controlled pilot. Requests acros
 
 Authenticated owners can export saved validation, canvas, pricing, crowdfunding and pitch content as paginated PDF and editable DOCX, including on the free plan. Export queries enforce ownership and the selected module/version; requests are limited to eight per minute and responses are private/no-store. Oversized documents are bounded and visibly marked when abbreviated.
 
-`next.config.ts` traces the Noto font files and `public/logo/validore-report.png` into the export functions. Retain those assets and `public/fonts/NOTO-LICENSE.txt` in the repository. Word documents use Arial for broad office compatibility. Test both formats on the hosted build; local export checks do not establish Vercel asset availability or Microsoft Word behavior.
+On Workers, document fonts and the logo are loaded from the ASSETS binding. `next.config.ts` also retains tracing for optional Node/container builds. Retain those assets and `public/fonts/NOTO-LICENSE.txt` in the repository. Word documents use Arial for broad office compatibility. Test both formats on the hosted build; local export checks do not establish Cloudflare Workers asset availability or Microsoft Word behavior.
 
 The Reports and Research team pages also link to public blank PDF/Word templates. Their source is `src/lib/exports/template.ts`; regenerate both files with `npm run templates:build` when the structure or renderers change, then include `public/templates/` in the release. The [template guide](REPORT_TEMPLATE.md) describes the five-page structure and document review requirements.
 
@@ -95,9 +96,9 @@ Test delayed/duplicate/out-of-order events, successful/failed payments, portal c
 
 Razorpay checkout remains unavailable. Its legacy webhook supports captured credits and activation, but a complete renewal/cancellation/refund lifecycle is not implemented. Keep Razorpay sales disabled until that flow has independent staging verification.
 
-## Vercel and optional local containers
+## Cloudflare Workers and optional local containers
 
-Vercel hosts the frontend and backend routes from one project. Its checked-in daily cron calls the credit-maintenance route with CRON_SECRET. Do not configure a second scheduler on the old host after cutover. Git pushes do not automatically deploy; invoke the reviewed release manually.
+The custom Worker in `cloudflare/worker.mjs` serves the frontend/backend and invokes the credit-maintenance route internally with CRON_SECRET on its checked-in daily Cron Trigger. Do not configure a second scheduler on the old host after cutover. Git pushes do not automatically deploy; invoke the reviewed release manually.
 
 For local Docker development with configured external services:
 
@@ -107,12 +108,12 @@ docker compose --env-file .env.local up --build --wait
 
 Nginx is on http://localhost:8081, with the app bound to loopback port 3000. Choose NEXT_PUBLIC_APP_URL to match the browser origin used for authentication. This local stack provides HTTP only. A public target must supply HTTPS, trusted forwarding headers, runtime secrets, restart/rollout behavior, persistence in external PostgreSQL, and monitoring. Container support was not exercised in this workspace because Docker/Trivy are unavailable.
 
-Configure a cron scheduler to request /api/cron/reset-credits with Authorization: Bearer CRON_SECRET. Vercel's checked-in daily schedule does not configure an external Node/container scheduler. Resets use a lock and due-date check and currently process at most 500 due accounts per call; schedule additional batches as the user base grows.
+For Render, `CREDIT_MAINTENANCE_RUNNER=inngest` registers the midnight-UTC Inngest maintenance function; no separate paid Render Cron Job is needed. Other Node hosts can use the same function or a scheduler calling /api/cron/reset-credits with Authorization: Bearer CRON_SECRET. Use only one scheduler. Resets use a lock and due-date check and process at most 500 due accounts per call; schedule additional batches as the user base grows. Abandoned ad sessions are pruned more than seven days after expiry, in batches of 1,000; successful references are retained for accounting.
 
 ## Release evidence
 
-Run strict lint, generated route types/TypeScript, the manual test suite, production build, standalone smoke, and the production dependency audit. Use the selective live provider/workflow commands in [AI_AGENTS.md](AI_AGENTS.md) within the available quota. Container checks are relevant only if you choose to use Docker. Complete live staging acceptance for mobile/desktop layout, keyboard focus, form recovery, report history, account preferences, billing, and credit balances. No CI workflow is required or configured.
+Run strict lint, generated route types/TypeScript, tests, `npm run build:cloudflare`, `npm run check:cloudflare`, `npm run smoke:cloudflare`, staging Workers preview acceptance and the dependency audit. Standalone smoke is optional for Node/container changes. Use the selective live provider/workflow commands in [AI_AGENTS.md](AI_AGENTS.md) within the available quota. Container checks are relevant only if you choose to use Docker. Complete live staging acceptance for mobile/desktop layout, keyboard focus, form recovery, report history, account preferences, billing, and credit balances. No CI workflow is required or configured.
 
 Record backup/restore evidence and monitor failed/stale jobs, provider errors/costs, Redis outages, webhook failures, DB connections, and cron backlog. /api/health is a DB-free liveness endpoint; it does not prove database/queue readiness. Separate uptime from dependency monitoring.
 
-Vercel setup, final-domain DNS/TLS, and the current hosted integration checks remain pending. Prior Render/database acceptance is historical evidence and must not be presented as verification of the new Vercel release. [Implementation status](IMPLEMENTATION_STATUS.md) records the completed local checks and remaining limits.
+Cloudflare Workers setup, final-domain DNS/TLS, and the current hosted integration checks remain pending. Prior Render/database acceptance is historical evidence and must not be presented as verification of the new Cloudflare Workers release. [Implementation status](IMPLEMENTATION_STATUS.md) records the completed local checks and remaining limits.

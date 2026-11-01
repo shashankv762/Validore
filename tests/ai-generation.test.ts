@@ -68,6 +68,21 @@ describe('gateway generation fallback', () => {
     expect(mocks.text).toHaveBeenCalledTimes(2)
     for (const [options] of mocks.text.mock.calls) expect(options).not.toHaveProperty('tools')
   })
+  it('reserves the last available call for output instead of exhausting the budget on research', async () => {
+    mocks.text.mockResolvedValue({ text: '{"score":7}', usage: { totalTokens: 12 } })
+    const result = await generateWithFallback({ prompt: 'Validate', schema, maxModelCalls: 1 })
+    expect(result.data.score).toBe(7)
+    expect(mocks.text).toHaveBeenCalledOnce()
+    expect(mocks.text.mock.calls[0][0]).not.toHaveProperty('tools')
+  })
+  it('uses one follow-up research round when the module already supplied search evidence', async () => {
+    mocks.text.mockResolvedValueOnce({ toolCalls: [{ toolName: 'read_page' }], response: { messages: [] }, usage: { totalTokens: 5 } })
+      .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 12 } })
+    const result = await generateWithFallback({ prompt: 'Review known sources', schema, maxResearchRounds: 1 })
+    expect(result.tokensUsed).toBe(17)
+    expect(mocks.text).toHaveBeenCalledTimes(2)
+    expect(mocks.text.mock.calls[1][0]).not.toHaveProperty('tools')
+  })
   it('reuses a completed research team without spending another research request', async () => {
     mocks.text.mockResolvedValue({ text: '{"score":7}', usage: { totalTokens: 15 } })
     const result = await generateWithFallback({ prompt: 'Review the completed team findings.', schema, agentRole: 'synthesis', researchMode: 'reuse' })

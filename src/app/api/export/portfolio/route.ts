@@ -941,10 +941,10 @@ startup-portfolio/
 3. Under **Build and deployment**, select **Deploy from a branch** and pick \`main\` / \`/root\`.
 4. Click **Save**. Your portfolio site will be published at \`https://<your-username>.github.io/<repo-name>/\`.
 
-### 2. Vercel
-1. Install Vercel CLI (\`npm i -g vercel\`) or connect the repo on [vercel.com](https://vercel.com).
-2. Run \`vercel\` in this folder and accept defaults.
-3. Your site is live on a global CDN.
+### 2. Cloudflare Pages
+1. Open Workers & Pages in the Cloudflare dashboard and create a Pages project using Direct Upload.
+2. Upload this folder containing index.html and styles.css; no build command is needed.
+3. Add your own domain in the project Custom domains settings and follow the displayed DNS instructions.
 
 ### 3. Netlify
 1. Drag and drop this folder directly into the Netlify Drop dashboard at [app.netlify.com/drop](https://app.netlify.com/drop).

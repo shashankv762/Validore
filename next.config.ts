@@ -4,6 +4,9 @@ import { contentSecurityPolicy } from './src/lib/security-headers'
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  // The HTML parser has optional CSS dependencies that are not used by research.
+  // Let the Worker bundler resolve it instead of webpack's optional imports.
+  serverExternalPackages: ['linkedom'],
   outputFileTracingIncludes: {
     '/api/export/*': ['./public/fonts/NotoSans-*.ttf', './public/logo/validore-report.png'],
   },

@@ -63,7 +63,7 @@ The app includes deterministic arithmetic, unit economics, scenarios, runway, TA
 
 The curated 12-topic question bank is reusable methodology, not survey results. Founder answers are stored separately with self-reported evidence labels and a brief fingerprint. AI follow-ups use the answer history to clarify important gaps; guided fallbacks do not invent a clarity score. Analysis research receives only public descriptors and source evidence; private answers and derived findings remain in the final tool-free stage. Shared memory never learns by pooling private founders' answers.
 
-Mozilla Readability and linkedom extract readable public text without executing page scripts. SearXNG and Ollama are optional self-hosted services; they are not deployed inside a Vercel function.
+Mozilla Readability and linkedom extract readable public text without executing page scripts. SearXNG and Ollama are optional self-hosted services; they are not deployed inside a Cloudflare Worker function.
 
 ### SearXNG
 
@@ -89,7 +89,7 @@ AI_GATEWAY_ORDER=ollama,pixrouter,opencode,openrouter
 AI_FREE_ONLY=true
 ```
 
-3. For deployment on Vercel, run inference on a separate server. Set an HTTPS `OLLAMA_BASE_URL` and `OLLAMA_API_KEY` for an authenticated gateway in front of it. The native local Ollama API does not authenticate requests, and Vercel's localhost is not your computer. Do not expose an unauthenticated inference service publicly.
+3. For deployment on Cloudflare Worker, run inference on a separate server. Set an HTTPS `OLLAMA_BASE_URL` and `OLLAMA_API_KEY` for an authenticated gateway in front of it. The native local Ollama API does not authenticate requests, and Cloudflare Worker's localhost is not your computer. Do not expose an unauthenticated inference service publicly.
 4. Verify tool-call and structured-report behavior with the selected model before relying on it. If it fails, the configured free-provider fallback and existing request budgets still apply. Customer BYOK mode remains isolated to the customer's OpenRouter key.
 
 Ollama's runtime is [MIT licensed](https://github.com/ollama/ollama/blob/main/LICENSE); model licenses are separate. Local inference has hardware/hosting costs even when there is no per-token API charge. References: [OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility), [authentication](https://docs.ollama.com/api/authentication).

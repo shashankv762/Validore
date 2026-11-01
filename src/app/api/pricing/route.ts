@@ -88,7 +88,6 @@ const PricingAiSchema = z.object({
   pricingVsVolumeMatrix: z.array(z.object({ pricePoint: z.number(), estimatedVolume: z.number(), revenue: z.number(), contributionMargin: z.number() })).optional(),
 })
 
-export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
@@ -241,6 +240,7 @@ CRITICAL RULES:
 - Generate all fields including: pricingProblem, customerSegments, customerPersonas, wtpQuestionnaire, competitorPricingMatrix, competitivePricingMap, costBreakdown, pricingModels, psychologicalPricing, discountSensitivityTable, priceElasticity, whatIfAnalysis, pricingDecisionMatrix, pricingVsVolumeMatrix`
 
     const aiResult = await generateWithFallback({
+      sources: searchResp.results, maxResearchRounds: searchResp.results.length ? 1 : 2,
     researchPrompt: publicResearchBrief(idea),
       privateContext: await loadFounderContext(idea.id, dbUser.id),
       prompt,

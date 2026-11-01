@@ -14,7 +14,7 @@
   5. Pitch Deck Builder (`/api/pitch-deck`, `/dashboard/pitch-deck`)
 - **Export Engines**:
   - CSV: native streaming / formatting
-  - PDF & White-label PDF: `@react-pdf/renderer`
+  - PDF & White-label PDF: `pdf-lib + @pdf-lib/fontkit`
   - Portfolio ZIP: `jszip` with HTML/CSS templates
   - PPTX: `pptxgenjs`
 - **Payment & Credits**:
@@ -35,7 +35,7 @@
 | 5 | Founding Member Counter Seeding | Seed `founding_member_counter` with id=1, count=0, cap=100 | M1 | ORIGINAL_REQUEST §R1 |
 | 6 | Synthetic Campaigns Seeding | Run seed script to populate >=300 rows in `synthetic_campaigns` | M1 | ORIGINAL_REQUEST §R1 |
 | 7 | `GET /api/export/csv` | Export validation report as CSV with comprehensive metrics and scores | M2 | ORIGINAL_REQUEST §R2 |
-| 8 | `GET /api/export/pdf/white-label` | White-labeled PDF export (no Validore branding) via @react-pdf/renderer | M2 | ORIGINAL_REQUEST §R2 |
+| 8 | `GET /api/export/pdf/white-label` | White-labeled PDF export (no Validore branding) via pdf-lib + @pdf-lib/fontkit | M2 | ORIGINAL_REQUEST §R2 |
 | 9 | `GET /api/export/portfolio` | Generate portfolio site ZIP containing functioning HTML/CSS with report data | M2 | ORIGINAL_REQUEST §R2 |
 | 10 | `GET /api/export/pptx` | Export pitch deck as PPTX with real slide content (support ideaId and deckId) | M2 | ORIGINAL_REQUEST §R2 |
 | 11 | `POST /api/credits/purchase` | Create checkout session (Stripe/Razorpay) or graceful error fallback | M3 | ORIGINAL_REQUEST §R2 |

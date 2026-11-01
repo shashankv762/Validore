@@ -9,7 +9,9 @@
     "lint": "eslint --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "node scripts/test-ci.mjs",
     "test:watch": "vitest",
+    "ci": "npm run lint && npm run typecheck && npm run test:ci",
     "verify:agents": "vitest run tests/agent-pipeline.test.ts tests/ai-generation.test.ts tests/agent-tools.test.ts tests/search-policy.test.ts tests/search-budget.test.ts tests/source-cache.test.ts tests/provider-budget.test.ts tests/open-data.test.ts tests/research-store.test.ts tests/founder-interview-api.test.ts tests/lite-workflow.test.ts tests/validation-lifecycle.test.ts tests/usage-api.test.ts src/lib/validation",
     "verify:release-files": "node scripts/verify-release-files.mjs",
     "verify:ai": "node scripts/verify-ai-providers.mjs",
@@ -21,15 +23,21 @@
     "data:refresh": "node scripts/refresh-market-snapshot.mjs",
     "db:seed:research": "tsx scripts/seed-research.ts",
     "smoke:production": "node scripts/smoke-production.mjs",
-    "build:deploy": "next build && node scripts/prepare-standalone.mjs",
-    "start:standalone": "node .next/standalone/server.js"
+    "build:deploy": "next build --webpack && node scripts/prepare-standalone.mjs",
+    "start:standalone": "node .next/standalone/server.js",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "preview:cloudflare": "opennextjs-cloudflare preview",
+    "deploy:cloudflare": "npm run build:cloudflare && opennextjs-cloudflare deploy",
+    "check:cloudflare": "wrangler deploy --dry-run --outdir .open-next/deploy-check",
+    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "smoke:cloudflare": "node scripts/smoke-cloudflare.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.68",
     "@ai-sdk/google": "^4.0.85",
     "@ai-sdk/openai": "^4.0.81",
     "@mozilla/readability": "^0.6.0",
-    "@react-pdf/renderer": "^4.9.0",
+    "@pdf-lib/fontkit": "1.1.1",
     "@stripe/stripe-js": "^9.17.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
@@ -49,6 +57,7 @@
     "linkedom": "^0.18.14",
     "lucide-react": "^1.48.0",
     "next": "16.4.3",
+    "pdf-lib": "1.17.1",
     "postgres": "^3.4.9",
     "pptxgenjs": "^4.0.1",
     "razorpay": "^2.9.8",
@@ -63,6 +72,8 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.14",
+    "@opennextjs/cloudflare": "1.20.15",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
@@ -75,7 +86,8 @@
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vite": "^8.3.1",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "wrangler": "4.156.0"
   },
   "overrides": {
     "rimraf": {
@@ -86,6 +98,12 @@
     },
     "pptxgenjs": {
       "image-size": "^2.0.4"
+    },
+    "@opennextjs/cloudflare": {
+      "glob": "^14.0.3"
+    },
+    "@node-minify/core": {
+      "glob": "^14.0.3"
     }
   },
   "engines": {

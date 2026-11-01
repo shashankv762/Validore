@@ -12,7 +12,6 @@ import { ideaFingerprint, initialInterview, tailorInterview } from '@/lib/interv
 import { guidedAssessment, nextGuidedQuestion } from '@/lib/interview/question-bank'
 import { InterviewStateSchema, MAX_INTERVIEW_ANSWERS, type InterviewAnswer, type InterviewState, type InterviewView } from '@/lib/interview/schema'
 
-export const maxDuration = 60
 type Context = { params: Promise<{ ideaId: string }> }
 class InterviewError extends Error { constructor(message: string, readonly status = 400) { super(message) } }
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: PRIVATE_HEADERS })

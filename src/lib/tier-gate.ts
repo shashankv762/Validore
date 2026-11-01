@@ -1,6 +1,7 @@
 import { db } from '@/db'
 import { users, tierConfig } from '@/db/schema'
 import { eq, and, gt, sql } from 'drizzle-orm'
+import { canFundExtraLite } from './credit-allocation'
 
 export type Feature =
   | 'canExportPdf' | 'canExportCsv' | 'canExportPptx'
@@ -62,7 +63,7 @@ export async function checkValidationLimit(supabaseId: string): Promise<{ allowe
       return { allowed: true, remaining: config.monthlyValidationLimit }
     }
     const remaining = Math.max(0, config.monthlyValidationLimit - user.validationsThisMonth)
-    return { allowed: remaining > 0, remaining }
+    return { allowed: remaining > 0 || canFundExtraLite(user), remaining }
   })
 }
 

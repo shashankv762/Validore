@@ -158,6 +158,7 @@ export async function runLiteValidation(
     prompt: buildLitePrompt(idea, sources, searchResp.degraded) + researchDigest,
     privateContext: opts?.privateContext,
     schema: LiteReportSchema,
+    maxOutputTokens: 5000,
     agentRole: 'synthesis',
     researchMode: market || customer ? 'reuse' : 'auto',
     sources,

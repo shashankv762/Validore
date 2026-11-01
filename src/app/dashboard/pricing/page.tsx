@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useId } from 'react'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -10,11 +11,15 @@ import { RiskRegisterTable, RiskItem } from '@/components/ui/RiskRegisterTable'
 import { ActionPlanTable, ActionPlanRow } from '@/components/ui/ActionPlanTable'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { DollarSign, Sparkles, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
-import { PricingReport } from './PricingReport'
 import { useWorkspaceResources, WorkspaceResourceStatus } from '@/components/WorkspaceResources'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
+import { totalCredits } from '@/lib/credit-allocation'
 import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
+
+const PricingReport = dynamic(() => import('./PricingReport').then(module => module.PricingReport), {
+  loading: () => <p role="status" className="p-6 text-sm">Loading your pricing report…</p>,
+})
 
 // Inline financial formulas (pure functions — no server imports)
 const cm = (p: number, vc: number) => p - vc
@@ -139,7 +144,7 @@ export default function PricingPage() {
   const { ideas, user } = resources
   const [selectedIdeaId, setSelectedIdeaId] = useState('')
   const isPremium = user?.tier === 'premium' || user?.tier === 'max_premium'
-  const balance = (user?.creditBalance ?? 0) + (user?.purchasedCredits ?? 0)
+  const balance = user ? totalCredits(user) : 0
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState<PricingResult | null>(null)
 

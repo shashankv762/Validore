@@ -74,7 +74,6 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ canvases }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
-export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
@@ -208,6 +207,7 @@ INTEGRITY RULES:
 - Generate all fields including: assumptionRegister, problemStatement, interviewQuestions, segmentPrioritization, alternativeSolutions, businessModelCanvas, businessModelValidationScore, bmScoreBreakdown, ratMatrix, buildMeasureLearnCycles, pivotAnalysis, ifThenRules, pricingVsVolumeMatrix`
 
     const result = await generateWithFallback({
+      sources: searchResp.results, maxResearchRounds: searchResp.results.length ? 1 : 2,
     researchPrompt: publicResearchBrief(idea),
       privateContext: await loadFounderContext(idea.id, dbUser.id),
       prompt,

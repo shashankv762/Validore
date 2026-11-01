@@ -9,11 +9,12 @@ import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
 import { CREDIT_PACKAGES, type CreditPackageType } from '@/lib/credit-packages'
 import { CREDIT_ACTIONS, PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { actionAllowance, creditEntryDescription, creditOverview } from '@/lib/account-usage'
+import { RewardedCredits } from '@/components/RewardedCredits'
 
 type LedgerItem = { id: string; createdAt: string; transactionType: string; amount: number; description: string | null }
 type Purchase = { id: string; creditType: string; quantity: number; status: string; createdAt: string }
-type CreditHistory = { ownerId: string | null; accountUpdatedAt: number | null; entries: LedgerItem[]; purchases: Purchase[]; error: string | null; loading: boolean }
-const EMPTY_HISTORY: CreditHistory = { ownerId: null, accountUpdatedAt: null, entries: [], purchases: [], error: null, loading: true }
+type CreditHistory = { ownerId: string | null; version: string | null; entries: LedgerItem[]; purchases: Purchase[]; error: string | null; loading: boolean }
+const EMPTY_HISTORY: CreditHistory = { ownerId: null, version: null, entries: [], purchases: [], error: null, loading: true }
 const date = (value: string | null) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'
 const PACK_ORDER: CreditPackageType[] = ['credit_topup', 'crowdfunding', 'pitch_deck', 'bundle']
 
@@ -25,9 +26,13 @@ function CreditsContent() {
   const [buying, setBuying] = useState<CreditPackageType | null>(null)
   const [historyState, setHistory] = useState<CreditHistory>(EMPTY_HISTORY)
   const [refreshing, setRefreshing] = useState(false)
+  const [historyRefresh, setHistoryRefresh] = useState(0)
   const ownerId = user?.id
+  // A focus refresh with identical balances need not download both histories.
+  const historyVersion = [user?.creditBalance, user?.purchasedCredits, user?.rewardCredits, user?.crowdfundingCredits,
+    user?.pitchDeckCredits, user?.creditsUsedThisCycle, user?.tier, historyRefresh].join(':')
   const history = historyState.ownerId === ownerId ? historyState : EMPTY_HISTORY
-  const loadingHistory = Boolean(ownerId && (history.loading || history.accountUpdatedAt !== account.updatedAt))
+  const loadingHistory = Boolean(ownerId && (history.loading || history.version !== historyVersion))
   const available = Boolean(account.data?.billing.credits)
   const overview = user ? creditOverview(user) : null
 
@@ -42,7 +47,7 @@ function CreditsContent() {
     void Promise.allSettled([load('/api/credits/ledger?limit=50'), load('/api/credits/purchase')]).then(([ledger, purchases]) => {
       if (controller.signal.aborted) return
       setHistory(previous => ({
-        ownerId, accountUpdatedAt: account.updatedAt,
+        ownerId, version: historyVersion,
         entries: ledger.status === 'fulfilled' && Array.isArray(ledger.value.entries) ? ledger.value.entries : previous.ownerId === ownerId ? previous.entries : [],
         purchases: purchases.status === 'fulfilled' && Array.isArray(purchases.value.purchases) ? purchases.value.purchases : previous.ownerId === ownerId ? previous.purchases : [],
         error: ledger.status === 'rejected' || purchases.status === 'rejected' ? 'Some credit history could not be refreshed. Please try again.' : null,
@@ -50,7 +55,7 @@ function CreditsContent() {
       }))
     })
     return () => controller.abort()
-  }, [ownerId, account.updatedAt])
+  }, [ownerId, historyVersion])
 
   useEffect(() => {
     if (params.get('success') === 'true') {
@@ -63,7 +68,7 @@ function CreditsContent() {
     if (params.get('canceled') === 'true') { toast.info('Checkout was cancelled.'); router.replace('/dashboard/credits') }
   }, [params, router])
 
-  const reload = async () => { setRefreshing(true); try { await account.refresh() } finally { setRefreshing(false) } }
+  const reload = async () => { setRefreshing(true); try { await account.refresh(); setHistoryRefresh(value => value + 1) } finally { setRefreshing(false) } }
   const purchase = async (creditType: CreditPackageType) => {
     if (!available || buying) return
     setBuying(creditType)
@@ -94,8 +99,10 @@ function CreditsContent() {
           <progress max={overview.allocation} value={overview.monthlySpent} aria-label="Plan credits used" className="h-2 w-full accent-[#89620B]" />
           <p className="text-xs text-[#53616A]">Renews {date(user.creditResetAt)}. Unused plan credits reset each cycle.</p>
           <div className="border-t border-[#E4DECF] pt-4 text-sm"><strong className="tabular-nums">{overview.purchasedRemaining.toLocaleString()}</strong> purchased credits · carry forward</div>
+          <div className="text-sm"><strong className="tabular-nums">{overview.rewardRemaining.toLocaleString()}</strong> earned ad credits · carry forward</div>
           <p className="text-xs text-[#53616A]">Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p></div>
       </section>
+      <RewardedCredits key={user.id} ownerId={user.id} emailVerified={user.emailVerified} />
       <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-medium">What you can run</h2><p className="mt-1 text-xs text-[#53616A]">Each row is a separate estimate using your current balance. Plan and validation limits apply.</p></div>
         <Link href="/dashboard/usage" className="inline-flex min-h-11 items-center gap-2 text-sm">View usage<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
         <div className="overflow-x-auto rounded border border-[#E5E7EB] bg-white"><table className="w-full min-w-[540px] text-left text-sm"><thead className="bg-[#F7F8FA] text-xs text-[#53616A]"><tr><th scope="col" className="p-4">Analysis</th><th scope="col" className="p-4">Cost per run</th><th scope="col" className="p-4">Access</th><th scope="col" className="p-4 text-right">Available runs</th></tr></thead>
@@ -104,6 +111,7 @@ function CreditsContent() {
             <td className="p-4 text-xs text-[#53616A]">{item.access}</td><td className="p-4 text-right tabular-nums">{allowance.permitted ? allowance.runs.toLocaleString() : 'Requires access'}</td>
           </tr> })}</tbody></table></div>
         <p className="text-xs text-[#53616A]">A module credit pays for one run of that module. Max Premium uses universal credits for its included tools. PDF and Word validation downloads are included.</p>
+        <p className="text-xs text-[#53616A]">Plan credits are used first, then earned credits, then purchased credits. On the Free plan, each additional Lite validation beyond the two included runs uses 50 earned credits only. Reopening a saved report and downloading it do not spend more credits.</p>
       </section>
     </>}
     <section className="space-y-4"><div><h2 className="font-medium">Add to your workspace</h2><p className="mt-1 text-sm text-[#53616A]">One-time purchases in USD. Your plan stays the same.</p></div>

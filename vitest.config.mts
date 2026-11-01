@@ -26,6 +26,7 @@ export default defineConfig({
       'src/**/*.test.tsx',
       'tests/**/*.test.ts',
       'tests/**/*.test.tsx',
+      'static webpage/tests/**/*.test.ts',
     ],
 
     // Exclude DB idempotency script (it's a manual runner, not a test file).

@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "validore",
+  "main": "cloudflare/worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "validore" }],
+  "triggers": { "crons": ["0 0 * * *"] },
+  // Requires Workers Paid. CPU time excludes time waiting on AI/network I/O.
+  "limits": { "cpu_ms": 300000 },
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 },
+  "keep_vars": true
+  // Add Custom Domains after workers.dev acceptance; see docs/GO_LIVE.md.
+  // "routes": [
+  //   { "pattern": "validore.tech", "custom_domain": true },
+  //   { "pattern": "www.validore.tech", "custom_domain": true }
+  // ]
+}

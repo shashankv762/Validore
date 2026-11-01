@@ -76,7 +76,7 @@ privacy_content = """
     <li><strong>Startup idea data:</strong> idea name, industry, product description, target customer, location, business model, core problem, proposed solution (all user-provided via forms).</li>
     <li><strong>Payment data:</strong> processed securely by Stripe/Razorpay (we do NOT store credit card numbers).</li>
     <li><strong>Usage data:</strong> tier, validation count, credit balance, subscription status.</li>
-    <li><strong>Analytics:</strong> cookieless, privacy-first analytics via Vercel Analytics (no personal data collected).</li>
+    <li><strong>Operational logs:</strong> Cloudflare processes request logs to run and protect the service.</li>
   </ul>
   
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">3. What we do NOT collect</h2>
@@ -95,7 +95,7 @@ privacy_content = """
   <ul className="list-disc pl-5 mb-4 space-y-2">
     <li><strong>Supabase (US):</strong> Authentication and database hosting.</li>
     <li><strong>Stripe (US) / Razorpay (India):</strong> Payment processing.</li>
-    <li><strong>Vercel (US):</strong> Hosting and cookieless analytics.</li>
+    <li><strong>Cloudflare:</strong> Application hosting and operational request logs.</li>
     <li><strong>OpenRouter / OpenAI / Google / Anthropic:</strong> AI processing. Startup idea data is sent to these providers for analysis.</li>
   </ul>
 
@@ -124,7 +124,7 @@ privacy_content = """
   <p className="mb-4">Our service is not intended for users under the age of 18.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">11. International transfers</h2>
-  <p className="mb-4">Your data is transferred to US-based processors (Supabase, Stripe, Vercel, AI providers). These transfers rely on Standard Contractual Clauses where applicable.</p>
+  <p className="mb-4">Your data is transferred to US-based processors (Supabase, Stripe, Cloudflare, AI providers). These transfers rely on Standard Contractual Clauses where applicable.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">12. Changes to this policy</h2>
   <p className="mb-4">We will notify registered users by email of any material changes to this Privacy Policy.</p>
@@ -200,7 +200,7 @@ cookies_content = """
   
   <p className="mb-4">We do <strong>NOT</strong> use tracking cookies, advertising cookies, or third-party analytics cookies that store data on your device.</p>
 
-  <p className="mb-4">We use Vercel Analytics for monitoring our website traffic, which is a <strong>cookieless</strong> solution. It does not place any cookies on your device or track you across the internet.</p>
+  <p className="mb-4">The application uses essential authentication cookies. Hosting request logs support operation and abuse prevention; optional analytics is not enabled by this application.</p>
 
   <h2 className="text-xl font-medium text-[#0A1628] mt-8 mb-4">Cookie Consent</h2>
   <p className="mb-4 p-4 bg-[#F5F0E8] border-l-4 border-[#C8A860]">

@@ -29,8 +29,8 @@ export function CookieNotice() {
   if (!open) return null
   return <aside className="cookie-notice" aria-labelledby="cookie-notice-title">
     <div className="cookie-notice-symbol"><ShieldCheck size={21} aria-hidden="true" /></div>
-    <div className="cookie-notice-copy"><h2 id="cookie-notice-title">Just the essentials.</h2>
-      <p>We use storage for sign-in, security, and saving your work. Advertising and optional analytics are off. We remember this notice for {COOKIE_NOTICE_DAYS} days.</p>
+    <div className="cookie-notice-copy"><h2 id="cookie-notice-title">Your storage choices.</h2>
+      <p>We use storage for sign-in, security, and saving your work. Optional rewarded ads load only when you choose to watch one in Credits. This notice does not accept advertising cookies. We remember it for {COOKIE_NOTICE_DAYS} days.</p>
       <Link href="/legal/cookies">Read our cookie policy</Link>
     </div>
     <button type="button" className="button button-navy" onClick={acknowledge}>Got it</button>

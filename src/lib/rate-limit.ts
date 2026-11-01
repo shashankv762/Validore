@@ -1,8 +1,8 @@
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 
-export type RateLimitScope = 'validate' | 'ai-module' | 'canvas-manual' | 'recovery' | 'export' | 'interview' | 'interview-daily' | 'ideas' | 'device' | 'privacy-export' | 'privacy-page'
-const limits: Record<RateLimitScope, number> = { validate: 1, 'ai-module': 3, 'canvas-manual': 10, recovery: 1, export: 8, interview: 8, 'interview-daily': 60, ideas: 10, device: 4, 'privacy-export': 2, 'privacy-page': 120 }
+export type RateLimitScope = 'validate' | 'ai-module' | 'canvas-manual' | 'recovery' | 'export' | 'interview' | 'interview-daily' | 'ideas' | 'device' | 'privacy-export' | 'privacy-page' | 'ad-start' | 'ad-status'
+const limits: Record<RateLimitScope, number> = { validate: 1, 'ai-module': 3, 'canvas-manual': 10, recovery: 1, export: 8, interview: 8, 'interview-daily': 60, ideas: 10, device: 4, 'privacy-export': 2, 'privacy-page': 120, 'ad-start': 10, 'ad-status': 30 }
 
 export async function rateLimitCheck(userId: string, scope: RateLimitScope = 'validate') {
   try {

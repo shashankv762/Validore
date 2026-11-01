@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { totalCredits } from '@/lib/credit-allocation'
 import { toast } from 'sonner'
 import { ScorecardGrid } from '@/components/ui/ScorecardGrid'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
@@ -117,7 +118,7 @@ export default function PitchDeckPage() {
   const tier = user?.tier ?? 'free'
   const hasAccess = tier === 'max_premium' || (user?.pitchDeckCredits ?? 0) > 0
   const usesPack = tier !== 'max_premium' && (user?.pitchDeckCredits ?? 0) > 0
-  const balance = (user?.creditBalance ?? 0) + (user?.purchasedCredits ?? 0)
+  const balance = user ? totalCredits(user) : 0
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<DeckResult | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('slides')

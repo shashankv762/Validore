@@ -1,51 +1,105 @@
-import { createElement as h } from 'react'
-import { join } from 'node:path'
-import { readFile } from 'node:fs/promises'
-import { Document, Page, Text, View, Image, StyleSheet, Font, renderToBuffer } from '@react-pdf/renderer'
+import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
+import fontkit from '@pdf-lib/fontkit'
+import { readPublicAsset } from '../public-assets'
 import type { ReportDocument } from './document'
 
-Font.register({ family: 'Noto Sans', fonts: [
-  { src: join(process.cwd(), 'public/fonts/NotoSans-Regular.ttf'), fontWeight: 400 },
-  { src: join(process.cwd(), 'public/fonts/NotoSans-Bold.ttf'), fontWeight: 700 },
-] })
-const styles = StyleSheet.create({
-  page: { paddingTop: 44, paddingBottom: 62, paddingHorizontal: 46, fontFamily: 'Noto Sans', fontSize: 9, color: '#303948', lineHeight: 1.65 },
-  logo: { width: 140, height: 30, marginBottom: 24 },
-  title: { fontSize: 27, color: '#141923', fontWeight: 700, lineHeight: 1.2, marginBottom: 9 },
-  subtitle: { fontSize: 14, color: '#88620F', marginBottom: 6 },
-  date: { color: '#667181', fontSize: 9, marginBottom: 23 },
-  notice: { backgroundColor: '#FFF4D7', padding: 12, marginBottom: 18, borderLeft: '3px solid #E0A526' },
-  section: { fontSize: 13, fontWeight: 700, color: '#141923', borderBottom: '1px solid #E3E6EB', paddingBottom: 7, marginTop: 18, marginBottom: 10 },
-  text: { marginBottom: 5 },
-  label: { fontWeight: 700, marginTop: 6, marginBottom: 4 },
-  bullet: { marginLeft: 10, marginBottom: 5 },
-  field: { backgroundColor: '#F5F3EC', padding: 6, marginBottom: 6, color: '#59616E', fontSize: 9.5, lineHeight: 1.5 },
-  footer: { position: 'absolute', bottom: 23, left: 46, right: 46, height: 24, borderTop: '1px solid #E3E6EB', paddingTop: 8, flexDirection: 'row', justifyContent: 'space-between', color: '#667181', fontSize: 7, lineHeight: 1.2 },
-  footerText: { fontSize: 7, lineHeight: 1.2 },
-})
+const WIDTH = 595.28, HEIGHT = 841.89, MARGIN = 46, BOTTOM = 62
+const ink = rgb(0.19, 0.22, 0.28), muted = rgb(0.40, 0.44, 0.50)
+const rule = rgb(0.89, 0.90, 0.92), gold = rgb(0.53, 0.38, 0.06)
 
-export async function renderReportPdf(report: ReportDocument): Promise<Buffer> {
-  // Buffers also work on Windows, where the image loader treats C:\ paths as URLs.
-  const logo = await readFile(join(process.cwd(), 'public/logo/validore-report.png'))
-  return renderToBuffer(h(Document, { title: report.title + ' — ' + report.subtitle, author: 'Validore', subject: 'Startup research and decision support' },
-    h(Page, { size: 'A4', style: styles.page },
-      h(Image, { src: logo, style: styles.logo }),
-      h(Text, { style: styles.title }, report.title),
-      h(Text, { style: styles.subtitle }, report.subtitle),
-      h(Text, { style: styles.date }, report.date),
-      report.partial ? h(Text, { style: styles.notice }, 'Partial analysis. Some specialists could not finish. Review the research activity and test the missing assumptions before acting.') : null,
-      ...report.sections.flatMap((section, index) => [
-        h(Text, { key: 'heading-' + index, style: styles.section, minPresenceAhead: 35, break: section.breakBefore }, section.title),
-        ...section.lines.map((line, lineIndex) => h(Text, {
-          key: index + '-' + lineIndex, style: line.kind === 'label' ? styles.label : line.kind === 'bullet' ? styles.bullet : line.kind === 'field' ? styles.field : styles.text,
-          orphans: 2, widows: 2, ...(line.kind === 'label' ? { minPresenceAhead: 22 } : {}),
-          ...(line.kind === 'field' ? { wrap: false } : {}),
-        }, (line.kind === 'bullet' ? '• ' : '') + line.text)),
-      ]),
-      h(View, { style: styles.footer, fixed: true, render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages?: number }) => [
-        h(Text, { key: 'note', style: styles.footerText }, 'Validore  |  Assumptions and projections require validation'),
-        h(Text, { key: 'page', style: { ...styles.footerText, width: 48, textAlign: 'right' } }, totalPages ? pageNumber + ' / ' + totalPages : 'Page ' + pageNumber),
-      ] }),
-    ),
-  ))
+/** Pure JS rendering: no runtime WASM compilation or filesystem dependency on Workers. */
+export async function renderReportPdf(report: ReportDocument, options: { whiteLabel?: boolean } = {}): Promise<Buffer> {
+  const document = await PDFDocument.create()
+  document.registerFontkit(fontkit)
+  document.setTitle(report.title + ' — ' + report.subtitle)
+  document.setAuthor(options.whiteLabel ? '' : 'Validore')
+  document.setSubject('Startup research and decision support')
+  const [regularBytes, boldBytes] = await Promise.all([
+    readPublicAsset('/fonts/NotoSans-Regular.ttf'), readPublicAsset('/fonts/NotoSans-Bold.ttf'),
+  ])
+  const regular = await document.embedFont(regularBytes, { subset: true })
+  const bold = await document.embedFont(boldBytes, { subset: true })
+  const logo = options.whiteLabel ? null : await document.embedPng(await readPublicAsset('/logo/validore-report.png'))
+  let page: PDFPage, y = 0
+  const newPage = () => {
+    page = document.addPage([WIDTH, HEIGHT])
+    y = HEIGHT - 44
+  }
+  newPage()
+  const ensureSpace = (height: number) => { if (y - height < BOTTOM) newPage() }
+  const width = WIDTH - MARGIN * 2
+
+  // Split long URLs/tokens as well as prose; never let an unbroken source URL
+  // or founder answer run outside the page. Preserve explicit paragraph breaks.
+  const wrap = (text: string, font: PDFFont, size: number, maxWidth: number): string[] => {
+    const lines: string[] = []
+    for (const paragraph of text.replace(/\r/g, '').split('\n')) {
+      let line = ''
+      for (const token of paragraph.split(/\s+/).filter(Boolean)) {
+        const candidate = line ? line + ' ' + token : token
+        if (font.widthOfTextAtSize(candidate, size) <= maxWidth) { line = candidate; continue }
+        if (line) { lines.push(line); line = '' }
+        if (font.widthOfTextAtSize(token, size) <= maxWidth) { line = token; continue }
+        for (const character of token) {
+          if (line && font.widthOfTextAtSize(line + character, size) > maxWidth) { lines.push(line); line = '' }
+          line += character
+        }
+      }
+      lines.push(line)
+    }
+    return lines
+  }
+  const paragraph = (text: string, settings: {
+    size?: number; font?: PDFFont; color?: ReturnType<typeof rgb>; indent?: number;
+    gap?: number; shaded?: boolean; keepWithNext?: number;
+  } = {}) => {
+    const size = settings.size ?? 9, font = settings.font ?? regular
+    const indent = settings.indent ?? 0, padding = settings.shaded ? 5 : 0
+    const lines = wrap(text, font, size, width - indent - padding * 2)
+    const leading = size * 1.65
+    ensureSpace(Math.min(lines.length * leading + padding * 2 + (settings.keepWithNext ?? 0), HEIGHT - 44 - BOTTOM))
+    if (padding) y -= padding
+    for (const line of lines) {
+      ensureSpace(leading + padding)
+      if (settings.shaded) page.drawRectangle({
+        x: MARGIN + indent, y: y - leading, width: width - indent, height: leading + 2,
+        color: rgb(0.96, 0.95, 0.92),
+      })
+      page.drawText(line, { x: MARGIN + indent + padding, y: y - size, size, font, color: settings.color ?? ink })
+      y -= leading
+    }
+    y -= padding + (settings.gap ?? 5)
+  }
+
+  if (logo) { page!.drawImage(logo, { x: MARGIN, y: y - 30, width: 140, height: 30 }); y -= 54 }
+  paragraph(report.title, { size: 27, font: bold, gap: 9 })
+  paragraph(report.subtitle, { size: 14, color: gold, gap: 6 })
+  paragraph(report.date, { size: 9, color: muted, gap: 23 })
+  if (report.partial) paragraph('Partial analysis. Some specialists could not finish. Review the research activity and test the missing assumptions before acting.', { shaded: true, gap: 18 })
+
+  for (const section of report.sections) {
+    if (section.breakBefore) newPage()
+    ensureSpace(65)
+    y -= 16
+    paragraph(section.title, { size: 13, font: bold, keepWithNext: 30, gap: 7 })
+    page!.drawLine({ start: { x: MARGIN, y }, end: { x: WIDTH - MARGIN, y }, thickness: 0.6, color: rule })
+    y -= 10
+    for (const line of section.lines) paragraph((line.kind === 'bullet' ? '• ' : '') + line.text, {
+      font: line.kind === 'label' ? bold : regular,
+      indent: line.kind === 'bullet' ? 10 : 0,
+      shaded: line.kind === 'field',
+      size: line.kind === 'field' ? 9.5 : 9,
+      keepWithNext: line.kind === 'label' ? 22 : 0,
+    })
+  }
+
+  const pages = document.getPages()
+  pages.forEach((sheet, index) => {
+    sheet.drawLine({ start: { x: MARGIN, y: 46 }, end: { x: WIDTH - MARGIN, y: 46 }, thickness: 0.6, color: rule })
+    const footer = options.whiteLabel ? 'Confidential | Assumptions and projections require validation' : 'Validore | Assumptions and projections require validation'
+    sheet.drawText(footer, { x: MARGIN, y: 30, size: 7, font: regular, color: muted })
+    const number = (index + 1) + ' / ' + pages.length
+    sheet.drawText(number, { x: WIDTH - MARGIN - regular.widthOfTextAtSize(number, 7), y: 30, size: 7, font: regular, color: muted })
+  })
+  return Buffer.from(await document.save())
 }

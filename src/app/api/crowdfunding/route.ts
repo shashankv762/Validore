@@ -106,7 +106,6 @@ const CrowdfundingAiSchema = z.object({
   integrityNote: z.string(),
 })
 
-export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })
@@ -237,6 +236,7 @@ CRITICAL RULES:
 - Generate all fields including: founderAssumptions, fundingBands, goalBands, backerSegments, rewardEconomics, campaignDurationAnalysis, categoryBenchmark, campaignPageScorecard, campaignStoryScorecard, earlyMomentumAnalysis, marketingFunnel, socialProofAnalysis, preLaunchChecklist, preLaunchReadinessScore, firstDayTarget, firstWeekTarget.`
 
     const aiResult = await generateWithFallback({
+      sources: searchResp.results, maxResearchRounds: searchResp.results.length ? 1 : 2,
     researchPrompt: publicResearchBrief(idea), prompt, privateContext: await loadFounderContext(idea.id, dbUser.id), schema: CrowdfundingAiSchema, temperature: 0, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
     const ai = aiResult.data
 

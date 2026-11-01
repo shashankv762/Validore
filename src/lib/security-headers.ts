@@ -17,7 +17,9 @@ export function contentSecurityPolicy(nonce?: string, production = process.env.N
     // Native auth POSTs redirect to the configured Supabase/Google OAuth flow.
     "form-action 'self' " + authOrigin + ' https://accounts.google.com',
     "frame-ancestors 'none'",
-    "frame-src 'none'",
+    // Rewarded ads use an authenticated player document on our own origin.
+    // External ad origins are allowed only inside that document's policy.
+    "frame-src 'self'",
     ...(production ? ['upgrade-insecure-requests'] : []),
   ].join('; ')
 }

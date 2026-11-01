@@ -224,7 +224,7 @@ describe('Tier 1: Feature Coverage', () => {
         `<nav>Validore Cloud</nav><section id="hero"><h1>Autonomous Validator</h1><span class="badge">Score: 82</span></section><section id="problem">Core Problem</section><section id="solution">AI Simulation</section><section id="roadmap">Milestones</section>`
       )
       zip.file('styles.css', ':root { --primary: #0A1628; --gold: #C8A860; }')
-      zip.file('README.md', '# Hosting Instructions\nDeploy to GitHub Pages, Vercel, or Netlify.')
+      zip.file('README.md', '# Hosting Instructions\nDeploy to GitHub Pages, Cloudflare, or Netlify.')
 
       const content = await zip.file('index.html')?.async('string')
       expect(content).toContain('id="hero"')

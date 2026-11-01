@@ -1,0 +1,52 @@
+# Current SaaS configuration. The independent marketing site is in "static webpage".
+# Existing services: update Build & Deploy in the dashboard, or sync the existing
+# Blueprint. Adding this file alone does NOT change a manually managed service.
+# Retain the existing service, database and secret environment values.
+services:
+  - type: web
+    name: validore
+    runtime: node
+    plan: free
+    autoDeployTrigger: 'off'
+    buildCommand: npm ci --include=dev --no-fund && npm run build:deploy
+    startCommand: npm run start:standalone
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: NODE_ENV
+        value: production
+      - key: HOSTNAME
+        value: 0.0.0.0
+      - key: NEXT_TELEMETRY_DISABLED
+        value: '1'
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://validore.onrender.com
+      - key: INNGEST_SERVE_ORIGIN
+        value: https://validore.onrender.com
+      - key: DB_MAX_CONNECTIONS
+        value: '2'
+      - key: VALIDATION_RUNNER
+        value: inngest
+      - key: VALIDATION_GLOBAL_CONCURRENCY
+        value: '1'
+      - key: CREDIT_MAINTENANCE_RUNNER
+        value: inngest
+      - key: REWARDED_ADS_ENABLED
+        value: 'false'
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: INNGEST_EVENT_KEY
+        sync: false
+      - key: INNGEST_SIGNING_KEY
+        sync: false
+# Set the chosen AI provider keys and any other required secrets in Render.
+# Do not attach validore.tech here: that domain serves the static marketing site.

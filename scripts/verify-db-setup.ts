@@ -22,6 +22,7 @@ const EXPECTED_TABLES = [
   'user_devices',
   'founder_interviews',
   'research_sources',
+  'rewarded_ad_sessions',
   'credit_purchases',
   'crowdfunding_analyses',
   'founding_member_counter',
@@ -98,8 +99,11 @@ async function verify() {
     if (exposed.length) { console.error('Unexpected Data API grants:', role.rolname, exposed.map(row => row.table_name)); hasErrors = true }
   }
   const indexes = await client`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'
-    AND indexname IN ('founder_interviews_idea_uidx', 'research_sources_search_idx', 'validation_reports_job_uidx')`
-  if (indexes.length !== 3) { console.error('Required interview/research/report indexes are missing.'); hasErrors = true }
+    AND indexname IN ('founder_interviews_idea_uidx', 'research_sources_search_idx', 'validation_reports_job_uidx', 'rewarded_ads_transaction_uidx')`
+  if (indexes.length !== 4) { console.error('Required interview/research/report/reward indexes are missing.'); hasErrors = true }
+  const rewardColumn = await client`SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'reward_credits' AND is_nullable = 'NO'`
+  if (rewardColumn.length !== 1) { console.error('Reward credit column is missing. Apply migration 0004 before deploying.'); hasErrors = true }
 
   // 3. Verify all 4 enums
   console.log('\n--- 2. Enums Verification ---')

@@ -97,7 +97,6 @@ const PitchDeckAiSchema = z.object({
   investorQA: z.array(z.object({ question: z.string(), answer: z.string(), category: z.string() })).optional(),
 })
 
-export const maxDuration = 300
 
 export async function POST(request: NextRequest) {
   if (!validAuthOrigin(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 })

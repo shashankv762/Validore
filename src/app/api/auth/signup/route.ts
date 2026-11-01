@@ -7,6 +7,7 @@ import { readAuthBody, authFormResponse, validAuthOrigin, authOrigin } from '@/l
 import { clientIp as getClientIp } from '@/lib/client-ip'
 import { safeNextPath } from '@/lib/auth-redirect'
 import { LEGAL } from '@/lib/legal'
+import { signupWeeklyIpLimit } from '@/lib/signup-policy'
 
 const SignupSchema = z.object({ email: z.string().trim().email().max(320), password: z.string().min(8).max(128), next: z.unknown().optional(),
   consent: z.union([z.literal('on'), z.literal(true)]), policyVersion: z.literal(LEGAL.version) })
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
       try {
         const { Ratelimit } = await import('@upstash/ratelimit')
         const { Redis } = await import('@upstash/redis')
-        const limiter = new Ratelimit({ redis: Redis.fromEnv(), limiter: Ratelimit.slidingWindow(3, '7 d'), prefix: 'validore:signup_ip' })
+        const limiter = new Ratelimit({ redis: Redis.fromEnv(), limiter: Ratelimit.slidingWindow(signupWeeklyIpLimit(), '7 d'), prefix: 'validore:signup_ip' })
         if (!(await limiter.limit(clientIp)).success) return authFormResponse(req, '/auth/signup', 'error', 'Too many account registrations from this network. Please try again later.', 429)
       } catch {
         console.error('[auth/signup] Registration limiter unavailable')

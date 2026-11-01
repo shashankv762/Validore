@@ -1,8 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { createServer } from 'vite'
 
-// Load the same TypeScript renderers used by Next and the export tests. Vite's
-// ESM loader also supports React PDF's import-only hyphenation packages.
+// Load the same TypeScript renderers used by Next and the export tests.
 const runner = await createServer({ configFile: false, server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
 try {
   const { buildReportTemplate } = await runner.ssrLoadModule('/src/lib/exports/template.ts')

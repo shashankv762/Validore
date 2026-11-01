@@ -2,7 +2,7 @@
 
 > Earlier checkpoint, before account usage and market-memory completion. See the [November 1 release evidence](RELEASE_CANDIDATE_2026-11-01.md) for the current verification results.
 
-This records the local Vercel release preparation on October 31, 2026. It covers the refreshed auth/workspace, nine-agent validation, bounded free-provider research, shared report exports and reusable document templates. The source is uncommitted. No Vercel deployment, domain change, live schema migration or production payment acceptance is claimed.
+This records the local previous-host release preparation on October 31, 2026. It covers the refreshed auth/workspace, nine-agent validation, bounded free-provider research, shared report exports and reusable document templates. The source is uncommitted. No previous-host deployment, domain change, live schema migration or production payment acceptance is claimed.
 
 ## Automated checks
 
@@ -49,12 +49,12 @@ The expanded nine-card Research team, source-review panel, and report overview/n
 
 The reusable PDF and Word templates have five A4 pages. Every page was rendered and inspected. A split PDF field that created a nearly empty page and a Word font substitution were corrected. The downloaded owned report had four pages in each format, also inspected page by page. Word now uses Arial; its layout was reviewed through an isolated LibreOffice renderer, not Microsoft Word. PDF uses the shipped Noto font files. The [template guide](REPORT_TEMPLATE.md) records the structure and regeneration command. Existing saved report findings were preserved; exporting an older record does not rerun it through the newer agents.
 
-Browser evidence is retained locally under ignored `.tmp/ui-acceptance/`, `.tmp/ui-modules/` and `.tmp/ui-research/`. Document review images and private downloaded reports remain under `.tmp/`; they are excluded from Git and Vercel uploads. The production smoke summary is `reports/production-smoke.json`.
+Browser evidence is retained locally under ignored `.tmp/ui-acceptance/`, `.tmp/ui-modules/` and `.tmp/ui-research/`. Document review images and private downloaded reports remain under `.tmp/`; they are excluded from Git and previous-host uploads. The production smoke summary is `reports/production-smoke.json`.
 
 The credential check used known provider-key patterns in candidate source files and exact configured private values in built client assets. It is a focused packaging check, not a comprehensive security audit. Its redacted result is `reports/release-secret-check.json`.
 
 ## Hosted work still required
 
-Follow [GO_LIVE.md](GO_LIVE.md) for Vercel import, server secrets, Supabase/Redis/Inngest, Google consent branding, exact project-specific apex/www DNS records, and rollback. Review the SQL deltas and database access against staging before changing a backed-up deployment. Complete final-domain email/Google/recovery, real queued reports, credit reservation/refunds, owned exports and billing acceptance if payments are enabled. Preserve existing mail DNS and keep one active production job/cron endpoint during cutover.
+Follow the current [Cloudflare launch guide](GO_LIVE.md) for deployment, nameservers, secrets and hosted acceptance. Earlier checks above do not verify the current Worker build.
 
 This evidence supports a local release candidate and a controlled launch process. It does not establish unrestricted free-provider capacity, independent fact verification, real-device behavior or a zero-defect production system.

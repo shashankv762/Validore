@@ -14,6 +14,7 @@ export type AccountUser = {
   validationsThisMonth: number
   creditBalance: number
   purchasedCredits: number
+  rewardCredits: number
   creditsUsedThisCycle: number
   creditResetAt: string | null
   currentPeriodEnd: string | null
@@ -53,6 +54,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const controller = useRef<AbortController | null>(null)
   const alive = useRef(false)
   const rerun = useRef(false)
+  const lastSuccess = useRef(0)
 
   const refresh = useCallback((): Promise<AccountData | null> => {
     if (pending.current) return pending.current
@@ -68,6 +70,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]),
           })
           if (response.status === 401) {
+            lastSuccess.current = 0
             if (alive.current && !abort.signal.aborted) setSnapshot({ data: null, loading: false, updatedAt: null, error: 'Your session has expired. Sign in again to continue.' })
             return null
           }
@@ -76,8 +79,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
           const data = await response.json() as AccountData
           if (!data.user?.id || !data.billing || !data.ai) throw new Error('Your account could not be loaded. Please try again.')
           latest = data
-          if (alive.current && !abort.signal.aborted) setSnapshot({ data, loading: false, error: null, updatedAt: Date.now() })
+          if (alive.current && !abort.signal.aborted) {
+            lastSuccess.current = Date.now()
+            setSnapshot({ data, loading: false, error: null, updatedAt: lastSuccess.current })
+          }
         } catch (error) {
+          lastSuccess.current = 0
           if (alive.current && !abort.signal.aborted) setSnapshot(current => ({
             ...current, loading: false, error: error instanceof Error && error.name === 'Error'
               ? error.message : 'Your account could not be refreshed. Check your connection and try again.',
@@ -91,29 +98,36 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     return request
   }, [])
 
+  // Navigation, focus and visibility often arrive together. Reuse a recent
+  // snapshot; explicit refreshes and completed actions always invalidate it.
+  const ensureFresh = useCallback(() => {
+    if (Date.now() - lastSuccess.current >= 60_000) void refresh()
+  }, [refresh])
+
   useEffect(() => {
     alive.current = true
     const invalidate = () => { rerun.current = true; void refresh() }
-    const visible = () => { if (document.visibilityState === 'visible') void refresh() }
+    const visible = () => { if (document.visibilityState === 'visible') ensureFresh() }
     const storage = (event: StorageEvent) => { if (event.key === STORAGE_EVENT) invalidate() }
     window.addEventListener(UPDATE_EVENT, invalidate)
     window.addEventListener('focus', visible)
     window.addEventListener('storage', storage)
     document.addEventListener('visibilitychange', visible)
-    const timer = window.setInterval(visible, 60_000)
+    const timer = window.setInterval(visible, 120_000)
     return () => {
       alive.current = false
       controller.current?.abort()
       pending.current = null
+      lastSuccess.current = 0
       window.clearInterval(timer)
       window.removeEventListener(UPDATE_EVENT, invalidate)
       window.removeEventListener('focus', visible)
       window.removeEventListener('storage', storage)
       document.removeEventListener('visibilitychange', visible)
     }
-  }, [refresh])
+  }, [refresh, ensureFresh])
 
-  useEffect(() => { void refresh() }, [pathname, refresh])
+  useEffect(() => { ensureFresh() }, [pathname, ensureFresh])
   const value = useMemo(() => ({ ...snapshot, refresh }), [snapshot, refresh])
   return <AccountContext.Provider value={value}>{children}</AccountContext.Provider>
 }

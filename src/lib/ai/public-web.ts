@@ -4,6 +4,7 @@ import { request as httpsRequest } from 'node:https'
 import type { LookupAddress } from 'node:dns'
 import type { LookupFunction } from 'node:net'
 import ipaddr from 'ipaddr.js'
+import { workerScope } from '../worker-scope'
 
 const MAX_BYTES = 1_000_000
 
@@ -30,6 +31,7 @@ export type PublicWebResponse = { url: string; text: string; contentType: string
  * Never send cookies, provider keys or browser state, or execute page scripts.
  */
 export async function readPublicWeb(value: string, options: { signal?: AbortSignal; maxBytes?: number } = {}): Promise<PublicWebResponse> {
+  if (workerScope()) return readPublicWebOnWorker(value, options)
   const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000)
   const maxBytes = Math.min(MAX_BYTES, options.maxBytes ?? MAX_BYTES)
   let url = publicWebUrl(value)
@@ -84,6 +86,50 @@ export async function readPublicWeb(value: string, options: { signal?: AbortSign
     }
     if (response.status < 200 || response.status >= 300) throw new Error('Public source is unavailable')
     return { ...response, url: url.href }
+  }
+  throw new Error('Public source is unavailable')
+}
+
+/** Workers enforces public DNS destinations through global_fetch_strictly_public.
+ * Its node:http shim cannot pin DNS and node:dns.lookup is not implemented.
+ * Validate every redirect, send only public headers, and bound decoded bytes.
+ */
+export async function readPublicWebOnWorker(value: string, options: { signal?: AbortSignal; maxBytes?: number } = {}): Promise<PublicWebResponse> {
+  const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000)
+  const maxBytes = Math.min(MAX_BYTES, options.maxBytes ?? MAX_BYTES)
+  let url = publicWebUrl(value)
+  for (let hop = 0; hop <= 3; hop++) {
+    signal.throwIfAborted()
+    const response = await fetch(url, {
+      redirect: 'manual', signal, cache: 'no-store',
+      headers: { 'User-Agent': 'ValidoreResearch/1.0 (+https://validore.tech)', Accept: 'text/html, application/json, text/plain;q=0.9' },
+    })
+    if (response.status >= 300 && response.status < 400) {
+      await response.body?.cancel()
+      const location = response.headers.get('location')
+      if (!location || hop === 3) throw new Error('Too many web redirects')
+      url = publicWebUrl(new URL(location, url).href)
+      continue
+    }
+    const contentType = response.headers.get('content-type') ?? ''
+    if (!response.ok || Number(response.headers.get('content-length')) > maxBytes || !/text\/|json|xml/i.test(contentType)) {
+      await response.body?.cancel()
+      throw new Error('Public source is unavailable, too large or has an unsupported format')
+    }
+    const reader = response.body?.getReader()
+    const chunks: Uint8Array[] = []
+    let size = 0
+    if (reader) try {
+      while (true) {
+        signal.throwIfAborted()
+        const { value, done } = await reader.read()
+        if (done) break
+        size += value.byteLength
+        if (size > maxBytes) throw new Error('Research response is too large')
+        chunks.push(value)
+      }
+    } finally { await reader.cancel(); reader.releaseLock() }
+    return { url: url.href, status: response.status, contentType, text: Buffer.concat(chunks).toString('utf8') }
   }
   throw new Error('Public source is unavailable')
 }

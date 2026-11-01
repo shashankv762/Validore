@@ -13,7 +13,6 @@ import { inngest } from '@/inngest/client'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { isSameOriginMutation } from '@/lib/api-security'
 
-export const maxDuration = 300
 const InputSchema = z.object({ ideaId: z.string().uuid() })
 class ReservationConflict extends Error {}
 

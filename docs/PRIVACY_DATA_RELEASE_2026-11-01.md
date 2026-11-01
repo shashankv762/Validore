@@ -11,7 +11,7 @@ Updated **November 1, 2026 (India)**. This extends the earlier [account and mark
 - The server recalls bundled or stored official evidence and can persist newly retrieved eligible public sources. Expiry, metadata, source restrictions and revision history prevent stale or untrusted records from silently becoming fresh evidence.
 - Route skeletons, real validation progress, pending controls, recoverable interview errors, conflict reloads and narrow-screen layouts cover waiting and failure states.
 - Origin/body validation, private response caching, dynamic-page CSP, device-abuse limits, duplicate-job checks and database access declarations were strengthened. See the [security report](SECURITY_REVIEW_2026-11-01.md).
-- Git, Vercel and Docker ignore rules now cover private keys, browser sessions, exports, test artifacts, backups and generated files. A manual release-file check keeps required public data, migrations, fonts, templates and the lockfile included. No CI or automatic deployment pipeline was reintroduced.
+- Git, previous-host and Docker ignore rules now cover private keys, browser sessions, exports, test artifacts, backups and generated files. A manual release-file check keeps required public data, migrations, fonts, templates and the lockfile included. No CI or automatic deployment pipeline was reintroduced.
 
 ## Live public data collected with Astra
 
@@ -42,7 +42,7 @@ The catalog references do not supply verified numeric tables. The snapshot is ma
 | Production dependency audit | Zero vulnerabilities reported across 422 production dependencies; point-in-time audit |
 | Full dependency audit | **20 moderate development-tool findings**, no high/critical findings; compatible upstream fixes remain pending |
 | Responsive/browser review | **60 checks passed**, no page errors or CSP console errors; 1440, 768, 390 and 320px where applicable |
-| Release-file boundaries | 108 inclusion/exclusion cases passed across Git/Vercel rules; no currently tracked ignored files |
+| Release-file boundaries | 108 inclusion/exclusion cases passed across Git/previous-host rules; no currently tracked ignored files |
 | Client packaging and documentation | 41 browser asset files: no exact configured private-value or selected server-research marker matches; all 67 local file links across nine current documents resolve |
 | Common secret signatures | No matching private-key blocks or selected live-key formats in nonignored source; this is a limited pattern check |
 
@@ -71,7 +71,7 @@ The Usage page shows recorded validation tokens. It does not include every inter
 
 ## Before publication
 
-1. Follow the [detailed Vercel launch guide](GO_LIVE.md), starting with a reviewed source release and isolated staging services.
+1. Follow the [detailed previous-host launch guide](GO_LIVE.md), starting with a reviewed source release and isolated staging services.
 2. Apply reviewed additive SQL, including **`drizzle/0003_founder_interviews_research.sql`**, before serving this revision against an existing database. Verify RLS/grants and owner boundaries in the actual target. Database seeding is separate and has not been run.
 3. Complete final-domain auth/SMTP, Inngest delivery/retries, concurrent credit accounting, owned exports and optional Stripe acceptance. Synthetic local checks cannot establish hosted behavior.
 4. Confirm processor retention, privacy request ownership, signup/consent paths, direct Supabase signup controls, backups and monitoring. Keep payments disabled until their full acceptance passes.
