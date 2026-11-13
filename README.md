@@ -96,6 +96,7 @@ The daily credit-maintenance cron and Inngest jobs are application features. Ren
 - [Earlier release evidence](docs/RELEASE_CANDIDATE_2026-11-01.md)
 - [Cloudflare migration checks](docs/CLOUDFLARE_MIGRATION.md)
 - [Current verification status](docs/IMPLEMENTATION_STATUS.md)
+- [Current Render release and hosted acceptance](docs/RELEASE_EVIDENCE_2026-11-13.md)
 - [Brand and interface decisions](DESIGN.md)
 - [Optional local presentation](docs/CLASSROOM_DEMO.md)
 
