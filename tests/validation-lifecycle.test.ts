@@ -2,7 +2,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST } from '@/app/api/validate/route'
 const mocks = vi.hoisted(() => ({ after: vi.fn(), getUser: vi.fn(), findUser: vi.fn(), findIdea: vi.fn(),
-  run: vi.fn(), fail: vi.fn(), deduct: vi.fn(), release: vi.fn(), acquire: vi.fn(), send: vi.fn(), findJob: vi.fn(), lockedJob: vi.fn() }))
+  run: vi.fn(), fail: vi.fn(), deduct: vi.fn(), release: vi.fn(), acquire: vi.fn(), send: vi.fn(), findJob: vi.fn(), lockedJob: vi.fn(), plan: vi.fn() }))
+vi.mock('@/lib/plan-catalog', () => ({ getPlan: mocks.plan }))
 vi.mock('next/server', async importOriginal => ({ ...await importOriginal<typeof import('next/server')>(), after: mocks.after }))
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: mocks.getUser } }) }))
 vi.mock('@/db', () => ({ db: {
@@ -44,6 +45,7 @@ describe('Validation job lifecycle', () => {
     mocks.run.mockResolvedValue(undefined)
     mocks.release.mockResolvedValue(undefined)
     mocks.fail.mockResolvedValue(undefined)
+    mocks.plan.mockResolvedValue({ monthlyValidationLimit: 2, maxConcurrentRequests: 10 })
   })
   afterEach(() => vi.unstubAllEnvs())
   it('reserves credits before accepting work and holds concurrency through completion', async () => {
@@ -55,6 +57,24 @@ describe('Validation job lifecycle', () => {
     await mocks.after.mock.calls[0][0]()
     expect(mocks.run).toHaveBeenCalledOnce()
     expect(mocks.release).toHaveBeenCalledWith('db-user')
+  })
+  it('runs full owner validation with a bounded concurrency allowance', async () => {
+    mocks.findUser.mockResolvedValue({ id: 'db-user', tier: 'free', isAdmin: true, accountStatus: 'active', validationsThisMonth: 100 })
+    expect((await POST(request())).status).toBe(202)
+    expect(mocks.acquire).toHaveBeenCalledWith('db-user', 3)
+    expect(mocks.deduct).toHaveBeenCalledWith('db-user', 300, 'VALIDATION', expect.any(String), 2, expect.anything())
+  })
+  it('applies a smaller configured concurrency cap while retaining the service maximum', async () => {
+    mocks.findUser.mockResolvedValue({ id: 'db-user', tier: 'max_premium', accountStatus: 'active', validationsThisMonth: 0 })
+    mocks.plan.mockResolvedValue({ monthlyValidationLimit: 2, maxConcurrentRequests: 1 })
+    expect((await POST(request())).status).toBe(202)
+    expect(mocks.acquire).toHaveBeenCalledWith('db-user', 1)
+  })
+  it.each(['blocked', 'deactivated'])('rejects an account that becomes %s before reservation', async accountStatus => {
+    mocks.findUser.mockResolvedValue({ id: 'db-user', tier: 'free', accountStatus, validationsThisMonth: 0 })
+    expect((await POST(request())).status).toBe(403)
+    expect(mocks.acquire).not.toHaveBeenCalled()
+    expect(mocks.deduct).not.toHaveBeenCalled()
   })
   it('does not start AI work when another request spends the allowance', async () => {
     mocks.deduct.mockResolvedValue(false)

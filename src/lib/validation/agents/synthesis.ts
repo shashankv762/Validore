@@ -84,5 +84,6 @@ export async function runSynthesisAgent(idea: IdeaInput, researchDigest: string,
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

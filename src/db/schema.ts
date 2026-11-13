@@ -14,6 +14,10 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   supabaseId: text('supabase_id').notNull().unique(),
+  isAdmin: boolean('is_admin').notNull().default(false),
+  accountStatus: text('account_status').notNull().default('active'),
+  statusReason: text('status_reason'),
+  statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
   tier: tierEnum('tier').notNull().default('free'),
   stripeCustomerId: text('stripe_customer_id'),
   razorpayCustomerId: text('razorpay_customer_id'),
@@ -33,15 +37,30 @@ export const users = pgTable('users', {
   monthlyCreditsUsedThisCycle: integer('monthly_credits_used_this_cycle').notNull().default(0),
   creditResetAt: timestamp('credit_reset_at'),
   creditCycleStartedAt: timestamp('credit_cycle_started_at'),
+  creditCycleAllowance: integer('credit_cycle_allowance'),
   preferredAiProvider: text('preferred_ai_provider').default('free_models'),
   encryptedOpenrouterKey: text('encrypted_openrouter_key'),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
-}, table => [check('users_reward_credits_nonnegative', sql`${table.rewardCredits} >= 0`)]).enableRLS()
+}, table => [
+  check('users_reward_credits_nonnegative', sql`${table.rewardCredits} >= 0`),
+  check('users_account_status_valid', sql`${table.accountStatus} in ('active', 'blocked', 'deactivated')`),
+  check('users_owner_active', sql`not ${table.isAdmin} or ${table.accountStatus} = 'active'`),
+  check('users_credit_cycle_allowance_nonnegative', sql`${table.creditCycleAllowance} is null or ${table.creditCycleAllowance} >= 0`),
+  uniqueIndex('users_single_owner_idx').on(table.isAdmin).where(sql`${table.isAdmin} = true`),
+  index('users_status_created_idx').on(table.accountStatus, table.createdAt),
+]).enableRLS()
 
 export const tierConfig = pgTable('tier_config', {
   id: uuid('id').primaryKey().defaultRandom(),
   tier: tierEnum('tier').notNull().unique(),
+  name: text('name'),
+  monthlyPriceCents: integer('monthly_price_cents'),
+  monthlyCredits: integer('monthly_credits'),
+  stripePriceId: text('stripe_price_id'),
+  stripePriceHistory: jsonb('stripe_price_history').$type<string[]>().notNull().default([]),
+  benefits: jsonb('benefits').$type<string[]>(),
+  advertised: boolean('advertised'),
   monthlyValidationLimit: integer('monthly_validation_limit').notNull(),
   maxActiveIdeas: integer('max_active_ideas').notNull(),
   maxConcurrentRequests: integer('max_concurrent_requests').notNull(),
@@ -58,6 +77,36 @@ export const tierConfig = pgTable('tier_config', {
   canAiLeanCanvas: boolean('can_ai_lean_canvas').notNull().default(false),
   updatedAt: timestamp('updated_at').defaultNow(),
 }).enableRLS()
+
+// Kept private by RLS; these settings are written only by authorized server actions.
+export const platformSettings = pgTable('platform_settings', {
+  id: integer('id').primaryKey().default(1),
+  announcement: text('announcement'),
+  announcementEnabled: boolean('announcement_enabled').notNull().default(false),
+  maintenanceEnabled: boolean('maintenance_enabled').notNull().default(false),
+  maintenanceMessage: text('maintenance_message'),
+  signupEnabled: boolean('signup_enabled').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+}, table => [check('platform_settings_singleton', sql`${table.id} = 1`)]).enableRLS()
+
+// Target identifiers intentionally have no FK: deletion must preserve the audit.
+export const adminAuditLog = pgTable('admin_audit_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  requestId: uuid('request_id').notNull(),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  actorEmail: text('actor_email').notNull(),
+  action: text('action').notNull(),
+  targetUserId: uuid('target_user_id'),
+  targetEmail: text('target_email'),
+  reason: text('reason').notNull(),
+  details: jsonb('details').$type<Record<string, unknown>>().notNull().default({}),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('admin_audit_request_target_idx').on(table.requestId, sql`coalesce(${table.targetUserId}::text, '')`),
+  index('admin_audit_created_idx').on(table.createdAt),
+  index('admin_audit_target_created_idx').on(table.targetUserId, table.createdAt),
+]).enableRLS()
 
 export const foundingMemberCounter = pgTable('founding_member_counter', {
   id: integer('id').primaryKey().default(1),

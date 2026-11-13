@@ -13,6 +13,13 @@ vi.mock('@/db', () => ({ db: { transaction: async (callback: (tx: unknown) => un
   update: () => ({ set: () => ({ where: async () => undefined }) }),
 }) } }))
 import { createSubscriptionCheckout } from './billing'
+vi.mock('./plan-catalog', () => ({
+  lockPlan: vi.fn(),
+  getPlan: async () => ({ advertised: true, stripePriceId: process.env.STRIPE_PREMIUM_PRICE_ID, monthlyPriceCents: 2900 }),
+  assertMonthlyStripePrice: (price: { active: boolean; currency: string; unit_amount: number; recurring: { interval: string; interval_count: number } }, amount: number) => {
+    if (!price.active || price.currency !== 'usd' || price.unit_amount !== amount || price.recurring?.interval !== 'month' || price.recurring.interval_count !== 1) throw new Error('The configured subscription price does not match the advertised monthly plan')
+  },
+}))
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubEnv('NODE_ENV', 'test'); vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')

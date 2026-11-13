@@ -6,7 +6,6 @@ import { AlertTriangle, FlaskConical, History, FileText } from 'lucide-react'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { nextCanvasVersion } from '@/lib/canvas-versions'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
-import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 
 type CanvasBlock = {
   content: string
@@ -95,7 +94,8 @@ export default function LeanCanvasPage() {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const { data: account } = useAccount()
-  const isPremium = account?.user.tier === 'premium' || account?.user.tier === 'max_premium'
+  const isPremium = account?.user.unlimited || (account?.plan?.canAiLeanCanvas ?? (account?.user.tier === 'premium' || account?.user.tier === 'max_premium'))
+  const manualAllowed = Boolean(account?.user && (account.user.unlimited || (account.plan?.canLeanCanvas ?? true)))
   const [manualBlocks, setManualBlocks] = useState<Record<string, string>>({})
   const [canvasReport, setCanvasReport] = useState<any[] | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
@@ -141,8 +141,9 @@ export default function LeanCanvasPage() {
 
   async function saveCanvas(manual: boolean) {
     if (generating || saving || loading) return
+    if ((manual && !manualAllowed) || (!manual && !isPremium)) { toast.error('This canvas tool is not included in your current plan.'); return }
     if (!selectedIdeaId) { toast.error('Please select an idea first'); return }
-    if (nextCanvasVersion(canvases) === null) { toast.error('This idea has reached the four-canvas version limit.'); return }
+    if (nextCanvasVersion(canvases, account?.user.unlimited) === null) { toast.error('This idea has reached the four-canvas version limit.'); return }
     if (manual && !Object.values(manualBlocks).some(content => content.trim())) { toast.error('Add at least one canvas block.'); return }
     if (manual) setSaving(true)
     else setGenerating(true)
@@ -267,7 +268,7 @@ export default function LeanCanvasPage() {
             </div>
             <button
               onClick={handleGenerate}
-              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases, account?.user.unlimited) === null}
               className="px-4 py-2 bg-[#141923] text-white rounded text-sm disabled:opacity-50"
             >
               {generating ? 'Generating AI Canvas...' : 'Submit & Generate New Canvas'}
@@ -280,8 +281,9 @@ export default function LeanCanvasPage() {
       {selectedIdeaId && (
         <details className="card-angular p-6" open={!canvases.length}>
           <summary className="cursor-pointer font-medium text-[#141923]">Write a manual canvas</summary>
-          <p className="mt-3 text-sm text-[#364152]/70">Save your own assumptions as a new version. Manual saves use no AI credits. Each idea can have four versions.</p>
-          <fieldset disabled={generating || saving || loading || nextCanvasVersion(canvases) === null} className="mt-4">
+          <p className="mt-3 text-sm text-[#364152]/70">Save your own assumptions as a new version. Manual saves use no AI credits. {account?.user.unlimited ? 'Your owner allowance includes unlimited canvas versions.' : 'Each idea can have four versions.'}</p>
+          {!manualAllowed && <p className="mt-3 text-sm text-[#89620B]">Manual canvas editing is not included in your current plan. <a href="/dashboard/settings" className="underline">View available plans</a>.</p>}
+          <fieldset disabled={!manualAllowed || generating || saving || loading || nextCanvasVersion(canvases, account?.user.unlimited) === null} className="mt-4">
             <legend className="sr-only">Manual canvas blocks</legend>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {BLOCKS.map(({ key, label }) => (
@@ -300,7 +302,7 @@ export default function LeanCanvasPage() {
               {saving ? 'Saving…' : 'Save manual version'}
             </button>
           </fieldset>
-          {nextCanvasVersion(canvases) === null && <p className="mt-3 text-sm text-[#89620B]">All four versions are saved. You can review and export them below.</p>}
+          {nextCanvasVersion(canvases, account?.user.unlimited) === null && <p className="mt-3 text-sm text-[#89620B]">All four versions are saved. You can review and export them below.</p>}
         </details>
       )}
 
@@ -362,25 +364,25 @@ export default function LeanCanvasPage() {
           {isPremium ? (
             <button
               onClick={handleGenerate}
-              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases, account?.user.unlimited) === null}
               className="px-6 py-2.5 text-sm font-medium text-[#141923] disabled:opacity-50 transition-colors cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}
             >
-              {generating ? '⏳ Generating AI Canvas…' : nextCanvasVersion(canvases) === null ? 'Max 4 versions reached' : '✦ Generate with AI'}
+              {generating ? '⏳ Generating AI Canvas…' : nextCanvasVersion(canvases, account?.user.unlimited) === null ? 'Max 4 versions reached' : '✦ Generate with AI'}
             </button>
           ) : (
             <div className="card-angular px-6 py-3 flex items-center gap-3">
               <span className="text-[#89620B]">🔒</span>
               <div>
                 <p className="text-sm font-medium text-[#141923]">AI Canvas Automation — Premium Feature</p>
-                  <p className="text-xs text-[#364152] opacity-60">Upgrade to Premium ({formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo) to unlock AI-powered canvas generation</p>
+                  <p className="text-xs text-[#364152] opacity-60">AI canvas generation is not included in your current plan.</p>
               </div>
               <a
                 href="/dashboard/settings"
                 className="ml-auto px-4 py-2 text-xs font-medium text-[#141923]"
                 style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 8px 2px 8px' }}
               >
-                Upgrade
+                View plans
               </a>
             </div>
           )}
@@ -759,7 +761,7 @@ export default function LeanCanvasPage() {
           {isPremium && (
             <button
               onClick={handleGenerate}
-              disabled={generating || saving || loading || nextCanvasVersion(canvases) === null}
+              disabled={generating || saving || loading || nextCanvasVersion(canvases, account?.user.unlimited) === null}
               className="px-6 py-2.5 text-sm font-medium text-[#141923] cursor-pointer"
               style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}
             >

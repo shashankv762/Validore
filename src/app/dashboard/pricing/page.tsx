@@ -14,7 +14,6 @@ import { DollarSign, Sparkles, TrendingUp, ChevronDown, ChevronUp } from 'lucide
 import { useWorkspaceResources, WorkspaceResourceStatus } from '@/components/WorkspaceResources'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { totalCredits } from '@/lib/credit-allocation'
-import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
 import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
 import { calculateLTVCACRatio } from '@/lib/financial'
@@ -145,7 +144,7 @@ export default function PricingPage() {
   const resources = useWorkspaceResources()
   const { ideas, user } = resources
   const [selectedIdeaId, setSelectedIdeaId] = useState('')
-  const isPremium = user?.tier === 'premium' || user?.tier === 'max_premium'
+  const isPremium = user?.unlimited || (resources.plan?.canPricingSimulator ?? (user?.tier === 'premium' || user?.tier === 'max_premium'))
   const balance = user ? totalCredits(user) : 0
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState<PricingResult | null>(null)
@@ -269,7 +268,7 @@ export default function PricingPage() {
           className="inline-block px-8 py-3 text-sm font-medium text-[#141923]"
           style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 12px 2px 12px' }}
         >
-          Upgrade to Premium — {formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo
+          View available plans
         </a>
       </div>
     )
@@ -336,15 +335,15 @@ export default function PricingPage() {
             <option value="">— Idea for AI analysis —</option>
             {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <button onClick={runAi} disabled={analyzing || !isPremium || !selectedIdeaId || balance < CREDIT_COSTS.PRICING}
+          <button onClick={runAi} disabled={analyzing || !isPremium || !selectedIdeaId || (!user?.unlimited && balance < CREDIT_COSTS.PRICING)}
             className="px-5 py-2 text-sm font-medium text-[#141923] disabled:opacity-40 cursor-pointer shadow-xs"
             style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}>
-            {analyzing ? 'Analysing…' : `AI analysis · ${CREDIT_COSTS.PRICING} credits`}
+            {analyzing ? 'Analysing…' : user?.unlimited ? 'AI analysis · owner allowance' : `AI analysis · ${CREDIT_COSTS.PRICING} credits`}
           </button>
         </div>
       </div>
 
-      {balance < CREDIT_COSTS.PRICING && <p className="text-sm text-slate-600">Your balance is {balance.toLocaleString()} credits. <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a> to run AI analysis. The simulator is ready to use.</p>}
+      {!user?.unlimited && balance < CREDIT_COSTS.PRICING && <p className="text-sm text-slate-600">Your balance is {balance.toLocaleString()} credits. <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a> to run AI analysis. The simulator is ready to use.</p>}
       <div className="grid grid-cols-12 gap-6">
         {/* Sliders */}
         <fieldset disabled={analyzing} className="col-span-12 lg:col-span-3 card-angular p-5 bg-[#FFFFFF] h-fit min-w-0">

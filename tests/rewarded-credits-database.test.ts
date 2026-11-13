@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
+import { legacyTierConfigSql } from './fixtures/tier-config-sql'
 
 // An isolated PostgreSQL engine: these tests never connect to DATABASE_URL.
 // PGlite serializes transactions; staging must also verify multi-connection locks.
@@ -15,9 +16,11 @@ vi.mock('@/db', async () => {
   return { db: drizzle(state.client, { schema }) }
 })
 import { db } from '@/db'
-import { creditLedger, rewardedAdSessions, users } from '@/db/schema'
+import { creditLedger, rewardedAdSessions, users, tierConfig } from '@/db/schema'
 import { cancelRewardSession, grantAdReward, rewardStatus, startRewardSession } from '@/lib/ads/rewards'
-import { deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
+import { checkCredits, deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
+import { syncUserToDatabase } from '@/lib/auth-sync'
+import { OWNER_EMAIL } from '@/lib/admin-access'
 import type { RewardedAdConfig } from '@/lib/ads/config'
 
 const owner = '11111111-1111-4111-8111-111111111111'
@@ -50,16 +53,48 @@ beforeAll(async () => {
   `)
   migration = await readFile(new URL('../drizzle/0004_rewarded_ads.sql', import.meta.url), 'utf8')
   await state.client.exec(migration)
+  await state.client.exec(legacyTierConfigSql)
+  await state.client.exec(await readFile(new URL('../drizzle/0006_admin_command_center.sql', import.meta.url), 'utf8'))
 }, 30_000)
 
 beforeEach(async () => {
-  await state.client.exec('TRUNCATE credit_ledger, rewarded_ad_sessions, users CASCADE')
+  await state.client.exec('TRUNCATE credit_ledger, rewarded_ad_sessions, users, tier_config CASCADE')
   await db.insert(users).values([owner, other].map(id => ({ id, email: id + '@example.test', supabaseId: id,
     creditBalance: 100, purchasedCredits: 25, creditCycleStartedAt: new Date(Date.now() - 86_400_000), creditResetAt: new Date(Date.now() + 29 * 86_400_000) })))
 })
 afterAll(async () => { await state.client.close() })
 
 describe('rewarded credits with PostgreSQL transactions', () => {
+  it('pins owner access to a confirmed server identity and never transfers it by email', async () => {
+    expect(await syncUserToDatabase({ id: owner, email: OWNER_EMAIL })).toMatchObject({ isAdmin: false })
+    expect(await syncUserToDatabase({ id: owner, email: OWNER_EMAIL, email_confirmed_at: '2026-01-01' })).toMatchObject({ isAdmin: true, supabaseId: owner })
+    expect(await syncUserToDatabase({ id: other, email: OWNER_EMAIL, email_confirmed_at: '2026-01-01' })).toMatchObject({ isAdmin: false })
+    expect(await account()).toMatchObject({ isAdmin: true, tier: 'free', creditBalance: 100 })
+  })
+  it('allows owner feature costs without debiting any credit pool or producing fictional credits', async () => {
+    await db.update(users).set({ isAdmin: true, creditBalance: 0, purchasedCredits: 0 }).where(eq(users.id, owner))
+    expect(await checkCredits(owner, 500)).toEqual({ allowed: true, balance: 0 })
+    expect(await deductCredits(owner, 500, 'VALIDATION', randomUUID(), 0)).toBe(true)
+    expect(await account()).toMatchObject({ tier: 'free', creditBalance: 0, purchasedCredits: 0, validationsThisMonth: 0 })
+    expect(await db.select().from(creditLedger)).toHaveLength(0)
+  })
+  it.each(['blocked', 'deactivated'])('prevents %s accounts from spending despite a positive balance', async accountStatus => {
+    await db.update(users).set({ accountStatus }).where(eq(users.id, owner))
+    expect(await checkCredits(owner, 10)).toMatchObject({ allowed: false })
+    expect(await deductCredits(owner, 10, 'OTHER')).toBe(false)
+    expect((await account())?.creditBalance).toBe(100)
+  })
+  it('renews Free credits from the current plan and refunds against that period snapshot', async () => {
+    await db.insert(tierConfig).values({ tier: 'free', monthlyCredits: 200, monthlyValidationLimit: 5, maxActiveIdeas: 3, maxConcurrentRequests: 1, maxTokensPerCall: 4000 })
+    await db.update(users).set({ creditResetAt: new Date(Date.now() - 1000) }).where(eq(users.id, owner))
+    await topUpMonthlyCredits(owner)
+    expect(await account()).toMatchObject({ creditBalance: 200, creditCycleAllowance: 200 })
+    const job = randomUUID()
+    expect(await deductCredits(owner, 50, 'VALIDATION', job, 5)).toBe(true)
+    await db.update(tierConfig).set({ monthlyCredits: 10 })
+    await refundValidationCredits(owner, job)
+    expect(await account()).toMatchObject({ creditBalance: 200, creditCycleAllowance: 200 })
+  })
   it('awards exactly 10 once when callbacks arrive repeatedly', async () => {
     const { session } = await startRewardSession(owner, config)
     const completion = claim(session.id)

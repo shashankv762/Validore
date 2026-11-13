@@ -1,10 +1,12 @@
 import { db } from '@/db'
 import { users, creditLedger } from '@/db/schema'
 import { eq, and, like, sql } from 'drizzle-orm'
-import { CREDIT_COSTS, TIER_MONTHLY_CREDITS } from './credit-costs'
+import { CREDIT_COSTS } from './credit-costs'
 import { allocateCredits, canFundExtraLite, totalCredits } from './credit-allocation'
 import { reconcileStripeCredits } from './subscription-credits'
 import { stripeBillingClient } from './billing'
+import { isActiveAccount, isOwnerAccount } from './admin-access'
+import { creditCycleAllowance, getPlan } from './plan-catalog'
 
 function assertAmount(amount: number, allowZero = false) {
   if (!Number.isSafeInteger(amount) || amount < (allowZero ? 0 : 1)) {
@@ -16,14 +18,15 @@ export async function checkCredits(userId: string, cost: number): Promise<{ allo
   assertAmount(cost, true)
   let user = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true },
+    columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true, isAdmin: true, accountStatus: true },
   })
-  if (!user) return { allowed: false, balance: 0 }
+  if (!user || !isActiveAccount(user)) return { allowed: false, balance: 0 }
+  if (isOwnerAccount(user)) return { allowed: true, balance: totalCredits(user) }
   if (user.tier !== 'free' || !user.creditResetAt || user.creditResetAt <= new Date() || !user.creditCycleStartedAt) {
     await topUpMonthlyCredits(userId)
     user = await db.query.users.findFirst({ where: eq(users.id, userId),
-      columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true } })
-    if (!user) return { allowed: false, balance: 0 }
+      columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true, isAdmin: true, accountStatus: true } })
+    if (!user || !isActiveAccount(user)) return { allowed: false, balance: 0 }
   }
   const balance = totalCredits(user)
   return { allowed: balance >= cost, balance }
@@ -34,7 +37,8 @@ export async function deductCredits(userId: string, cost: number, action: string
   const spend = async (tx: CreditTransaction) => {
     // Lock before reading balances: simultaneous requests must see the latest spend.
     const [lockedUser] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
-    if (!lockedUser) return false
+    if (!lockedUser || !isActiveAccount(lockedUser)) return false
+    if (isOwnerAccount(lockedUser)) return true
     const user = await applyDueCycleReset(tx, lockedUser)
     const beyondIncluded = action === 'VALIDATION' && validationLimit !== undefined && user.validationsThisMonth >= validationLimit
     if (beyondIncluded && (cost !== CREDIT_COSTS.LITE_VALIDATION || !canFundExtraLite(user))) return false
@@ -76,12 +80,15 @@ async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inf
     return settlePendingMonthlyRefunds(tx, await reconcileStripeCredits(tx, user, subscription, now))
   }
   if (user.creditResetAt && user.creditResetAt > now) {
-    const values = { creditCycleStartedAt: new Date(user.creditResetAt.getTime() - 30 * 86_400_000) }
+    const values = { creditCycleStartedAt: new Date(user.creditResetAt.getTime() - 30 * 86_400_000),
+      creditCycleAllowance: creditCycleAllowance(user) }
     await tx.update(users).set(values).where(eq(users.id, user.id))
     return { ...user, ...values }
   }
+  const allowance = (await getPlan('free', tx)).monthlyCredits
   const values = {
-    creditBalance: TIER_MONTHLY_CREDITS[user.tier], creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
+    creditBalance: allowance, creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
+    creditCycleAllowance: allowance,
     creditCycleStartedAt: now,
     creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
   }
@@ -92,7 +99,7 @@ async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inf
 export async function topUpMonthlyCredits(userId: string): Promise<boolean> {
   return db.transaction(async tx => {
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
-    if (!user) return false
+    if (!user || !isActiveAccount(user) || isOwnerAccount(user)) return false
     return await applyDueCycleReset(tx, user) !== user
   })
 }
@@ -127,9 +134,10 @@ async function settlePendingMonthlyRefunds(tx: CreditTransaction, user: typeof u
     if (sameSubscription && !cycleResolved && new Date(request.cycleEndsAt) > current.creditCycleStartedAt!) continue
     const sameCycle = sameSubscription && cycleResolved &&
       new Date(request.spentAt) >= current.creditCycleStartedAt! && current.creditResetAt! > new Date()
-    const consumed = Math.max(current.monthlyCreditsUsedThisCycle, TIER_MONTHLY_CREDITS[current.tier] - current.creditBalance, 0)
+    const allowance = creditCycleAllowance(current)
+    const consumed = Math.max(current.monthlyCreditsUsedThisCycle, allowance - current.creditBalance, 0)
     const remaining = Math.max(0, consumed - (sameCycle ? request.monthly : 0))
-    const amount = sameCycle ? Math.max(0, TIER_MONTHLY_CREDITS[current.tier] - remaining - current.creditBalance) : 0
+    const amount = sameCycle ? Math.max(0, allowance - remaining - current.creditBalance) : 0
     if (sameCycle) {
       const values = { creditBalance: current.creditBalance + amount, monthlyCreditsUsedThisCycle: remaining,
         creditsUsedThisCycle: Math.max(0, current.creditsUsedThisCycle - request.debit) }
@@ -174,15 +182,16 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
         (sources.cycleSubscriptionId === undefined || sources.cycleSubscriptionId === user.subscriptionId)
       : Boolean(spend.createdAt && cycleStart && spend.createdAt >= cycleStart))
     const sameValidationMonth = !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const allowance = creditCycleAllowance(user)
     const consumedMonthly = Math.max(user.monthlyCreditsUsedThisCycle ?? 0,
-      TIER_MONTHLY_CREDITS[user.tier] - user.creditBalance, 0)
+      allowance - user.creditBalance, 0)
     const remainingConsumed = Math.max(0, consumedMonthly - (sameCycle ? sources.monthly : 0))
-    const monthlyRefund = sameCycle ? Math.max(0, TIER_MONTHLY_CREDITS[user.tier] - remainingConsumed - user.creditBalance) : 0
+    const monthlyRefund = sameCycle ? Math.max(0, allowance - remainingConsumed - user.creditBalance) : 0
     const refundedAmount = monthlyRefund + sources.purchased + reward
     // Expired plan credits cannot refill a new cycle or erase its spending.
     // Purchased credits never expire and always return to their original pool.
     await tx.update(users).set({
-      creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${monthlyRefund})`,
+      creditBalance: sql`least(${allowance}, ${users.creditBalance} + ${monthlyRefund})`,
       purchasedCredits: sql`${users.purchasedCredits} + ${sources.purchased}`,
       rewardCredits: sql`${users.rewardCredits} + ${reward}`,
       monthlyCreditsUsedThisCycle: remainingConsumed,

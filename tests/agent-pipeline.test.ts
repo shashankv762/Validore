@@ -79,6 +79,24 @@ function checkPrivacyBoundary() {
 }
 
 describe('real SDK and research pipeline with synthetic external services', () => {
+  it.each([
+    ['legacy', undefined, [6500, 6500, 5000]],
+    ['owner-managed', 0, [3000, 3000, 3000]],
+  ] as const)('preserves Lite model budgets for a %s Free plan', async (_name, monthlyPriceCents, budgets) => {
+    lite = true
+    const { runLiteValidation } = await import('@/lib/validation/engine')
+    const { resolvePlan } = await import('@/lib/plan-catalog')
+    const plan = resolvePlan('free', { monthlyPriceCents, maxTokensPerCall: monthlyPriceCents === 0 ? 3000 : 4000 })
+    const result = await runLiteValidation(PIPELINE_IDEA, { privateContext, researchBudgetId: 'synthetic-lite-budget', maxTokensPerCall: plan.maxTokensPerCall })
+    expect(Object.values(result.agentTrail!.agents)).toEqual(['ok', 'ok', 'ok'])
+    for (const [index, role] of ['market', 'customer', 'synthesis'].entries()) {
+      const reportCalls = models.get(role + ':1')!.doGenerateCalls.filter(call => !call.tools?.length)
+      expect(reportCalls).toHaveLength(1)
+      expect(reportCalls[0].maxOutputTokens).toBe(budgets[index])
+    }
+    for (const request of requests().filter(call => call.tools?.length)) expect(request.maxOutputTokens).toBe(1800)
+    checkPrivacyBoundary()
+  }, 15_000)
   // Includes a cold module graph and the full nine-agent SDK pipeline. Under
   // parallel browser/PDF tests the five-second default can expire during import,
   // leaving unfinished work to contaminate the following test's shared fixtures.

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { PlanTier } from '@/lib/plans'
+import type { AccountStatus, AdminPlan } from '@/lib/admin-types'
 import { registrationRecoveryPath } from '@/lib/registration-recovery'
 
 export type AccountUser = {
@@ -14,6 +15,7 @@ export type AccountUser = {
   pitchDeckCredits: number
   validationsThisMonth: number
   creditBalance: number
+  creditCycleAllowance?: number
   purchasedCredits: number
   rewardCredits: number
   creditsUsedThisCycle: number
@@ -25,9 +27,15 @@ export type AccountUser = {
   emailVerified: boolean
   preferredAiProvider: 'free_models' | 'paid_models' | 'custom_openrouter'
   hasCustomApiKey: boolean
+  isAdmin?: boolean
+  unlimited?: boolean
+  accountStatus?: AccountStatus
 }
+export type AccountPlan = { name: string; monthlyPriceUsd: number; monthlyCredits: number; validationLimit: number; activeIdeaLimit: number; benefits?: string[] } & Partial<Omit<AdminPlan, 'stripePriceId'>>
 export type AccountData = {
   user: AccountUser
+  plan?: AccountPlan
+  plans?: Record<PlanTier, AccountPlan>
   billing: { credits: boolean; premium: boolean; maxPremium: boolean }
   ai: { freeOnly: boolean; researchTools: boolean }
 }
@@ -93,6 +101,10 @@ export function AccountProvider({ children }: { children: ReactNode }) {
               }
               return null
             }
+            lastSuccess.current = 0
+            if (alive.current && !abort.signal.aborted) setSnapshot({ data: null, loading: false, updatedAt: null,
+              error: body && typeof body === 'object' && 'error' in body && typeof body.error === 'string' ? body.error : 'This account cannot open the workspace.' })
+            return null
           }
           if (!response.ok) throw new Error(response.status === 401
             ? 'Your session has expired. Sign in again to continue.' : 'Your account could not be refreshed. Please try again.')
@@ -157,3 +169,5 @@ export function useAccount() {
   if (!context) throw new Error('useAccount requires AccountProvider')
   return context
 }
+
+export function useOptionalAccount() { return useContext(AccountContext) }

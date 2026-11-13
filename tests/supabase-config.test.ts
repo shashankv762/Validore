@@ -1,14 +1,20 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 
-const mocks = vi.hoisted(() => ({ browser: vi.fn(), server: vi.fn() }))
+const mocks = vi.hoisted(() => ({ browser: vi.fn(), server: vi.fn(), sync: vi.fn(), settings: vi.fn() }))
 vi.mock('@supabase/ssr', () => ({ createBrowserClient: mocks.browser, createServerClient: mocks.server }))
 vi.mock('next/headers', () => ({ cookies: async () => ({ getAll: () => [], set: vi.fn() }) }))
+vi.mock('@/lib/auth-sync', () => ({ syncUserToDatabase: mocks.sync }))
+vi.mock('@/lib/platform-settings', () => ({ getPlatformSettings: mocks.settings }))
 import { createClient as browserClient } from '@/lib/supabase/client'
 import { createClient as serverClient } from '@/lib/supabase/server'
 import { proxy } from '@/proxy'
 
 afterEach(() => { vi.unstubAllEnvs(); vi.clearAllMocks() })
+beforeEach(() => {
+  mocks.sync.mockResolvedValue({ id: 'existing-profile', supabaseId: 'new-auth-identity', isAdmin: false, accountStatus: 'active' })
+  mocks.settings.mockResolvedValue({ signupEnabled: true, maintenanceEnabled: false })
+})
 
 describe('Supabase public key configuration', () => {
   it.each([
@@ -46,13 +52,15 @@ describe('Supabase public key configuration', () => {
     expect(response.headers.get('content-security-policy')).toContain('nonce-')
   })
 
-  it('preserves the signed-in workspace destination so account recovery can complete registration', async () => {
+  it.each(['existing', 'missing'])('preserves the signed-in workspace destination for a %s profile so registration recovery can complete', async profile => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.example.com')
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'public-key')
     mocks.server.mockReturnValue({ auth: { getUser: async () => ({ data: { user: { id: 'new-auth-identity' } } }) } })
+    if (profile === 'missing') mocks.sync.mockResolvedValue(null)
     const response = await proxy(new NextRequest('https://validore.onrender.com/auth/signin?next=%2Fdashboard%2Freports%3Fsaved%3D123'))
     expect(response.status).toBe(307)
     expect(response.headers.get('location')).toBe('https://validore.onrender.com/dashboard/reports?saved=123')
     expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(mocks.sync).toHaveBeenCalledWith({ id: 'new-auth-identity' }, { createNew: false, promoteOwner: false })
   })
 })

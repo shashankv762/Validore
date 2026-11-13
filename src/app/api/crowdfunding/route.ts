@@ -19,6 +19,8 @@ import * as fin from '@/lib/financial'
 import { CAMPAIGN_WEIGHTS, clampScore, getCampaignClassificationBand } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
 import { moduleHistory } from '@/lib/module-history'
+import { AdminAccessError, effectiveTier, isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 export async function GET(request: NextRequest) { return moduleHistory(request, 'crowdfunding') }
 
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
 
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (!isActiveAccount(dbUser)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
 
   const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
@@ -133,7 +136,9 @@ export async function POST(request: NextRequest) {
 
   // GAP-1: Concurrency check
   const tierConcurrencyLimits: Record<string, number> = { free: 1, premium: 2, max_premium: 3 }
-  const maxConcurrent = tierConcurrencyLimits[dbUser.tier || 'free'] ?? 1
+  const plan = await getPlan(dbUser.tier)
+  const safetyCap = tierConcurrencyLimits[effectiveTier(dbUser)]
+  const maxConcurrent = isOwnerAccount(dbUser) ? safetyCap : Math.min(plan.maxConcurrentRequests, safetyCap)
   const concurrencyCheck = await checkAndIncrementConcurrency(dbUser.id, maxConcurrent)
   if (!concurrencyCheck.allowed) {
     return NextResponse.json(
@@ -239,6 +244,7 @@ CRITICAL RULES:
 - Generate all fields including: founderAssumptions, fundingBands, goalBands, backerSegments, rewardEconomics, campaignDurationAnalysis, categoryBenchmark, campaignPageScorecard, campaignStoryScorecard, earlyMomentumAnalysis, marketingFunnel, socialProofAnalysis, preLaunchChecklist, preLaunchReadinessScore, firstDayTarget, firstWeekTarget.`
 
     const aiResult = await generateWithFallback({
+      maxTokensPerCall: isOwnerAccount(dbUser) ? undefined : plan.maxTokensPerCall,
       sources: searchResp.results, maxResearchRounds: searchResp.results.length ? 1 : 2,
     researchPrompt: publicResearchBrief(idea), prompt, privateContext: await loadFounderContext(idea.id, dbUser.id), schema: CrowdfundingAiSchema, temperature: 0, preferredAiProvider: dbUser.preferredAiProvider, customOpenRouterKey })
     const ai = aiResult.data
@@ -259,6 +265,8 @@ CRITICAL RULES:
     const { band, label: classLabel, disclaimer } = getCampaignClassificationBand(performanceScore)
 
     const saved = await db.transaction(async tx => {
+      const [account] = await tx.select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, dbUser.id)).for('update')
+      if (!account || !isActiveAccount(account)) throw new AdminAccessError('This account is not active.', 403, 'account_inactive')
       const charged = access.reason === 'credit' ? await consumeModulePack(tx, dbUser.id, 'crowdfundingCredits', i.ideaId) : await deductCredits(dbUser.id, CREDIT_COSTS.CROWDFUNDING, 'CROWDFUNDING', i.ideaId, undefined, tx)
       if (!charged) return null
       const [created] = await tx.insert(crowdfundingAnalyses).values({
@@ -300,6 +308,7 @@ CRITICAL RULES:
       result: saved.reportData,
     })
   } catch (error) {
+    if (error instanceof AdminAccessError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
     console.error('[crowdfunding] Analysis failed:', error)
     return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {

@@ -200,6 +200,11 @@ describe('runMultiAgentValidation', () => {
     }
     await expect(runMultiAgentValidation(idea, { runStep })).rejects.toBe(scheduled)
   })
+  it('carries the configured per-call token limit to all nine specialists', async () => {
+    await runMultiAgentValidation(idea, { maxTokensPerCall: 1000 })
+    expect(generateWithFallback).toHaveBeenCalledTimes(9)
+    for (const [options] of vi.mocked(generateWithFallback).mock.calls) expect(options.maxTokensPerCall).toBe(1000)
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     mockAgentsByPrompt()

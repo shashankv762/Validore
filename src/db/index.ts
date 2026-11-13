@@ -9,6 +9,9 @@ function createDatabase() {
   const scope = workerScope()
   const client = postgres(process.env.DATABASE_URL!, {
     prepare: false, max: poolSize, idle_timeout: 20, connect_timeout: 10,
+    // Disposable PostgreSQL fixtures deliberately truncate cascading rows.
+    // Suppress only routine NOTICE messages; query errors still propagate.
+    ...(process.env.TEST_DATABASE_URL && process.env.TEST_DATABASE_URL === process.env.DATABASE_URL ? { onnotice: () => {} } : {}),
     connection: { application_name: 'validore', statement_timeout: 30_000 },
   })
   if (scope) scope.cleanup.push(() => client.end({ timeout: 5 }))

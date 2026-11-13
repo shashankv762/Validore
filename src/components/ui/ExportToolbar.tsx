@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { FileText, FileDown, Table, Presentation, Shield, Archive, Lock, Loader2, type LucideIcon } from 'lucide-react'
+import { useOptionalAccount, type AccountData } from '@/components/AccountProvider'
 
 export type ExportFormat = 'pdf' | 'docx' | 'csv' | 'pptx' | 'white-label-pdf' | 'portfolio-zip'
 type Tier = 'free' | 'premium' | 'max_premium'
@@ -32,24 +33,34 @@ const FORMATS: Record<ExportFormat, { label: string; icon: LucideIcon; tier: Tie
 export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, simulationId, analysisId, deckType = 'validation',
   formats = ['pdf', 'docx', 'csv', 'pptx'], className = '', compact = false }: ExportToolbarProps) {
   const router = useRouter()
+  const account = useOptionalAccount()
+  const [snapshot, setSnapshot] = useState<AccountData | null>(null)
   const [accountTier, setAccountTier] = useState<Tier>('free')
   const [busy, setBusy] = useState<ExportFormat | null>(null)
   const active = useRef(false)
   useEffect(() => {
-    if (tier) return
+    if (account || tier) return
     const controller = new AbortController()
     fetch('/api/me', { signal: controller.signal }).then(response => response.ok ? response.json() : null)
-      .then(data => { if (data?.user?.tier) setAccountTier(data.user.tier) }).catch(() => {})
+      .then(data => { if (data?.user?.tier && !controller.signal.aborted) { setAccountTier(data.user.tier); setSnapshot(data) } }).catch(() => {})
     return () => controller.abort()
-  }, [tier])
-  const allowed = (format: ExportFormat) => FORMATS[format].tier === 'free' || (tier ?? accountTier) === 'max_premium' ||
-    (FORMATS[format].tier === 'premium' && (tier ?? accountTier) === 'premium') || (format === 'pptx' && Boolean(deckId))
+  }, [account, tier])
+  const profile = account?.data ?? snapshot
+  const feature = { csv: 'canExportCsv', pptx: 'canExportPptx', 'white-label-pdf': 'canWhitelabelPdf', 'portfolio-zip': 'canPortfolioExport' } as const
+  const allowed = (format: ExportFormat) => {
+    if (profile?.user.unlimited || (format === 'pptx' && Boolean(deckId))) return true
+    if (format === 'docx') return true
+    if (format === 'pdf') return profile?.plan?.canExportPdf ?? true
+    if (format in feature && profile?.plan?.[feature[format as keyof typeof feature]] !== undefined) return profile.plan[feature[format as keyof typeof feature]] === true
+    const actualTier = profile?.user.tier ?? tier ?? accountTier
+    return actualTier === 'max_premium' || (FORMATS[format].tier === 'premium' && actualTier === 'premium')
+  }
 
   async function download(format: ExportFormat) {
     if (active.current) return
     const config = FORMATS[format]
     if (!allowed(format)) {
-      toast.info('This format is included with ' + (config.tier === 'max_premium' ? 'Max' : 'Pro') + '.', { action: { label: 'View plans', onClick: () => router.push('/dashboard/settings') } })
+      toast.info('This format is not included in your current plan.', { action: { label: 'View plans', onClick: () => router.push('/dashboard/settings') } })
       return
     }
     const params = new URLSearchParams()
@@ -112,11 +123,11 @@ export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, simula
       const eligible = allowed(format)
       return <button key={format} type="button" onClick={() => void download(format)} disabled={busy !== null}
         className={'report-download-button ' + (format === 'pdf' ? 'report-download-primary' : '')}
-        title={eligible ? meta.label : 'Included with ' + (meta.tier === 'max_premium' ? 'Max' : 'Pro')}
+        title={eligible ? meta.label : 'Not included in your current plan'}
         aria-busy={busy === format}>
         {busy === format ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : eligible ? <Icon size={16} aria-hidden="true" /> : <Lock size={14} aria-hidden="true" />}
         <span>{busy === format ? 'Preparing…' : meta.label}</span>
-        {!eligible && <span className="format-tier">{meta.tier === 'max_premium' ? 'Max' : 'Pro'}</span>}
+        {!eligible && <span className="format-tier">Plan access</span>}
       </button>
     })}
     <span className="sr-only" role="status">{busy ? 'Preparing your document.' : ''}</span>

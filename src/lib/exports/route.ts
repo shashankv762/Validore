@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rateLimitCheck } from '@/lib/rate-limit'
 import { loadExportDocument } from './load-document'
+import { canUserAccess } from '../tier-gate'
 
 export async function exportDocument(request: NextRequest, format: 'pdf' | 'docx') {
   try {
@@ -9,6 +10,9 @@ export async function exportDocument(request: NextRequest, format: 'pdf' | 'docx
     if (!user) return NextResponse.json({ error: 'Sign in to download your report.' }, { status: 401 })
     const loaded = await loadExportDocument(request.nextUrl.searchParams, user.id)
     if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
+    if (format === 'pdf' && !await canUserAccess(user.id, 'canExportPdf')) {
+      return NextResponse.json({ error: 'PDF downloads are unavailable for this plan.' }, { status: 403, headers: { 'Cache-Control': 'private, no-store' } })
+    }
     if (!(await rateLimitCheck(user.id, 'export')).success) return NextResponse.json({ error: 'Please wait a minute before downloading another report.' }, { status: 429 })
     const buffer = format === 'pdf'
       ? await (await import('./pdf')).renderReportPdf(loaded.document)

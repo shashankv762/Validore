@@ -4,7 +4,7 @@ import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { users, ideas, leanCanvases } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, desc } from 'drizzle-orm'
 import { nextCanvasVersion } from '@/lib/canvas-versions'
 import { checkCredits } from '@/lib/credits'
 import { saveCanvasVersion } from '@/lib/canvas-store'
@@ -16,6 +16,8 @@ import { loadFounderContext } from '@/lib/interview/context'
 import { webSearch } from '@/lib/ai/search'
 import { z } from 'zod'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
+import { effectiveTier, isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 const CanvasBlockSchema = z.object({
   content: z.string(),
@@ -65,13 +67,16 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const parsed = z.string().uuid().safeParse(request.nextUrl.searchParams.get('ideaId'))
   if (!parsed.success) return NextResponse.json({ error: 'A valid ideaId is required' }, { status: 400 })
+  const page = z.coerce.number().int().min(1).max(100000).safeParse(request.nextUrl.searchParams.get('page') ?? 1)
+  if (!page.success) return NextResponse.json({ error: 'A valid page is required' }, { status: 400 })
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  if (!isActiveAccount(dbUser)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
   const canvases = await db.query.leanCanvases.findMany({
     where: and(eq(leanCanvases.ideaId, parsed.data), eq(leanCanvases.userId, dbUser.id)),
-    orderBy: (lc, { asc }) => [asc(lc.version)], limit: 100,
+    orderBy: [desc(leanCanvases.version), desc(leanCanvases.id)], limit: 101, offset: (page.data - 1) * 100,
   })
-  return NextResponse.json({ canvases }, { headers: { 'Cache-Control': 'private, no-store' } })
+  return NextResponse.json({ canvases: canvases.slice(0, 100).reverse(), page: page.data, hasMore: canvases.length > 100 }, { headers: { 'Cache-Control': 'private, no-store' } })
 }
 
 
@@ -84,6 +89,7 @@ export async function POST(request: NextRequest) {
   const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
+  if (!isActiveAccount(dbUser)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
   const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
@@ -97,7 +103,9 @@ export async function POST(request: NextRequest) {
 
   // GAP-1: Concurrency check
   const tierConcurrencyLimits: Record<string, number> = { free: 1, premium: 2, max_premium: 3 }
-  const maxConcurrent = tierConcurrencyLimits[dbUser.tier || 'free'] ?? 1
+  const plan = await getPlan(dbUser.tier)
+  const safetyCap = tierConcurrencyLimits[effectiveTier(dbUser)]
+  const maxConcurrent = isOwnerAccount(dbUser) ? safetyCap : Math.min(plan.maxConcurrentRequests, safetyCap)
   const concurrencyCheck = await checkAndIncrementConcurrency(dbUser.id, maxConcurrent)
   if (!concurrencyCheck.allowed) {
     return NextResponse.json(
@@ -128,12 +136,12 @@ export async function POST(request: NextRequest) {
     const versionQuery = {
       where: and(eq(leanCanvases.ideaId, ideaId), eq(leanCanvases.userId, dbUser.id)),
       columns: { version: true as const },
-      orderBy: [leanCanvases.version],
+      orderBy: [desc(leanCanvases.version)],
       limit: 4,
     }
     // Reject completed histories before spending on another AI request.
     const existing = await db.query.leanCanvases.findMany(versionQuery)
-    if (nextCanvasVersion(existing) === null) return NextResponse.json({ error: 'This idea has reached the four-canvas version limit.' }, { status: 409 })
+    if (nextCanvasVersion(existing, isOwnerAccount(dbUser)) === null) return NextResponse.json({ error: 'This idea has reached the four-canvas version limit.' }, { status: 409 })
 
     // Web search for market context
     const searchResp = await webSearch(publicResearchQuery(idea, 'business model market'), 4)
@@ -214,6 +222,7 @@ INTEGRITY RULES:
       schema: LeanCanvasOutputSchema,
       temperature: 0,
       preferredAiProvider: dbUser.preferredAiProvider,
+      maxTokensPerCall: isOwnerAccount(dbUser) ? undefined : plan.maxTokensPerCall,
       customOpenRouterKey,
     })
 

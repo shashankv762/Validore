@@ -10,22 +10,27 @@ type Balance = {
   crowdfundingCredits: number
   pitchDeckCredits: number
   validationsThisMonth: number
+  unlimited?: boolean
+  creditCycleAllowance?: number
 }
 
-export function creditOverview(user: Pick<Balance, 'tier' | 'creditBalance' | 'purchasedCredits' | 'rewardCredits'>) {
-  const allocation = TIER_MONTHLY_CREDITS[user.tier]
+export function creditOverview(user: Pick<Balance, 'tier' | 'creditBalance' | 'purchasedCredits' | 'rewardCredits' | 'unlimited' | 'creditCycleAllowance'>, plan?: { monthlyCredits: number }) {
+  const allocation = user.creditCycleAllowance ?? plan?.monthlyCredits ?? TIER_MONTHLY_CREDITS[user.tier]
   const monthlyRemaining = Math.max(0, user.creditBalance)
   return { allocation, monthlyRemaining, purchasedRemaining: Math.max(0, user.purchasedCredits),
     rewardRemaining: Math.max(0, user.rewardCredits ?? 0), total: totalCredits(user),
     monthlySpent: Math.max(0, allocation - monthlyRemaining),
-    percentage: Math.min(100, Math.max(0, (allocation - monthlyRemaining) / allocation * 100)),
+    percentage: allocation > 0 ? Math.min(100, Math.max(0, (allocation - monthlyRemaining) / allocation * 100)) : 0,
+    unlimited: Boolean(user.unlimited),
   }
 }
 
-export function actionAllowance(user: Balance, action: keyof typeof CREDIT_COSTS, validationLimit: number = PLAN_CATALOG[user.tier].validationLimit) {
-  if (action === 'CROWDFUNDING' && user.tier !== 'max_premium') return { runs: Math.max(0, user.crowdfundingCredits), unit: 'module credit', permitted: user.crowdfundingCredits > 0 }
-  if (action === 'PITCH_DECK' && user.tier !== 'max_premium') return { runs: Math.max(0, user.pitchDeckCredits), unit: 'module credit', permitted: user.pitchDeckCredits > 0 }
-  const permitted = action === 'LITE_VALIDATION' ? user.tier === 'free' : user.tier !== 'free'
+export function actionAllowance(user: Balance, action: keyof typeof CREDIT_COSTS, validationLimit: number = PLAN_CATALOG[user.tier].validationLimit,
+  plan?: { canCrowdfunding?: boolean; canPitchDeck?: boolean; canPricingSimulator?: boolean; canAiLeanCanvas?: boolean }) {
+  if (user.unlimited) return { runs: 0, unit: 'credits', permitted: true, unlimited: true }
+  if (action === 'CROWDFUNDING' && !(plan?.canCrowdfunding ?? user.tier === 'max_premium')) return { runs: Math.max(0, user.crowdfundingCredits), unit: 'module credit', permitted: user.crowdfundingCredits > 0 }
+  if (action === 'PITCH_DECK' && !(plan?.canPitchDeck ?? user.tier === 'max_premium')) return { runs: Math.max(0, user.pitchDeckCredits), unit: 'module credit', permitted: user.pitchDeckCredits > 0 }
+  const permitted = action === 'LITE_VALIDATION' ? user.tier === 'free' : action === 'PRICING' ? plan?.canPricingSimulator ?? user.tier !== 'free' : action === 'LEAN_CANVAS' ? plan?.canAiLeanCanvas ?? user.tier !== 'free' : action === 'CROWDFUNDING' || action === 'PITCH_DECK' ? true : user.tier !== 'free'
   let runs = permitted ? Math.floor(creditOverview(user).total / CREDIT_COSTS[action]) : 0
   if (permitted && (action === 'LITE_VALIDATION' || action === 'DEEP_VALIDATION')) runs = affordableValidations(user, CREDIT_COSTS[action], validationLimit)
   return { runs, unit: 'credits', permitted }

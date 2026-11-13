@@ -11,6 +11,8 @@ import { LEGAL } from '@/lib/legal'
 import { ideaFingerprint, initialInterview, tailorInterview } from '@/lib/interview/engine'
 import { guidedAssessment, nextGuidedQuestion } from '@/lib/interview/question-bank'
 import { InterviewStateSchema, MAX_INTERVIEW_ANSWERS, type InterviewAnswer, type InterviewState, type InterviewView } from '@/lib/interview/schema'
+import { isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 type Context = { params: Promise<{ ideaId: string }> }
 class InterviewError extends Error { constructor(message: string, readonly status = 400) { super(message) } }
@@ -29,6 +31,7 @@ async function authorize(context: Context) {
   if (!id.success) throw new InterviewError('A valid idea reference is required.')
   const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   if (!owner) throw new InterviewError('Account not found.', 404)
+  if (!isActiveAccount(owner)) throw new InterviewError('This account is not active.', 403)
   const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, id.data), eq(ideas.userId, owner.id)) })
   if (!idea || !idea.isActive) throw new InterviewError('Idea not found.', 404)
   return { owner, idea, verified: Boolean(user.email_confirmed_at) }
@@ -112,9 +115,15 @@ export async function PATCH(request: NextRequest, context: Context) {
     try { customKey = owner.encryptedOpenrouterKey ? decryptApiKey(owner.encryptedOpenrouterKey) : null } catch { return reply({ interview: view(saved.row, ideaFingerprint(idea)) }) }
     // No transaction stays open during a model request. A conditional update
     // prevents a late response from overwriting a later answer or deletion.
-    const state = await tailorInterview(idea, saved.row.state, { preferredAiProvider: owner.preferredAiProvider, customOpenRouterKey: customKey })
-    const [updated] = await db.update(founderInterviews).set({ state, version: saved.row.version + 1, updatedAt: new Date() })
-      .where(and(eq(founderInterviews.id, saved.row.id), eq(founderInterviews.userId, owner.id), eq(founderInterviews.version, saved.row.version))).returning()
+    const state = await tailorInterview(idea, saved.row.state, { preferredAiProvider: owner.preferredAiProvider, customOpenRouterKey: customKey,
+      maxTokensPerCall: isOwnerAccount(owner) ? undefined : (await getPlan(owner.tier)).maxTokensPerCall })
+    const updated = await db.transaction(async tx => {
+      const [account] = await tx.select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, owner.id)).for('update')
+      if (!account || !isActiveAccount(account)) throw new InterviewError('This account is not active.', 403)
+      const [row] = await tx.update(founderInterviews).set({ state, version: saved.row.version + 1, updatedAt: new Date() })
+        .where(and(eq(founderInterviews.id, saved.row.id), eq(founderInterviews.userId, owner.id), eq(founderInterviews.version, saved.row.version))).returning()
+      return row
+    })
     if (updated) return reply({ interview: view(updated, ideaFingerprint(idea)) })
     const latest = await db.query.founderInterviews.findFirst({ where: and(eq(founderInterviews.id, saved.row.id), eq(founderInterviews.userId, owner.id)) })
     return reply({ interview: latest ? view(latest, ideaFingerprint(idea)) : null })

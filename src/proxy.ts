@@ -3,6 +3,9 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { safeNextPath } from '@/lib/auth-redirect'
 import { guardApiRequest, PRIVATE_HEADERS } from '@/lib/api-security'
 import { contentSecurityPolicy } from '@/lib/security-headers'
+import { syncUserToDatabase } from '@/lib/auth-sync'
+import { authenticatedDestination, isActiveAccount, isOwnerAccount, isVerifiedOwnerIdentity } from '@/lib/admin-access'
+import { getPlatformSettings } from '@/lib/platform-settings'
 
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith('/api/')) {
@@ -37,13 +40,27 @@ export async function proxy(request: NextRequest) {
     },
   })
   const { data: { user } } = await supabase.auth.getUser()
+  let profile
+  if (user) {
+    try {
+      profile = await syncUserToDatabase(user, { createNew: false, promoteOwner: false })
+      if (profile && !isActiveAccount(profile)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403, headers: PRIVATE_HEADERS })
+      if (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin')) {
+        const settings = await getPlatformSettings()
+        const owner = isVerifiedOwnerIdentity(user) && (!profile || (isOwnerAccount(profile) && profile.supabaseId === user.id))
+        if (settings.maintenanceEnabled && !owner) return NextResponse.json({ error: settings.maintenanceMessage || 'The workspace is temporarily under maintenance.' }, { status: 503, headers: PRIVATE_HEADERS })
+      }
+    } catch {
+      return NextResponse.json({ error: 'Account access is temporarily unavailable.' }, { status: 503, headers: PRIVATE_HEADERS })
+    }
+  }
   const redirect = (url: URL) => {
     const result = NextResponse.redirect(url)
     response.cookies.getAll().forEach(cookie => result.cookies.set(cookie))
     result.headers.set('Cache-Control', 'private, no-store')
     return result
   }
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  if (!user && (request.nextUrl.pathname.startsWith('/dashboard') || request.nextUrl.pathname.startsWith('/admin'))) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/signin'
     url.search = ''
@@ -51,7 +68,8 @@ export async function proxy(request: NextRequest) {
     return redirect(url)
   }
   if (user && (request.nextUrl.pathname === '/auth/signin' || request.nextUrl.pathname === '/auth/signup')) {
-    const url = new URL(safeNextPath(request.nextUrl.searchParams.get('next'), request.nextUrl.origin), request.nextUrl.origin)
+    const destination = safeNextPath(request.nextUrl.searchParams.get('next'), request.nextUrl.origin)
+    const url = new URL(profile ? authenticatedDestination(user, profile, destination) : destination, request.nextUrl.origin)
     return redirect(url)
   }
   response.headers.set('Cache-Control', 'private, no-store')
@@ -59,4 +77,4 @@ export async function proxy(request: NextRequest) {
 }
 
 // Public pages, health probes, signed webhooks, and assets need no auth round trip.
-export const config = { matcher: ['/dashboard/:path*', '/share/:path*', '/auth/signin', '/auth/signup', '/auth/complete-signup', '/api/:path*'] }
+export const config = { matcher: ['/admin/:path*', '/dashboard/:path*', '/share/:path*', '/auth/signin', '/auth/signup', '/auth/complete-signup', '/api/:path*'] }

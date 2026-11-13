@@ -11,7 +11,7 @@ vi.mock('@/db', async () => {
   return { db: drizzle(state.client, { schema }) }
 })
 import { db } from '@/db'
-import { validationJobs, validationReports, pitchDecks, crowdfundingAnalyses, pricingSimulations } from '@/db/schema'
+import * as schema from '@/db/schema'
 import { completeValidationJob } from '@/lib/validation/jobs'
 import { clampScore, normalizeValidationScores } from '@/lib/scoring'
 import { PIPELINE_LITE_REPLY } from './fixtures/agent-payloads'
@@ -19,29 +19,15 @@ import { PIPELINE_LITE_REPLY } from './fixtures/agent-payloads'
 const owner = '11111111-1111-4111-8111-111111111111'
 const idea = '22222222-2222-4222-8222-222222222222'
 const job = '33333333-3333-4333-8333-333333333333'
+const { users, ideas, validationJobs, validationReports, pitchDecks, crowdfundingAnalyses, pricingSimulations } = schema
 beforeAll(async () => {
-  await state.client.exec(`CREATE TYPE job_status AS ENUM ('pending','running','partial','complete','failed');
-    CREATE TYPE decision AS ENUM ('GO','MODIFY','TEST_FURTHER','NO_GO');
-    CREATE TABLE validation_jobs (id uuid PRIMARY KEY, user_id uuid NOT NULL, idea_id uuid NOT NULL,
-      status job_status NOT NULL, is_lite boolean NOT NULL, total_sections integer NOT NULL DEFAULT 0,
-      completed_sections integer NOT NULL DEFAULT 0, tokens_used integer NOT NULL DEFAULT 0,
-      estimated_cost_usd text, error_message text, ai_provider text, created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now());
-    CREATE TABLE validation_reports (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), job_id uuid NOT NULL UNIQUE,
-      idea_id uuid NOT NULL, user_id uuid NOT NULL, share_token uuid NOT NULL,
-      overall_score integer, problem_score integer, customer_score integer, market_score integer,
-      competitive_score integer, wtp_score integer, business_model_score integer, financial_score integer, execution_score integer,
-      decision decision, decision_reasons jsonb, key_evidence jsonb, key_risks jsonb, action_plan jsonb,
-      report_data jsonb, is_lite boolean NOT NULL, status text, created_at timestamp DEFAULT now());
-    CREATE TABLE pitch_decks (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, idea_id uuid NOT NULL,
-      quality_score integer, founder_readiness_score integer, slides jsonb, pitch_script_3min text, pitch_script_60sec text,
-      investor_qa jsonb, portfolio_sections jsonb, roadmap jsonb, milestones jsonb, report_data jsonb, created_at timestamp DEFAULT now());
-    CREATE TABLE crowdfunding_analyses (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, idea_id uuid NOT NULL,
-      performance_score integer, classification_band text, funding_goal integer, expected_funding integer, expected_backers integer,
-      conversion_rate text, reward_tiers jsonb, scenario_analysis jsonb, marketing_channels jsonb, prelaunch_plan jsonb,
-      risk_register jsonb, recommendation text, report_data jsonb, created_at timestamp DEFAULT now());
-    CREATE TABLE pricing_simulations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, idea_id uuid NOT NULL,
-      pricing_score integer, scenarios jsonb, sensitivity_matrix jsonb, recommended_price text, competitor_prices jsonb,
-      validation_plan jsonb, report_data jsonb, created_at timestamp DEFAULT now());`)
+  // Use the actual application schema, including account status and ownership FKs.
+  const { generateDrizzleJson, generateMigration } = await import('drizzle-kit/api')
+  const statements = await generateMigration(generateDrizzleJson({}), generateDrizzleJson(schema))
+  for (const statement of statements) await state.client.exec(statement)
+  await db.insert(users).values({ id: owner, email: 'scores@example.test', supabaseId: 'score-fixture-identity', accountStatus: 'active' })
+  await db.insert(ideas).values({ id: idea, userId: owner, name: 'Score fixture', industry: 'Software', product: 'Planning workspace',
+    targetCustomer: 'Founders', location: 'India', businessModel: 'Subscription', coreProblem: 'Missing evidence', proposedSolution: 'Structured research' })
   await db.insert(validationJobs).values({ id: job, userId: owner, ideaId: idea, status: 'running', isLite: true })
 }, 30_000)
 afterAll(() => state.client.close())

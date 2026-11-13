@@ -1,14 +1,10 @@
-import Stripe from 'stripe'
 import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { PLAN_CATALOG } from './plans'
+import { getPlan, lockPlan, assertMonthlyStripePrice } from './plan-catalog'
+import { stripeBillingClient } from './stripe-client'
+export { stripeBillingClient } from './stripe-client'
 
-export function stripeBillingClient() {
-  const key = process.env.STRIPE_SECRET_KEY
-  if (!key || !/^(sk|rk)_(test|live)_/.test(key)) throw new Error('Billing is not configured')
-  return new Stripe(key, { timeout: 10_000, maxNetworkRetries: 1 })
-}
 export function billingOrigin() {
   const url = new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')
   if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid application origin')
@@ -20,9 +16,12 @@ export function billingOrigin() {
 export async function createSubscriptionCheckout(userId: string, tier: 'premium' | 'max_premium') {
   const stripe = stripeBillingClient()
   const origin = billingOrigin()
-  const price = tier === 'premium' ? process.env.STRIPE_PREMIUM_PRICE_ID : process.env.STRIPE_MAX_PREMIUM_PRICE_ID
-  if (!price || !/^price_[A-Za-z0-9]+$/.test(price)) throw new Error('Plan price is not configured')
   return db.transaction(async tx => {
+    await lockPlan(tx, tier)
+    const plan = await getPlan(tier, tx)
+    const price = plan.stripePriceId
+    if (!plan.advertised) throw new Error('New purchases of this plan are paused')
+    if (!price || !/^price_[A-Za-z0-9]+$/.test(price)) throw new Error('Plan price is not configured')
     const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
     if (!user) throw new Error('Billing account not found')
     let customerId = user.stripeCustomerId
@@ -37,11 +36,7 @@ export async function createSubscriptionCheckout(userId: string, tier: 'premium'
       return portal.url
     }
     const configuredPrice = await stripe.prices.retrieve(price)
-    if (!configuredPrice.active || configuredPrice.currency !== 'usd' ||
-        configuredPrice.unit_amount !== PLAN_CATALOG[tier].monthlyPriceUsd * 100 ||
-        configuredPrice.recurring?.interval !== 'month' || configuredPrice.recurring.interval_count !== 1) {
-      throw new Error('The configured subscription price does not match the advertised monthly plan')
-    }
+    assertMonthlyStripePrice(configuredPrice, plan.monthlyPriceCents)
     const sessions = await stripe.checkout.sessions.list({ customer: customerId, status: 'open', limit: 100 })
     for (const session of sessions.data) {
       if (session.mode !== 'subscription' || session.metadata?.purpose !== 'validore_subscription') continue

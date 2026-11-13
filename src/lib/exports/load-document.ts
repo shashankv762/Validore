@@ -3,6 +3,7 @@ import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { users, ideas, validationReports, leanCanvases, pricingSimulations, crowdfundingAnalyses, pitchDecks } from '@/db/schema'
 import { buildReportDocument, type ReportDocument } from './document'
+import { isActiveAccount } from '../admin-access'
 
 const Query = z.object({
   reportId: z.uuid().optional(), ideaId: z.uuid().optional(), canvasId: z.uuid().optional(), deckId: z.uuid().optional(),
@@ -19,7 +20,7 @@ export async function loadExportDocument(search: URLSearchParams, supabaseId: st
   if ((!reportId && !ideaId && !deckId && !simulationId && !analysisId) || [reportId, canvasId, deckId, simulationId, analysisId].filter(Boolean).length > 1 || (reportId && kind !== 'validation') || (canvasId && (kind !== 'canvas' || !ideaId)) || (deckId && kind !== 'pitch') || (simulationId && kind !== 'pricing') || (analysisId && kind !== 'crowdfunding'))
     return { error: 'Select one report or document to download.', status: 400 }
   const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, supabaseId) })
-  if (!owner) return { error: 'Account not found.', status: 404 }
+  if (!owner || !isActiveAccount(owner)) return { error: 'Account not found.', status: 404 }
   let record: Record<string, unknown> | undefined
   if (kind === 'validation') record = await db.query.validationReports.findFirst({
     where: and(eq(validationReports.userId, owner.id), reportId ? eq(validationReports.id, reportId) : eq(validationReports.ideaId, ideaId!)),

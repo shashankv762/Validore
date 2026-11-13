@@ -126,6 +126,7 @@ type EngineOptions = {
   privateContext?: string
   customOpenRouterKey?: string | null
   preferredAiProvider?: string | null
+  maxTokensPerCall?: number
   runStep?: RunValidationStep
   researchBudgetId?: string
   onProgress?: (completed: number, total: number) => void | Promise<void>
@@ -159,6 +160,7 @@ export async function runLiteValidation(
     privateContext: opts?.privateContext,
     schema: LiteReportSchema,
     maxOutputTokens: 5000,
+    maxTokensPerCall: opts?.maxTokensPerCall,
     agentRole: 'synthesis',
     researchMode: market || customer ? 'reuse' : 'auto',
     sources,
@@ -357,15 +359,16 @@ async function runMonolithicFull(
   opts?: EngineOptions
 ): Promise<MultiAgentResult | null> {
   const partialFailures: string[] = []
+  const executeStep = opts?.runStep ?? runInlineStep
 
   // Step 1: Web search for market context
   let allResults: SearchResult[] = []
   let degraded = true
   try {
-    const [marketSearch, competitorSearch] = await Promise.all([
+    const [marketSearch, competitorSearch] = await executeStep('monolithic-research-sources', () => Promise.all([
       webSearch(publicResearchQuery(idea, 'market size'), 5),
       webSearch(publicResearchQuery(idea, 'competitors alternatives pricing'), 5),
-    ])
+    ]))
     allResults = [...marketSearch.results, ...competitorSearch.results]
     degraded = marketSearch.degraded && competitorSearch.degraded
   } catch (err) {
@@ -381,7 +384,7 @@ async function runMonolithicFull(
   // Step 2: Generate full report
   let result
   try {
-    result = await generateWithFallback({
+    result = await executeStep('monolithic-report', () => generateWithFallback({
     researchPrompt: publicResearchBrief(idea),
       prompt: buildFullPrompt(idea, allResults, degraded),
       privateContext: opts?.privateContext,
@@ -392,7 +395,8 @@ async function runMonolithicFull(
       customOpenRouterKey: opts?.customOpenRouterKey,
     researchBudgetId: opts?.researchBudgetId,
       preferredAiProvider: opts?.preferredAiProvider,
-    })
+      maxTokensPerCall: opts?.maxTokensPerCall,
+    }))
   } catch (err) {
     console.error('[ENGINE] Full report generation failed:', err)
     partialFailures.push('full_report_generation')

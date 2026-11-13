@@ -18,6 +18,8 @@ const client = postgres(process.env.DATABASE_URL, { prepare: false })
 const db = drizzle(client)
 
 const EXPECTED_TABLES = [
+  'admin_audit_log',
+  'platform_settings',
   'credit_ledger',
   'user_devices',
   'founder_interviews',
@@ -110,6 +112,25 @@ async function verify() {
   const monthlyUsageColumn = await client`SELECT column_name FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'monthly_credits_used_this_cycle' AND is_nullable = 'NO'`
   if (monthlyUsageColumn.length !== 1) { console.error('Monthly credit consumption column is missing. Apply migration 0005 before deploying.'); hasErrors = true }
+
+  const adminColumns = await client`SELECT table_name, column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name IN ('users', 'tier_config', 'platform_settings', 'admin_audit_log')`
+  const requiredAdminColumns: Record<string, string[]> = {
+    users: ['is_admin', 'account_status', 'status_reason', 'status_changed_at', 'credit_cycle_allowance'],
+    tier_config: ['name', 'monthly_price_cents', 'monthly_credits', 'stripe_price_id', 'stripe_price_history', 'benefits', 'advertised'],
+    platform_settings: ['id', 'announcement', 'announcement_enabled', 'maintenance_enabled', 'maintenance_message', 'signup_enabled', 'updated_at', 'updated_by'],
+    admin_audit_log: ['id', 'request_id', 'actor_id', 'actor_email', 'action', 'target_user_id', 'target_email', 'reason', 'details', 'created_at'],
+  }
+  for (const [table, columns] of Object.entries(requiredAdminColumns)) {
+    const missing = columns.filter(column => !adminColumns.some(row => row.table_name === table && row.column_name === column))
+    if (missing.length) { console.error(`Missing owner-control columns in ${table}: ${missing.join(', ')}. Apply migration 0006 before deploying.`); hasErrors = true }
+  }
+  const adminIndexes = await client`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'
+    AND indexname IN ('users_single_owner_idx', 'users_status_created_idx', 'admin_audit_request_target_idx', 'admin_audit_created_idx', 'admin_audit_target_created_idx')`
+  if (adminIndexes.length !== 5) { console.error('Required owner/status/audit indexes are missing. Apply migration 0006 before deploying.'); hasErrors = true }
+  const adminConstraints = await client`SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE n.nspname = 'public' AND conname IN ('users_account_status_valid', 'users_owner_active', 'users_credit_cycle_allowance_nonnegative')`
+  if (adminConstraints.length !== 3) { console.error('Required account status and owner constraints are missing. Apply migration 0006 before deploying.'); hasErrors = true }
 
   // 3. Verify all 4 enums
   console.log('\n--- 2. Enums Verification ---')

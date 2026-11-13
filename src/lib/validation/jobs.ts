@@ -11,11 +11,23 @@ import type { IdeaInput } from './schemas'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { loadFounderContext } from '@/lib/interview/context'
 import { normalizeValidationScores } from '@/lib/scoring'
+import { isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 type GeneratedReport = Awaited<ReturnType<typeof runLiteValidation>> | NonNullable<Awaited<ReturnType<typeof runFullValidation>>>
 
 export async function generateValidationReport(jobId: string, options?: { runStep: RunValidationStep }): Promise<GeneratedReport> {
-  const executeStep = options?.runStep ?? runInlineStep
+  const checkActive = async () => {
+    const currentJob = await db.query.validationJobs.findFirst({ where: eq(validationJobs.id, jobId) })
+    if (!currentJob || !['pending', 'running'].includes(currentJob.status)) throw new NonRetriableError('Validation job is no longer active')
+    const account = await db.query.users.findFirst({ where: eq(users.id, currentJob.userId) })
+    if (!account || !isActiveAccount(account)) throw new NonRetriableError('Validation account is not active')
+  }
+  // Check outside durable steps as well: cached preparation cannot restore a revoked job.
+  const executeStep: RunValidationStep = async (name, work) => {
+    await checkActive()
+    return (options?.runStep ?? runInlineStep)(name, work)
+  }
   const context = await executeStep('prepare-validation', async () => {
     const job = await db.query.validationJobs.findFirst({ where: eq(validationJobs.id, jobId) })
     if (!job) throw new NonRetriableError('Validation job not found')
@@ -33,13 +45,15 @@ export async function generateValidationReport(jobId: string, options?: { runSte
   })
   // Keys are read afresh on the server, never returned from a durable step.
   const user = await db.query.users.findFirst({ where: eq(users.id, context.userId) })
-  if (!user) throw new NonRetriableError('Validation owner not found')
+  if (!user || !isActiveAccount(user)) throw new NonRetriableError('Validation account is not active')
   const opts = { preferredAiProvider: user.preferredAiProvider,
+    maxTokensPerCall: isOwnerAccount(user) ? undefined : (await getPlan(user.tier)).maxTokensPerCall,
     privateContext: context.privateContext,
     customOpenRouterKey: user.encryptedOpenrouterKey ? decryptApiKey(user.encryptedOpenrouterKey) : null,
-    runStep: options?.runStep,
+    runStep: executeStep,
     researchBudgetId: jobId,
     onProgress: async (completed: number, total: number) => {
+      await checkActive()
       await db.update(validationJobs).set({ completedSections: sql`greatest(${validationJobs.completedSections}, ${completed})`, totalSections: total, updatedAt: new Date() })
         .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
     } }
@@ -52,6 +66,8 @@ export async function completeValidationJob(jobId: string, report: GeneratedRepo
   return db.transaction(async (tx) => {
     const [job] = await tx.select().from(validationJobs).where(eq(validationJobs.id, jobId)).for('update')
     if (!job) throw new Error('Validation job not found')
+    const [account] = await tx.select().from(users).where(eq(users.id, job.userId)).for('update')
+    if (!account || !isActiveAccount(account)) throw new NonRetriableError('Validation account is not active')
     const [existing] = await tx.select().from(validationReports).where(eq(validationReports.jobId, jobId)).limit(1)
     if (existing) return existing.id
     if (job.status === 'failed') throw new Error('Validation job was already refunded')

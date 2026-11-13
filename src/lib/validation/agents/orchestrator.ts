@@ -40,6 +40,7 @@ export type OrchestratorOpts = {
   privateContext?: string
   customOpenRouterKey?: string | null
   preferredAiProvider?: string | null
+  maxTokensPerCall?: number
   onProgress?: AgentProgress
   runStep?: RunValidationStep
   researchBudgetId?: string
@@ -127,6 +128,7 @@ export async function runMultiAgentValidation(
     privateContext: opts?.privateContext,
     customOpenRouterKey: opts?.customOpenRouterKey,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
     sources: collectedSources,
     researchBudgetId,
   }

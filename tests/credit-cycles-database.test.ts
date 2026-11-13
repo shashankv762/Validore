@@ -4,6 +4,7 @@ import type { PGlite } from '@electric-sql/pglite'
 import type Stripe from 'stripe'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
+import { legacyTierConfigSql } from './fixtures/tier-config-sql'
 
 const state = vi.hoisted(() => ({ client: null as unknown as PGlite, retrieve: vi.fn() }))
 vi.mock('@/db', async () => {
@@ -15,7 +16,7 @@ vi.mock('@/db', async () => {
 })
 vi.mock('@/lib/billing', () => ({ stripeBillingClient: () => ({ subscriptions: { retrieve: state.retrieve } }) }))
 import { db } from '@/db'
-import { creditLedger, users } from '@/db/schema'
+import { creditLedger, users, tierConfig } from '@/db/schema'
 import { checkCredits, deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
 import { reconcileStripeCredits } from '@/lib/subscription-credits'
 
@@ -46,11 +47,13 @@ beforeAll(async () => {
     CREATE TABLE credit_ledger (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users(id),
       amount integer NOT NULL, transaction_type text NOT NULL, description text, created_at timestamp DEFAULT now());`)
   await state.client.exec(await readFile(new URL('../drizzle/0005_credit_cycle_start.sql', import.meta.url), 'utf8'))
+  await state.client.exec(legacyTierConfigSql)
+  await state.client.exec(await readFile(new URL('../drizzle/0006_admin_command_center.sql', import.meta.url), 'utf8'))
 }, 30_000)
 beforeEach(async () => {
   vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_premium')
   state.retrieve.mockReset()
-  await state.client.exec('TRUNCATE users, credit_ledger CASCADE')
+  await state.client.exec('TRUNCATE users, credit_ledger, tier_config CASCADE')
   await db.insert(users).values({ id: owner, email: 'cycle@example.test', supabaseId: owner, stripeCustomerId: 'cus_test',
     creditBalance: 100, purchasedCredits: 40, rewardCredits: 30 })
 })
@@ -58,6 +61,27 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 afterAll(() => state.client.close())
 
 describe('Exact billing cycles with PostgreSQL transactions', () => {
+  it('applies an edited allowance only at renewal and refunds against the current allocation', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
+    const subscription = period('2026-10-01', '2026-11-01')
+    await apply(subscription)
+    const job = randomUUID()
+    await deductCredits(owner, 300, 'VALIDATION', job, 15)
+    await db.insert(tierConfig).values({ tier: 'premium', monthlyCredits: 2500, monthlyValidationLimit: 15, maxActiveIdeas: 10, maxConcurrentRequests: 3, maxTokensPerCall: 8000 })
+    await apply(subscription); await apply(subscription)
+    expect(await account()).toMatchObject({ creditBalance: 1200, creditCycleAllowance: 1500, monthlyCreditsUsedThisCycle: 300 })
+    await refundValidationCredits(owner, job)
+    expect(await account()).toMatchObject({ creditBalance: 1500, creditCycleAllowance: 1500, monthlyCreditsUsedThisCycle: 0 })
+    vi.setSystemTime(new Date('2026-11-01T01:00:00Z'))
+    await apply(period('2026-11-01', '2026-12-01'))
+    expect(await account()).toMatchObject({ creditBalance: 2500, creditCycleAllowance: 2500, monthlyCreditsUsedThisCycle: 0 })
+  })
+  it('keeps grandfathered subscriptions assigned to their tier after a price change', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
+    await db.insert(tierConfig).values({ tier: 'premium', stripePriceId: 'price_new', stripePriceHistory: ['price_premium'], monthlyCredits: 2400, monthlyValidationLimit: 15, maxActiveIdeas: 10, maxConcurrentRequests: 3, maxTokensPerCall: 8000 })
+    await apply(period('2026-10-01', '2026-11-01'))
+    expect(await account()).toMatchObject({ tier: 'premium', creditBalance: 2400, creditCycleAllowance: 2400 })
+  })
   it.each([
     ['2026-02-01', '2026-03-01'], ['2026-04-01', '2026-05-01'], ['2026-10-01', '2026-11-01'],
   ])('refunds an immediate failure at the beginning of %s–%s', async (start, end) => {

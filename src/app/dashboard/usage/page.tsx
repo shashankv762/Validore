@@ -42,7 +42,7 @@ export default function UsagePage() {
     setRefreshing(true)
     try { await account.refresh() } finally { setRefreshing(false) }
   }
-  const overview = user ? creditOverview(user) : null
+  const overview = user ? creditOverview(user, account.data?.plan) : null
   const largest = Math.max(1, ...(usage?.activity.map(item => item.credits) ?? []))
 
   return <div className="space-y-8 pb-12">
@@ -59,7 +59,7 @@ export default function UsagePage() {
     {user && overview && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { title: 'Available credits', value: overview.total.toLocaleString(), note: PLAN_CATALOG[user.tier].name + ' plan', icon: Coins },
+          { title: 'Available credits', value: user.unlimited ? 'Unlimited' : overview.total.toLocaleString(), note: user.unlimited ? 'Owner research allowance' : (account.data?.plan?.name ?? PLAN_CATALOG[user.tier].name) + ' plan', icon: Coins },
           { title: 'Credits spent this cycle', value: user.creditsUsedThisCycle.toLocaleString(), note: 'After recorded refunds', icon: Activity },
           { title: 'Validation runs', value: usage ? usage.validations.total.toLocaleString() : '—', note: usage ? `${usage.validations.active} in progress · ${usage.validations.failed} failed` : 'Loading activity', icon: Activity },
           { title: 'Recorded validation tokens', value: usage ? usage.validations.tokens.toLocaleString() : '—', note: 'Input and output reported by providers', icon: Cpu },
@@ -70,10 +70,10 @@ export default function UsagePage() {
       </div>
       <section className="card-angular bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-medium">Your credit allowance</h2>
-          <p className="mt-1 text-sm text-[#53616A]">{overview.monthlyRemaining.toLocaleString()} of {overview.allocation.toLocaleString()} plan credits remaining. Renews {date(user.creditResetAt)}.</p></div>
+          <p className="mt-1 text-sm text-[#53616A]">{user.unlimited ? 'Unlimited owner access. All research tools are included.' : `${overview.monthlyRemaining.toLocaleString()} of ${overview.allocation.toLocaleString()} plan credits remaining. Renews ${date(user.creditResetAt)}.`}</p></div>
           <Link href="/dashboard/credits" className="inline-flex min-h-11 items-center gap-2 text-sm font-medium">Manage credits<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
-        <progress aria-label="Plan credits used" max={overview.allocation} value={overview.monthlySpent} className="mt-5 h-2 w-full accent-[#89620B]" />
-        <p className="mt-3 text-xs text-[#53616A]">{overview.purchasedRemaining.toLocaleString()} purchased credits and {overview.rewardRemaining.toLocaleString()} earned credits carry forward. Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p>
+        {!user.unlimited && <><progress aria-label="Plan credits used" max={overview.allocation} value={overview.monthlySpent} className="mt-5 h-2 w-full accent-[#89620B]" />
+        <p className="mt-3 text-xs text-[#53616A]">{overview.purchasedRemaining.toLocaleString()} general credits from purchases and grants, and {overview.rewardRemaining.toLocaleString()} earned credits carry forward. Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p></>}
       </section>
     </>}
     {usage && <>

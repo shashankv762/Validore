@@ -54,5 +54,6 @@ export async function runCustomerAgent(idea: IdeaInput, opts?: AgentOpts) {
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

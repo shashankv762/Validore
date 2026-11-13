@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { GET, POST, PATCH, DELETE } from '@/app/api/ideas/[ideaId]/interview/route'
-import { ideas, founderInterviews } from '@/db/schema'
+import { ideas, founderInterviews, users } from '@/db/schema'
 import { ideaFingerprint, initialInterview } from '@/lib/interview/engine'
 import { LEGAL } from '@/lib/legal'
 import type { InterviewState } from '@/lib/interview/schema'
@@ -45,12 +45,12 @@ beforeEach(() => {
   vi.resetAllMocks(); vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://validore.tech')
   stored = initialRow(); currentIdea = { ...draft }
   mocks.user.mockResolvedValue({ data: { user: { id: 'auth-id', email_confirmed_at: '2026-11-01' } } })
-  mocks.owner.mockResolvedValue({ id: 'owner-id', preferredAiProvider: 'free_models' })
+  mocks.owner.mockResolvedValue({ id: 'owner-id', tier: 'free', isAdmin: false, accountStatus: 'active', preferredAiProvider: 'free_models' })
   mocks.idea.mockImplementation(async () => currentIdea)
   mocks.interview.mockImplementation(async () => stored)
   mocks.limit.mockResolvedValue({ success: true })
   mocks.tailor.mockImplementation(async (_idea: unknown, state: InterviewState) => state)
-  mocks.lock.mockImplementation(async table => table === ideas ? [currentIdea] : stored ? [stored] : [])
+  mocks.lock.mockImplementation(async table => table === users ? [await mocks.owner()] : table === ideas ? [currentIdea] : stored ? [stored] : [])
   mocks.update.mockImplementation(async (value, condition) => {
     const params = new PgDialect().sqlToQuery(condition).params
     if (!stored || params.length === 3 && params[2] !== stored.version) return []
@@ -99,6 +99,21 @@ describe('founder interview authorization and consent', () => {
 })
 
 describe('durable interview answer updates', () => {
+  it('passes the current plan token ceiling while preserving the smaller interview model budget', async () => {
+    expect((await PATCH(request('PATCH', input()), context())).status).toBe(200)
+    expect(mocks.tailor.mock.calls[0][2]).toMatchObject({ maxTokensPerCall: 24000 })
+  })
+  it('does not persist a late model result after the account is blocked', async () => {
+    mocks.tailor.mockImplementation(async (_idea, state) => {
+      mocks.owner.mockResolvedValue({ id: 'owner-id', tier: 'free', accountStatus: 'blocked' })
+      return state
+    })
+    const response = await PATCH(request('PATCH', input()), context())
+    expect(response.status).toBe(403)
+    expect(mocks.update).toHaveBeenCalledOnce()
+    expect(stored?.state.answers).toHaveLength(1)
+    expect(stored?.version).toBe(2)
+  })
   it('stores the answer before model work and makes identical retries idempotent', async () => {
     const submitted = input()
     mocks.tailor.mockImplementation(async (_idea, state) => {

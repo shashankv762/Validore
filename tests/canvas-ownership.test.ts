@@ -20,6 +20,22 @@ beforeEach(() => {
   })
 })
 describe('Canvas read ownership', () => {
+  it('returns the latest hundred versions in UI order and exposes earlier history pagination', async () => {
+    mocks.canvases.mockResolvedValueOnce(Array.from({ length: 101 }, (_, index) => ({ id: 'canvas-' + (150 - index), version: 150 - index })))
+    const response = await history(new NextRequest('http://localhost/api/lean-canvas?ideaId=' + foreignIdea))
+    const body = await response.json()
+    expect(body).toMatchObject({ page: 1, hasMore: true })
+    expect(body.canvases).toHaveLength(100)
+    expect(body.canvases[0].version).toBe(51)
+    expect(body.canvases.at(-1).version).toBe(150)
+    expect(mocks.canvases.mock.calls[0][0]).toMatchObject({ limit: 101, offset: 0 })
+    await history(new NextRequest('http://localhost/api/lean-canvas?ideaId=' + foreignIdea + '&page=2'))
+    expect(mocks.canvases.mock.calls[1][0]).toMatchObject({ offset: 100 })
+  })
+  it.each(['0', '1.5', '100001'])('rejects invalid canvas history page %s', async page => {
+    expect((await history(new NextRequest('http://localhost/api/lean-canvas?ideaId=' + foreignIdea + '&page=' + page))).status).toBe(400)
+    expect(mocks.canvases).not.toHaveBeenCalled()
+  })
   it('does not expose another account canvas through history or narrative APIs', async () => {
     const req = new NextRequest('http://localhost/api/lean-canvas?ideaId=' + foreignIdea)
     const response = await history(req)

@@ -1,9 +1,9 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type Stripe from 'stripe'
 import { randomUUID } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '@/db'
-import { users, ideas, validationJobs, validationReports, creditLedger } from '@/db/schema'
+import { users, ideas, validationJobs, validationReports, creditLedger, tierConfig } from '@/db/schema'
 import { syncUserToDatabase } from '@/lib/auth-sync'
 import { checkCredits, deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
 import { failValidationJob, completeValidationJob, reapStaleValidationJobs } from '@/lib/validation/jobs'
@@ -16,6 +16,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const [row] = await db.execute(sql`select current_schema() as schema`)
     if (!String(row.schema).startsWith('validore_test_')) throw new Error('Integration tests require an isolated validore_test_ schema')
   })
+  beforeEach(async () => { await db.delete(tierConfig) })
   afterAll(async () => { await db.$client.end({ timeout: 2 }) })
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
@@ -25,7 +26,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
   }
   const providerPeriod = (customer: string, start: Date, end: Date) => ({
     id: 'sub_test_' + customer, customer, status: 'active', cancel_at_period_end: false,
-    items: { data: [{ price: { id: 'price_test_premium' }, current_period_start: start.getTime() / 1000,
+    items: { data: [{ price: { id: 'price_testpremium' }, current_period_start: start.getTime() / 1000,
       current_period_end: end.getTime() / 1000 }] },
   }) as Stripe.Subscription
   const reconcile = (userId: string, subscription: Stripe.Subscription, now: Date) => db.transaction(async tx => {
@@ -93,7 +94,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
       const start = new Date(startText), end = new Date(endText), now = new Date(start.getTime() + 3600_000)
       const customer = 'cus_' + user.id
       await db.update(users).set({ stripeCustomerId: customer, purchasedCredits: 40, rewardCredits: 30 }).where(eq(users.id, user.id))
-      vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_test_premium')
+      vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_testpremium')
       await reconcile(user.id, providerPeriod(customer, start, end), now)
       vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
       const job = randomUUID()
@@ -108,7 +109,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const user = await profile(), customer = 'cus_' + randomUUID()
     const start = new Date('2026-12-01'), end = new Date('2027-01-01'), now = new Date('2026-12-01T01:00:00Z')
     await db.update(users).set({ stripeCustomerId: customer }).where(eq(users.id, user.id))
-    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_test_premium')
+    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_testpremium')
     const subscription = providerPeriod(customer, start, end)
     await reconcile(user.id, subscription, now)
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
@@ -131,9 +132,9 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const user = await profile(), customer = 'cus_' + randomUUID()
     const start = new Date('2026-10-01'), end = new Date('2026-11-01'), now = new Date('2026-10-01T01:00:00Z')
     await db.update(users).set({ stripeCustomerId: customer }).where(eq(users.id, user.id))
-    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_test_premium'); vi.stubEnv('STRIPE_MAX_PREMIUM_PRICE_ID', 'price_test_max')
+    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_testpremium'); vi.stubEnv('STRIPE_MAX_PREMIUM_PRICE_ID', 'price_testmax')
     const premium = providerPeriod(customer, start, end)
-    const max = { ...premium, items: { data: premium.items.data.map(item => ({ ...item, price: { ...item.price, id: 'price_test_max' } })) } } as Stripe.Subscription
+    const max = { ...premium, items: { data: premium.items.data.map(item => ({ ...item, price: { ...item.price, id: 'price_testmax' } })) } } as Stripe.Subscription
     await reconcile(user.id, max, now)
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
     await deductCredits(user.id, 2000, 'TEST')
@@ -146,7 +147,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const user = await profile(), customer = 'cus_' + randomUUID()
     const start = new Date('2026-10-01'), end = new Date('2026-11-01'), now = new Date('2026-10-31T23:59:00Z')
     await db.update(users).set({ stripeCustomerId: customer, purchasedCredits: 40, rewardCredits: 30 }).where(eq(users.id, user.id))
-    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_test_premium')
+    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_testpremium')
     await reconcile(user.id, providerPeriod(customer, start, end), now)
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
     await db.update(users).set({ creditBalance: 10, monthlyCreditsUsedThisCycle: 1490 }).where(eq(users.id, user.id))
@@ -157,5 +158,35 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toMatchObject({ creditBalance: 0, purchasedCredits: 40, rewardCredits: 30 })
     const refunds = await db.select().from(creditLedger).where(and(eq(creditLedger.userId, user.id), eq(creditLedger.transactionType, 'VALIDATION_REFUND')))
     expect(refunds).toHaveLength(1); expect(refunds[0].amount).toBe(40)
+  })
+  it('recognizes a grandfathered paid price after a configured checkout price changes', async () => {
+    const user = await profile(), customer = 'cus_' + randomUUID()
+    const start = new Date('2026-10-01'), end = new Date('2026-11-01'), now = new Date('2026-10-01T01:00:00Z')
+    await db.update(users).set({ stripeCustomerId: customer }).where(eq(users.id, user.id))
+    await db.insert(tierConfig).values({ tier: 'premium', stripePriceId: 'price_newpremium', stripePriceHistory: ['price_testpremium'],
+      monthlyCredits: 2100, monthlyValidationLimit: 15, maxActiveIdeas: 10, maxConcurrentRequests: 3, maxTokensPerCall: 8000 })
+    await reconcile(user.id, providerPeriod(customer, start, end), now)
+    expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toMatchObject({ tier: 'premium', creditBalance: 2100, creditCycleAllowance: 2100 })
+  })
+  it('preserves current-cycle allocation across edits and replay, then applies the edited allowance at renewal', async () => {
+    const user = await profile(), customer = 'cus_' + randomUUID()
+    const start = new Date('2026-10-01'), end = new Date('2026-11-01'), now = new Date('2026-10-01T01:00:00Z')
+    await db.update(users).set({ stripeCustomerId: customer }).where(eq(users.id, user.id))
+    vi.stubEnv('STRIPE_PREMIUM_PRICE_ID', 'price_testpremium')
+    const subscription = providerPeriod(customer, start, end)
+    await reconcile(user.id, subscription, now)
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now)
+    const job = randomUUID()
+    await deductCredits(user.id, 300, 'VALIDATION', job, 15)
+    await db.insert(tierConfig).values({ tier: 'premium', monthlyCredits: 2500, monthlyValidationLimit: 15,
+      maxActiveIdeas: 10, maxConcurrentRequests: 3, maxTokensPerCall: 8000 })
+    await Promise.all([reconcile(user.id, subscription, now), reconcile(user.id, subscription, now)])
+    expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toMatchObject({ creditBalance: 1200, creditCycleAllowance: 1500 })
+    await refundValidationCredits(user.id, job)
+    expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toMatchObject({ creditBalance: 1500, creditCycleAllowance: 1500 })
+    const renewalStart = new Date('2026-11-01'), renewalEnd = new Date('2026-12-01'), renewalNow = new Date('2026-11-01T01:00:00Z')
+    vi.setSystemTime(renewalNow)
+    await reconcile(user.id, providerPeriod(customer, renewalStart, renewalEnd), renewalNow)
+    expect(await db.query.users.findFirst({ where: eq(users.id, user.id) })).toMatchObject({ creditBalance: 2500, creditCycleAllowance: 2500, monthlyCreditsUsedThisCycle: 0 })
   })
 })

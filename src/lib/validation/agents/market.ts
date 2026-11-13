@@ -60,5 +60,6 @@ export async function runMarketAgent(idea: IdeaInput, search: AgentSearchCtx, op
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

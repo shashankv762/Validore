@@ -56,5 +56,6 @@ export async function runCompetitorAgent(idea: IdeaInput, search: AgentSearchCtx
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

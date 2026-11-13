@@ -9,6 +9,8 @@ import { safeNextPath } from '@/lib/auth-redirect'
 import { LEGAL } from '@/lib/legal'
 import { signupWeeklyIpLimit } from '@/lib/signup-policy'
 import { registrationLimit } from '@/lib/registration-limit'
+import { authenticatedDestination, isActiveAccount, isVerifiedOwnerIdentity } from '@/lib/admin-access'
+import { getPlatformSettings } from '@/lib/platform-settings'
 
 const SignupSchema = z.object({ email: z.string().trim().email().max(320), password: z.string().min(8).max(128), next: z.unknown().optional(),
   consent: z.union([z.literal('on'), z.literal(true)]), policyVersion: z.literal(LEGAL.version) })
@@ -18,6 +20,11 @@ export async function POST(req: NextRequest) {
     const parsed = SignupSchema.safeParse(await readAuthBody(req))
     if (!parsed.success) return authFormResponse(req, '/auth/signup', 'error', 'Use a valid email and password, confirm you are 18 or over, and accept the current terms.', 400)
     const { email, password } = parsed.data
+    const settings = await getPlatformSettings()
+    if (!settings.signupEnabled) {
+      const { data: { user } } = await (await createClientWithDeferredCookies()).client.auth.getUser()
+      if (!isVerifiedOwnerIdentity(user) || user?.email?.trim().toLowerCase() !== email.trim().toLowerCase()) return authFormResponse(req, '/auth/signup', 'error', 'New registrations are temporarily closed.', 403)
+    }
     if (isDisposableEmail(email)) return authFormResponse(req, '/auth/signup', 'error', 'Please use a permanent email address', 400)
     // Only trust forwarding headers supplied by the configured ingress proxy.
     const clientIp = getClientIp(req)
@@ -39,7 +46,7 @@ export async function POST(req: NextRequest) {
     }
     const { client: supabase, commitCookies } = await createClientWithDeferredCookies()
     const origin = authOrigin(req)
-    const next = safeNextPath(parsed.data.next, origin)
+    let next = safeNextPath(parsed.data.next, origin)
     const callback = new URL('/auth/callback', origin)
     if (next !== '/dashboard') callback.searchParams.set('next', next)
     const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: callback.toString(),
@@ -58,14 +65,19 @@ export async function POST(req: NextRequest) {
     if (data?.session && data.user) {
       let profile
       try {
-        profile = await syncUserToDatabase({ id: data.user.id, email: data.user.email })
+        profile = await syncUserToDatabase(data.user)
         if (!profile) {
+          if (!(await getPlatformSettings()).signupEnabled && !isVerifiedOwnerIdentity(data.user)) {
+            await supabase.auth.signOut({ scope: 'local' })
+            commitCookies()
+            return authFormResponse(req, '/auth/signup', 'error', 'New registrations are temporarily closed.', 403)
+          }
           const limit = await registrationLimit(req)
           if (!limit.allowed) {
             await supabase.auth.signOut({ scope: 'local' })
             return authFormResponse(req, '/auth/signup', 'error', limit.message, limit.status)
           }
-          profile = await syncUserToDatabase({ id: data.user.id, email: data.user.email }, { createNew: true })
+          profile = await syncUserToDatabase(data.user, { createNew: true })
         }
       } catch (error) {
         await supabase.auth.signOut({ scope: 'local' })
@@ -75,13 +87,19 @@ export async function POST(req: NextRequest) {
         await supabase.auth.signOut({ scope: 'local' })
         return authFormResponse(req, '/auth/signup', 'error', 'This account needs support before it can access the workspace.', 409)
       }
+      if (!isActiveAccount(profile)) {
+        await supabase.auth.signOut({ scope: 'local' })
+        commitCookies()
+        return authFormResponse(req, '/auth/signin', 'error', 'This account is not active. Contact support for help.', 403)
+      }
+      next = authenticatedDestination(data.user, profile, next)
     }
     commitCookies()
     if (!req.headers.get('content-type')?.includes('application/json')) {
       if (data?.session) return NextResponse.redirect(new URL(next, origin), 303)
       return authFormResponse(req, '/auth/signin', 'message', 'Check your email to verify your account, then sign in.', 200, next)
     }
-    return NextResponse.json({ user: data.user, session: data.session })
+    return NextResponse.json({ user: data.user, session: data.session, next })
   } catch (error) {
     console.error('[auth/signup] Failed:', error)
     return authFormResponse(req, '/auth/signup', 'error', 'Registration is temporarily unavailable. Please try again later.', 503)

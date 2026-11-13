@@ -6,7 +6,9 @@ import { NextRequest } from 'next/server'
 import JSZip from 'jszip'
 
 // Exercise real owner/reference SQL against an isolated PostgreSQL engine.
-const state = vi.hoisted(() => ({ client: null as unknown as PGlite, authenticated: true }))
+const state = vi.hoisted(() => ({ client: null as unknown as PGlite, authenticated: true,
+  generation: vi.fn(), concurrency: vi.fn(), debit: vi.fn(), revokeDuringGeneration: false,
+  maxConcurrentRequests: 1, maxTokensPerCall: 1000 }))
 vi.mock('@/db', async () => {
   const { PGlite } = await import('@electric-sql/pglite')
   const { drizzle } = await import('drizzle-orm/pglite')
@@ -17,16 +19,25 @@ vi.mock('@/db', async () => {
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: state.authenticated ? { id: 'auth-owner' } : null } }) } }) }))
 vi.mock('@/lib/auth-sync', () => ({ getOrCreateDbUser: async () => db.query.users.findFirst({ where: eq(users.supabaseId, 'auth-owner') }) }))
 vi.mock('@/lib/tier-gate', () => ({ getUserWithTierConfig: async () => ({ config: { canExportPptx: true } }), canUserAccess: async () => true }))
-vi.mock('@/lib/rate-limit', () => ({ rateLimitCheck: async () => ({ success: true }), checkAndIncrementConcurrency: async () => ({ allowed: true }), decrementConcurrency: vi.fn() }))
-vi.mock('@/lib/credits', () => ({ checkCredits: async () => ({ allowed: true }), deductCredits: async () => true }))
+vi.mock('@/lib/rate-limit', () => ({ rateLimitCheck: async () => ({ success: true }), checkAndIncrementConcurrency: state.concurrency, decrementConcurrency: vi.fn() }))
+vi.mock('@/lib/credits', () => ({ checkCredits: async () => ({ allowed: true }), deductCredits: state.debit }))
+vi.mock('@/lib/plan-catalog', async original => {
+  const catalog = await original<typeof import('@/lib/plan-catalog')>()
+  return { ...catalog, getPlan: async (tier: 'free' | 'premium' | 'max_premium') => ({ ...catalog.resolvePlan(tier),
+    maxConcurrentRequests: state.maxConcurrentRequests, maxTokensPerCall: state.maxTokensPerCall }) }
+})
 vi.mock('@/lib/ai/search', () => ({ webSearch: async () => ({ results: [] }) }))
 vi.mock('@/lib/interview/context', () => ({ loadFounderContext: async () => '' }))
-vi.mock('@/lib/ai/generate', () => ({ generateWithFallback: async () => ({ data: {
+vi.mock('@/lib/ai/generate', () => ({ generateWithFallback: async (options: unknown) => {
+  state.generation(options)
+  if (state.revokeDuringGeneration) await db.update(users).set({ accountStatus: 'blocked' }).where(eq(users.id, owner))
+  return { data: {
   customerWtpInsights: 'Unverified', customerValueAnalysis: 'Unverified', competitorPrices: [],
   vanWestendorpInsights: { tooExpensive: '', expensive: '', bargain: '', tooCheap: '', acceptableRange: '', label: 'ASSUMPTION' },
   pricingModelRecommendation: 'Test', recommendedPriceToTest: '1000', validationStepsRequired: [], thirtyDayValidationPlan: [], riskRegister: [],
   customerWtpScore: 0, customerValueScore: 0, competitivePositionScore: 0, demandPotentialScore: 0, scalabilityScore: 0, pricingSimplicityScore: 0, integrityNote: 'Unverified assumptions',
-} }) }))
+} }
+} }))
 
 import { db } from '@/db'
 import { users, ideas, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationReports } from '@/db/schema'
@@ -62,6 +73,8 @@ beforeAll(async () => {
 afterAll(async () => { await state.client.close() })
 beforeEach(async () => {
   state.authenticated = true
+  state.generation.mockClear(); state.concurrency.mockReset().mockResolvedValue({ allowed: true }); state.debit.mockReset().mockResolvedValue(true)
+  state.revokeDuringGeneration = false; state.maxConcurrentRequests = 1; state.maxTokensPerCall = 1000
   await state.client.exec('TRUNCATE users, ideas, pricing_simulations, crowdfunding_analyses, pitch_decks, validation_reports')
   await db.insert(users).values([{ id: owner, supabaseId: 'auth-owner', email: 'owner@example.test', tier: 'free', pitchDeckCredits: 0, crowdfundingCredits: 0 }, { id: other, supabaseId: 'auth-other', email: 'other@example.test' }])
   ideaId = randomUUID(); pricingId = randomUUID(); campaignId = randomUUID(); oldDeckId = randomUUID()
@@ -78,6 +91,27 @@ beforeEach(async () => {
 })
 
 describe('saved module recovery and exact exports', () => {
+  const pricingRequest = () => new NextRequest('http://localhost/api/pricing', { method: 'POST',
+    headers: { origin: 'http://localhost', 'content-type': 'application/json' },
+    body: JSON.stringify({ ideaId, sellingPrice: 1000, expectedCustomers: 100, variableCostPerUnit: 300, fixedCostMonthly: 0, discountPercent: 0, conversionRatePercent: 3.5, estimatedCac: 100, retentionMonths: 18 }) })
+  it('applies the configured token ceiling and lower concurrency limit to a module request', async () => {
+    await db.update(users).set({ tier: 'max_premium', accountStatus: 'active' }).where(eq(users.id, owner))
+    expect((await pricingAnalysis(pricingRequest())).status).toBe(200)
+    expect(state.concurrency).toHaveBeenCalledWith(owner, 1)
+    expect(state.generation.mock.calls[0][0]).toMatchObject({ maxTokensPerCall: 1000 })
+  })
+  it('lets the pinned owner use full module allowance while preserving the safety concurrency cap', async () => {
+    await db.update(users).set({ isAdmin: true, accountStatus: 'active' }).where(eq(users.id, owner))
+    expect((await pricingAnalysis(pricingRequest())).status).toBe(200)
+    expect(state.concurrency).toHaveBeenCalledWith(owner, 3)
+    expect(state.generation.mock.calls[0][0].maxTokensPerCall).toBeUndefined()
+  })
+  it('does not debit or persist a late generated module result after account revocation', async () => {
+    state.revokeDuringGeneration = true
+    expect((await pricingAnalysis(pricingRequest())).status).toBe(403)
+    expect(state.debit).not.toHaveBeenCalled()
+    expect(await db.query.pricingSimulations.findMany({ where: eq(pricingSimulations.userId, owner) })).toHaveLength(2)
+  })
   it.each(['pricing', 'crowdfunding', 'pitch-deck'] as const)('reopens owned %s results with a Free account and exhausted packs', async module => {
     const id = module === 'pricing' ? pricingId : module === 'crowdfunding' ? campaignId : oldDeckId
     const get = module === 'pricing' ? pricingHistory : module === 'crowdfunding' ? campaignHistory : deckHistory

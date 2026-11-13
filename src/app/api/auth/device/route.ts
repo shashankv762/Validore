@@ -8,6 +8,7 @@ import { eq, and, asc } from 'drizzle-orm'
 import { clientIp } from '@/lib/client-ip'
 import { rateLimitCheck } from '@/lib/rate-limit'
 import { isSameOriginMutation, PRIVATE_HEADERS, readJsonBody, RequestBodyError } from '@/lib/api-security'
+import { isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
 
 const InputSchema = z.object({ fingerprintHash: z.union([z.string().uuid(), z.string().regex(/^[a-f0-9]{64}$/i)]) })
 export async function POST(request: NextRequest) {
@@ -25,17 +26,19 @@ export async function POST(request: NextRequest) {
     const ipAddress = clientIp(request)
     await db.transaction(async tx => {
       // Serialize registration so concurrent requests cannot exceed the cap.
-      const [account] = await tx.select({ tier: users.tier }).from(users).where(eq(users.id, owner.id)).for('update')
-      if (!account) throw new Error('Account unavailable')
-      const rows = await tx.select().from(userDevices).where(eq(userDevices.userId, owner.id)).orderBy(asc(userDevices.lastActive)).limit(100)
-      const existing = rows.find(row => row.deviceFingerprint === fingerprint)
+      const [account] = await tx.select({ tier: users.tier, isAdmin: users.isAdmin, accountStatus: users.accountStatus }).from(users).where(eq(users.id, owner.id)).for('update')
+      if (!account || !isActiveAccount(account)) throw new Error('Account unavailable')
+      const [existing] = await tx.select().from(userDevices).where(and(eq(userDevices.userId, owner.id), eq(userDevices.deviceFingerprint, fingerprint))).limit(1)
       if (existing) {
         await tx.update(userDevices).set({ lastActive: new Date(), userAgent, ipAddress }).where(and(eq(userDevices.id, existing.id), eq(userDevices.userId, owner.id)))
         return
       }
-      const limit = account.tier === 'max_premium' ? 5 : account.tier === 'premium' ? 3 : 1
-      for (const row of rows.slice(0, Math.max(0, rows.length - limit + 1))) {
-        await tx.delete(userDevices).where(and(eq(userDevices.id, row.id), eq(userDevices.userId, owner.id)))
+      if (!isOwnerAccount(account)) {
+        const rows = await tx.select().from(userDevices).where(eq(userDevices.userId, owner.id)).orderBy(asc(userDevices.lastActive)).limit(100)
+        const limit = account.tier === 'max_premium' ? 5 : account.tier === 'premium' ? 3 : 1
+        for (const row of rows.slice(0, Math.max(0, rows.length - limit + 1))) {
+          await tx.delete(userDevices).where(and(eq(userDevices.id, row.id), eq(userDevices.userId, owner.id)))
+        }
       }
       await tx.insert(userDevices).values({ userId: owner.id, deviceFingerprint: fingerprint, userAgent, ipAddress, lastActive: new Date() })
     })

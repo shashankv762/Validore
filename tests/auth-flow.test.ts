@@ -4,15 +4,17 @@ import { LEGAL } from '@/lib/legal'
 
 const mocks = vi.hoisted(() => ({
   signin: vi.fn(), signup: vi.fn(), exchange: vi.fn(), verify: vi.fn(), signout: vi.fn(), sync: vi.fn(), commit: vi.fn(),
+  settings: vi.fn(), getUser: vi.fn(),
 }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({ auth: {
     signInWithPassword: mocks.signin, signUp: mocks.signup,
     exchangeCodeForSession: mocks.exchange, verifyOtp: mocks.verify, signOut: mocks.signout,
   } }),
-  createClientWithDeferredCookies: async () => ({ client: { auth: { signInWithPassword: mocks.signin, signUp: mocks.signup, signOut: mocks.signout, exchangeCodeForSession: mocks.exchange, verifyOtp: mocks.verify } }, commitCookies: mocks.commit }),
+  createClientWithDeferredCookies: async () => ({ client: { auth: { getUser: mocks.getUser, signInWithPassword: mocks.signin, signUp: mocks.signup, signOut: mocks.signout, exchangeCodeForSession: mocks.exchange, verifyOtp: mocks.verify } }, commitCookies: mocks.commit }),
 }))
 vi.mock('@/lib/auth-sync', () => ({ syncUserToDatabase: mocks.sync }))
+vi.mock('@/lib/platform-settings', () => ({ getPlatformSettings: mocks.settings }))
 
 import { POST as signin } from '@/app/api/auth/signin/route'
 import { POST as signup } from '@/app/api/auth/signup/route'
@@ -38,11 +40,28 @@ beforeEach(() => {
   mocks.verify.mockResolvedValue({ data: identity, error: null })
   mocks.signout.mockResolvedValue({ error: null })
   mocks.sync.mockResolvedValue({ id: 'profile-id' })
+  mocks.settings.mockResolvedValue({ signupEnabled: true })
+  mocks.getUser.mockResolvedValue({ data: { user: null }, error: null })
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('Auth origins and native form redirects', () => {
+  it('redirects the pinned confirmed owner to the separate admin workspace after password sign-in', async () => {
+    const user = { id: 'owner-id', email: 'shashankv7623@gmail.com', email_confirmed_at: '2026-01-01' }
+    mocks.signin.mockResolvedValue({ data: { user, session: identity.session }, error: null })
+    mocks.sync.mockResolvedValue({ id: 'owner-profile', supabaseId: user.id, isAdmin: true, accountStatus: 'active' })
+    const response = await signin(formRequest('signin'))
+    expect(response.headers.get('location')).toBe('http://localhost:3001/admin')
+    expect(mocks.sync).toHaveBeenCalledWith(user)
+  })
+  it.each(['blocked', 'deactivated'])('clears a successful password session for a %s profile', async accountStatus => {
+    mocks.sync.mockResolvedValue({ id: 'profile-id', accountStatus })
+    const response = await signin(formRequest('signin'))
+    expect(response.headers.get('location')).toContain('/auth/signin?error=')
+    expect(mocks.signout).toHaveBeenCalledWith({ scope: 'local' })
+    expect(mocks.commit).toHaveBeenCalledOnce()
+  })
   it('supports an explicitly configured HTTPS alias behind Render TLS termination', () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://validore.tech')
@@ -95,6 +114,12 @@ describe('Auth origins and native form redirects', () => {
 })
 
 describe('Profile provisioning failures', () => {
+  it('rejects closed password signup before provider account creation and ignores a typed owner email', async () => {
+    mocks.settings.mockResolvedValue({ signupEnabled: false })
+    const response = await signup(formRequest('signup'))
+    expect(response.headers.get('location')).toContain('/auth/signup?error=New+registrations')
+    expect(mocks.signup).not.toHaveBeenCalled()
+  })
   it.each([['signin', signin], ['signup', signup]] as const)('clears the new %s session if the profile database fails', async (path, handler) => {
     mocks.sync.mockRejectedValue(new Error('private database details'))
     const response = await handler(formRequest(path))
@@ -144,6 +169,23 @@ describe('Provider failures', () => {
 })
 
 describe('Supabase confirmation callbacks', () => {
+  it('denies new ordinary callback admission while closed but permits a verified owner to complete registration', async () => {
+    mocks.settings.mockResolvedValue({ signupEnabled: false })
+    mocks.sync.mockResolvedValue(null)
+    const response = await callback(new NextRequest('http://localhost:3001/auth/callback?code=test-code'))
+    expect(response.headers.get('location')).toContain('registration_closed')
+    expect(mocks.signout).toHaveBeenCalledWith({ scope: 'local' })
+    const user = { id: 'owner-id', email: 'shashankv7623@gmail.com', email_confirmed_at: '2026-01-01' }
+    mocks.exchange.mockResolvedValue({ data: { user, session: identity.session }, error: null })
+    expect((await callback(new NextRequest('http://localhost:3001/auth/callback?code=owner-code'))).headers.get('location')).toContain('/auth/complete-signup?next=')
+  })
+  it('redirects a confirmed owner Google callback to admin while retaining legitimate recovery', async () => {
+    const user = { id: 'owner-id', email: 'shashankv7623@gmail.com', email_confirmed_at: '2026-01-01' }
+    mocks.exchange.mockResolvedValue({ data: { user, session: identity.session }, error: null })
+    mocks.sync.mockResolvedValue({ id: 'owner-profile', supabaseId: user.id, isAdmin: true, accountStatus: 'active' })
+    expect((await callback(new NextRequest('http://localhost:3001/auth/callback?code=google-code'))).headers.get('location')).toBe('http://localhost:3001/admin')
+    expect((await callback(new NextRequest('http://localhost:3001/auth/callback?code=recovery-code&next=/auth/reset-password'))).headers.get('location')).toBe('http://localhost:3001/auth/reset-password')
+  })
   it('verifies a token-hash email link as well as PKCE links', async () => {
     const response = await callback(new NextRequest('http://localhost:3001/auth/callback?token_hash=test-hash&type=email'))
     expect(mocks.verify).toHaveBeenCalledWith({ token_hash: 'test-hash', type: 'email' })

@@ -117,8 +117,9 @@ export default function PitchDeckPage() {
   const resources = useWorkspaceResources()
   const { ideas, user } = resources
   const tier = user?.tier ?? 'free'
-  const hasAccess = tier === 'max_premium' || (user?.pitchDeckCredits ?? 0) > 0
-  const usesPack = tier !== 'max_premium' && (user?.pitchDeckCredits ?? 0) > 0
+  const included = Boolean(user?.unlimited || (resources.plan?.canPitchDeck ?? tier === 'max_premium'))
+  const hasAccess = included || (user?.pitchDeckCredits ?? 0) > 0
+  const usesPack = !included && (user?.pitchDeckCredits ?? 0) > 0
   const balance = user ? totalCredits(user) : 0
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<DeckResult | null>(null)
@@ -203,7 +204,7 @@ export default function PitchDeckPage() {
           </p>
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="card-angular p-5">
-            <p className="text-lg font-light text-[#89620B] mb-1">{formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span></p>
+            <p className="text-lg font-light text-[#89620B] mb-1">{formatUsd(resources.plans?.max_premium.monthlyPriceUsd ?? PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span></p>
               <p className="text-sm font-medium text-[#141923] mb-3">Max Premium</p>
               <p className="text-xs text-[#364152] opacity-60 mb-4">Deck generation with plan credits, PDF, Word and PPTX downloads</p>
               <a
@@ -369,13 +370,13 @@ export default function PitchDeckPage() {
           </div>
 
           <button
-            type="submit" disabled={loading || (!usesPack && balance < CREDIT_COSTS.PITCH_DECK)}
+            type="submit" disabled={loading || (!user?.unlimited && !usesPack && balance < CREDIT_COSTS.PITCH_DECK)}
             className="w-full py-3 text-sm font-medium text-[#141923] disabled:opacity-50 cursor-pointer"
             style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 12px 2px 12px' }}
           >
-            {loading ? 'Generating pitch deck…' : `Generate pitch deck · ${usesPack ? '1 deck pack' : CREDIT_COSTS.PITCH_DECK + ' credits'}`}
+            {loading ? 'Generating pitch deck…' : `Generate pitch deck · ${user?.unlimited ? 'owner allowance' : usesPack ? '1 deck pack' : CREDIT_COSTS.PITCH_DECK + ' credits'}`}
           </button>
-          <p className="text-xs leading-relaxed text-slate-500">{usesPack ? 'Uses one of your purchased deck runs.' : `${balance.toLocaleString()} credits available. Charged only when the deck is saved.`} {!usesPack && balance < CREDIT_COSTS.PITCH_DECK && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
+          <p className="text-xs leading-relaxed text-slate-500">{user?.unlimited ? 'Included with your unlimited owner allowance.' : usesPack ? 'Uses one of your purchased deck runs.' : `${balance.toLocaleString()} credits available. Charged only when the deck is saved.`} {!user?.unlimited && !usesPack && balance < CREDIT_COSTS.PITCH_DECK && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
           </fieldset>
         </form>
       </div>
@@ -644,7 +645,7 @@ export default function PitchDeckPage() {
                 Curated landing sections generated for investor due diligence and web portfolio site export.
               </p>
             </div>
-            {tier === 'max_premium' && (
+            {(user?.unlimited || (resources.plan?.canPortfolioExport ?? tier === 'max_premium')) && (
               <a
                 href={`/api/export/portfolio?deckId=${result.deckId}`}
                 className="px-4 py-2 text-xs font-medium text-[#141923] rounded flex-shrink-0 shadow-xs"

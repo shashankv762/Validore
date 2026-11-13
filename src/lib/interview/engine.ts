@@ -51,7 +51,7 @@ export function applyInterviewProposal(idea: IdeaDraft, state: InterviewState, p
   return { ...state, assessment, nextQuestion, complete: count >= MAX_INTERVIEW_ANSWERS, method: 'ai', modelTokens: state.modelTokens + Math.max(0, Math.floor(tokens)) }
 }
 
-export async function tailorInterview(idea: IdeaDraft, state: InterviewState, options: { preferredAiProvider?: string | null; customOpenRouterKey?: string | null }): Promise<InterviewState> {
+export async function tailorInterview(idea: IdeaDraft, state: InterviewState, options: { preferredAiProvider?: string | null; customOpenRouterKey?: string | null; maxTokensPerCall?: number }): Promise<InterviewState> {
   try {
     const result = await generateWithFallback({
       agentRole: 'customer', researchMode: 'reuse', timeoutMs: 22_000, maxOutputTokens: 2600, maxModelCalls: 2,

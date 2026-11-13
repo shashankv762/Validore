@@ -26,4 +26,15 @@ describe('workspace credit accounting', () => {
     expect(creditEntryDescription('{"entityId":"private-internal-id","monthly":50,"purchased":0}')).toBe('50 plan credits · 0 purchased credits')
     expect(creditEntryDescription(null)).toBe('—')
   })
+  it('uses the current cycle allocation while a changed plan starts next cycle', () => {
+    expect(creditOverview({ ...user, creditCycleAllowance: 100 }, { monthlyCredits: 250 })).toMatchObject({ allocation: 100, monthlySpent: 50, percentage: 50 })
+    expect(creditOverview({ ...user, creditCycleAllowance: 0, creditBalance: 0 }, { monthlyCredits: 250 }).percentage).toBe(0)
+  })
+  it('shows unlimited owner access independently of stored balances and applies edited plan benefits to ordinary accounts', () => {
+    const owner = { ...user, unlimited: true, creditBalance: 0, purchasedCredits: 0, crowdfundingCredits: 0 }
+    expect(actionAllowance(owner, 'CROWDFUNDING')).toMatchObject({ permitted: true, unlimited: true })
+    expect(actionAllowance(owner, 'DEEP_VALIDATION')).toMatchObject({ permitted: true, unlimited: true })
+    expect(actionAllowance(user, 'PRICING', 2, { canPricingSimulator: true })).toMatchObject({ permitted: true })
+    expect(actionAllowance({ ...user, tier: 'max_premium' }, 'PRICING', 50, { canPricingSimulator: false })).toMatchObject({ permitted: false })
+  })
 })

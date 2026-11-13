@@ -21,7 +21,7 @@ const TIERS_DATA: (typeof tierConfig.$inferInsert)[] = [
     maxActiveIdeas: PLAN_CATALOG.free.activeIdeaLimit,
     maxConcurrentRequests: 1,
     maxTokensPerCall: 4000,
-    canExportPdf: false,
+    canExportPdf: true,
     canExportCsv: false,
     canExportPptx: false,
     canWhitelabelPdf: false,
@@ -75,26 +75,8 @@ async function seedTiersAndCounter() {
     await db
       .insert(tierConfig)
       .values(tierData)
-      .onConflictDoUpdate({
-        target: tierConfig.tier,
-        set: {
-          monthlyValidationLimit: tierData.monthlyValidationLimit,
-          maxActiveIdeas: tierData.maxActiveIdeas,
-          maxConcurrentRequests: tierData.maxConcurrentRequests,
-          maxTokensPerCall: tierData.maxTokensPerCall,
-          canExportPdf: tierData.canExportPdf,
-          canExportCsv: tierData.canExportCsv,
-          canExportPptx: tierData.canExportPptx,
-          canWhitelabelPdf: tierData.canWhitelabelPdf,
-          canPortfolioExport: tierData.canPortfolioExport,
-          canLeanCanvas: tierData.canLeanCanvas,
-          canPricingSimulator: tierData.canPricingSimulator,
-          canCrowdfunding: tierData.canCrowdfunding,
-          canPitchDeck: tierData.canPitchDeck,
-          canAiLeanCanvas: tierData.canAiLeanCanvas,
-          updatedAt: new Date(),
-        },
-      })
+      // Seeds initialize missing tiers; owner-managed limits and access persist.
+      .onConflictDoNothing({ target: tierConfig.tier })
     console.log(`  ✓ Seeded tier: ${tierData.tier}`)
   }
 

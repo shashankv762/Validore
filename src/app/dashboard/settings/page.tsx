@@ -38,6 +38,8 @@ function SettingsContent() {
   const [supabase] = useState(createClient)
   const account = useAccount()
   const profile = account.data?.user ?? null
+  const catalog = account.data?.plans ?? PLAN_CATALOG
+  const currentPlan = account.data?.plan ?? (profile ? catalog[profile.tier] : null)
   const loading = account.loading
   const profileError = account.error
   const billing = account.data?.billing ?? { credits: false, premium: false, maxPremium: false }
@@ -309,6 +311,7 @@ function SettingsContent() {
       </section>
 
       {/* Subscription Management Section */}
+      {profile?.unlimited ? <section className="card-angular bg-white p-6"><div className="flex items-center gap-2"><Crown size={18} aria-hidden="true" className="text-[#89620B]" /><h2 className="text-base font-medium">Owner plan</h2></div><p className="mt-4 text-2xl font-light">Unlimited research allowance</p><p className="mt-3 text-sm text-[#53616A]">All research tools and exports are included. Your owner access does not require a subscription or credit purchases.</p><a href="/admin" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Open command center</a></section> :
       <section className="card-angular p-6 bg-[#FFFFFF]">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
@@ -324,7 +327,7 @@ function SettingsContent() {
                 : 'bg-[#E5E7EB] text-[#364152]'
             }`}
           >
-            {profile ? `${PLAN_CATALOG[profile.tier].name} (${formatUsd(PLAN_CATALOG[profile.tier].monthlyPriceUsd)}${profile.tier === 'free' ? '' : '/mo'})` : 'Loading plan…'}
+            {profile && currentPlan ? `${currentPlan.name} (${formatUsd(currentPlan.monthlyPriceUsd)}${profile.tier === 'free' ? '' : '/mo'})` : 'Loading plan…'}
           </span>
         </div>
 
@@ -336,14 +339,10 @@ function SettingsContent() {
                 Current Plan Tier
               </span>
               <span className="text-xl tabular-nums font-light text-[#141923] capitalize">
-                {profile ? PLAN_CATALOG[profile.tier].name : '—'}
+                {currentPlan?.name ?? '—'}
               </span>
               <p className="text-[11px] text-[#364152]/60 mt-1">
-                {profile?.tier === 'max_premium'
-                  ? 'Launch and fundraising tools'
-                  : profile?.tier === 'premium'
-                  ? 'Full validation & pricing suite'
-                  : 'Lite validation & manual canvas'}
+                {currentPlan && 'benefits' in currentPlan && currentPlan.benefits?.length ? currentPlan.benefits.join(' · ') : 'Your current research allowance'}
               </p>
             </div>
 
@@ -417,7 +416,7 @@ function SettingsContent() {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#141923]">Premium ({formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">{catalog.premium.name} ({formatUsd(catalog.premium.monthlyPriceUsd)}/mo)</span>
                 {profile?.tier === 'premium' && (
                   <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
@@ -425,7 +424,7 @@ function SettingsContent() {
                 )}
               </div>
               <p className="text-xs text-[#364152]/70 mb-4">
-                {PLAN_CATALOG.premium.monthlyCredits.toLocaleString()} credits/mo, full validation, AI Lean Canvas, Pricing Simulator and CSV downloads. PDF and Word are included on every plan.
+                {'benefits' in catalog.premium && catalog.premium.benefits?.length ? catalog.premium.benefits.join(' · ') : `${catalog.premium.monthlyCredits.toLocaleString()} credits/mo, full validation, AI Lean Canvas, Pricing Simulator and CSV downloads. PDF and Word are included on every plan.`}
               </p>
               {profile?.tier === 'free' ? (
                 <button
@@ -433,7 +432,7 @@ function SettingsContent() {
                   disabled={billingBusy || loading || !billing.premium}
                   className="w-full py-2 px-3 text-xs font-medium text-[#141923] bg-[#E5E7EB] hover:bg-[#E0A526] rounded transition-colors"
                 >
-                  {billing.premium ? `Upgrade to Premium (${formatUsd(PLAN_CATALOG.premium.monthlyPriceUsd)}/mo)` : 'Premium is coming soon'}
+                  {billing.premium ? `Upgrade to ${catalog.premium.name} (${formatUsd(catalog.premium.monthlyPriceUsd)}/mo)` : `${catalog.premium.name} is currently unavailable`}
                 </button>
               ) : (
                 <div className="text-xs text-emerald-700 font-medium flex items-center gap-1">
@@ -451,7 +450,7 @@ function SettingsContent() {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#141923]">Max Premium ({formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">{catalog.max_premium.name} ({formatUsd(catalog.max_premium.monthlyPriceUsd)}/mo)</span>
                 {profile?.tier === 'max_premium' && (
                   <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
@@ -459,7 +458,7 @@ function SettingsContent() {
                 )}
               </div>
               <p className="text-xs text-[#364152]/70 mb-4">
-                {PLAN_CATALOG.max_premium.monthlyCredits.toLocaleString()} credits/mo, Crowdfunding & Pitch Deck access, White-Label PDF, Portfolio ZIP, and PPTX export.
+                {'benefits' in catalog.max_premium && catalog.max_premium.benefits?.length ? catalog.max_premium.benefits.join(' · ') : `${catalog.max_premium.monthlyCredits.toLocaleString()} credits/mo, Crowdfunding & Pitch Deck access, White-Label PDF, Portfolio ZIP, and PPTX export.`}
               </p>
               {profile?.tier !== 'max_premium' ? (
                 <button
@@ -467,7 +466,7 @@ function SettingsContent() {
                   disabled={billingBusy || loading || !billing.maxPremium}
                   className="w-full py-2 px-3 text-xs font-semibold text-[#141923] bg-[#E0A526] hover:bg-[#b09048] rounded transition-colors"
                 >
-                  {billing.maxPremium ? `Upgrade to Max Premium (${formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}/mo)` : 'Max Premium is coming soon'}
+                  {billing.maxPremium ? `Upgrade to ${catalog.max_premium.name} (${formatUsd(catalog.max_premium.monthlyPriceUsd)}/mo)` : `${catalog.max_premium.name} is currently unavailable`}
                 </button>
               ) : (
                 <div className="text-xs text-[#89620B] font-medium flex items-center gap-1">
@@ -477,7 +476,7 @@ function SettingsContent() {
             </div>
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* AI Provider Selection Chain Section */}
       <section className="card-angular p-6 bg-[#FFFFFF]">
@@ -604,7 +603,7 @@ function SettingsContent() {
                   </span>
                 </div>
                 <p className="text-xs text-[#364152]/70 mt-1">
-                  Use your personal OpenRouter quota. Workspace credits and request limits still apply.
+                  {profile?.unlimited ? 'Use your personal OpenRouter quota with your unlimited owner allowance.' : 'Use your personal OpenRouter quota. Workspace credits and request limits still apply.'}
                 </p>
               </div>
             </div>
@@ -620,7 +619,7 @@ function SettingsContent() {
             <button type="button" onClick={() => setShowApiKey(!showApiKey)} aria-label={showApiKey ? 'Hide API key' : 'Show API key'} aria-pressed={showApiKey}
               className="absolute right-0 top-0 h-full w-11 grid place-items-center text-[#364152]/70">{showApiKey ? <EyeOff size={17} /> : <Eye size={17} />}</button>
           </div>
-          <p className="text-xs text-[#364152]/70 mt-2">Stored encrypted on the server and used only for your analyses. Workspace credits and research limits still apply.</p>
+          <p className="text-xs text-[#364152]/70 mt-2">Stored encrypted on the server and used only for your analyses. {profile?.unlimited ? 'Your unlimited owner allowance applies.' : 'Workspace credits and research limits still apply.'}</p>
         </div>}
 
         <div className="mt-6 flex flex-wrap justify-end gap-3">

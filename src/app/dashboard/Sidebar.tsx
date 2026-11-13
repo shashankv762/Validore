@@ -8,7 +8,7 @@ import { CookieSettingsButton } from '@/components/CookieNotice'
 import { useAccount } from '@/components/AccountProvider'
 import { PLAN_CATALOG } from '@/lib/plans'
 import { totalCredits } from '@/lib/credit-allocation'
-import { Plus, Layers, BarChart3, Coins, Presentation, Settings, FileText, Menu, X, Network, ArrowUpRight, ChevronRight, BookOpen, Lock, type LucideIcon } from 'lucide-react'
+import { Plus, Layers, BarChart3, Coins, Presentation, Settings, FileText, Menu, X, Network, ArrowUpRight, ChevronRight, BookOpen, Lock, ShieldCheck, type LucideIcon } from 'lucide-react'
 
 type NavItem = { href: string; label: string; icon: LucideIcon }
 const RESEARCH: NavItem[] = [
@@ -39,9 +39,9 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
   const current = [...RESEARCH, ...BUILD, ...ACCOUNT].find(item => active(item.href))
   const balance = account ? totalCredits(account) : null
   const navLink = ({ href, label, icon: Icon }: NavItem) => {
-    const locked = account && ((href.endsWith('/pricing') && account.tier === 'free') ||
-      (href.endsWith('/crowdfunding') && account.tier !== 'max_premium' && !account.crowdfundingCredits) ||
-      (href.endsWith('/pitch-deck') && account.tier !== 'max_premium' && !account.pitchDeckCredits))
+    const locked = account && !account.unlimited && ((href.endsWith('/pricing') && !(data?.plan?.canPricingSimulator ?? account.tier !== 'free')) ||
+      (href.endsWith('/crowdfunding') && !(data?.plan?.canCrowdfunding ?? account.tier === 'max_premium') && !account.crowdfundingCredits) ||
+      (href.endsWith('/pitch-deck') && !(data?.plan?.canPitchDeck ?? account.tier === 'max_premium') && !account.pitchDeckCredits))
     return <Link key={href} href={href} onClick={() => setOpen(false)} aria-current={active(href) ? 'page' : undefined}
       className={'workspace-nav-link' + (active(href) ? ' is-active' : '')}>
       <Icon size={18} aria-hidden="true" /><span>{label}</span>
@@ -63,11 +63,12 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
       <nav aria-label="Planning tools" className="workspace-nav-group"><p>Build your plan</p>{BUILD.map(navLink)}</nav>
       <div className="workspace-sidebar-bottom">
         <div className="workspace-allowance">
-          <div><span>{account ? PLAN_CATALOG[account.tier].name : 'Your'} plan</span><Coins size={15} aria-hidden="true" /></div>
-          <p><strong>{balance === null ? '—' : balance.toLocaleString()}</strong> credits available</p>
+          <div><span>{account?.unlimited ? 'Owner' : data?.plan?.name ?? (account ? PLAN_CATALOG[account.tier].name : 'Your')} plan</span><Coins size={15} aria-hidden="true" /></div>
+          <p><strong>{account?.unlimited ? 'Unlimited' : balance === null ? '—' : balance.toLocaleString()}</strong> {account?.unlimited ? 'research allowance' : 'credits available'}</p>
           <Link href="/dashboard/credits" onClick={() => setOpen(false)}>Manage credits<ArrowUpRight size={14} aria-hidden="true" /></Link>
         </div>
         <nav aria-label="Account" className="workspace-nav-group workspace-account-nav">{ACCOUNT.map(navLink)}</nav>
+        {account?.isAdmin && <nav aria-label="Administration" className="workspace-nav-group"><Link href="/admin" className="workspace-nav-link"><ShieldCheck size={18} aria-hidden="true" /><span>Command center</span></Link></nav>}
         <div className="workspace-account"><span aria-hidden="true" className="workspace-avatar">{account?.email?.[0]?.toUpperCase() || 'V'}</span><div><span>Your workspace</span><small>{account?.email || 'Loading account…'}</small></div></div>
       </div>
     </aside>

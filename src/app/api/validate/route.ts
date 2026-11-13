@@ -12,6 +12,8 @@ import { runValidationJob, failValidationJob } from '@/lib/validation/jobs'
 import { inngest } from '@/inngest/client'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { isSameOriginMutation } from '@/lib/api-security'
+import { effectiveTier, isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 const InputSchema = z.object({ ideaId: z.string().uuid() })
 class ReservationConflict extends Error {}
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const dbUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
     if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!isActiveAccount(dbUser)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
     if (dbUser.tier === 'free' && dbUser.validationsThisMonth === 0 && !user.email_confirmed_at) {
       return NextResponse.json({ error: 'Please verify your email address before running your first validation.' }, { status: 403 })
     }
@@ -40,7 +43,7 @@ export async function POST(request: NextRequest) {
     if (!limit.allowed) return NextResponse.json({ error: 'Monthly validation limit reached.', remaining: 0 }, { status: 429 })
     const limited = await rateLimitCheck(dbUser.id)
     if (!limited.success) return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429, headers: { 'Retry-After': '60' } })
-    const isLite = dbUser.tier === 'free'
+    const isLite = effectiveTier(dbUser) === 'free'
     const cost = isLite ? CREDIT_COSTS.LITE_VALIDATION : CREDIT_COSTS.DEEP_VALIDATION
     if (!(await checkCredits(dbUser.id, cost)).allowed) return NextResponse.json({ error: 'Insufficient credits' }, { status: 402 })
     const queued = process.env.VALIDATION_RUNNER === 'inngest'
@@ -50,13 +53,13 @@ export async function POST(request: NextRequest) {
     if (queued && process.env.INNGEST_DEV !== '1' && (!process.env.INNGEST_EVENT_KEY || !process.env.INNGEST_SIGNING_KEY)) {
       return NextResponse.json({ error: 'Validation queue is temporarily unavailable' }, { status: 503 })
     }
+    const config = await getPlan(dbUser.tier)
     if (!queued) {
-      const concurrency = await checkAndIncrementConcurrency(dbUser.id, { free: 1, premium: 2, max_premium: 3 }[dbUser.tier])
+      const safetyCap = { free: 1, premium: 2, max_premium: 3 }[effectiveTier(dbUser)]
+      const concurrency = await checkAndIncrementConcurrency(dbUser.id, isOwnerAccount(dbUser) ? safetyCap : Math.min(config.maxConcurrentRequests, safetyCap))
       if (!concurrency.allowed) return NextResponse.json({ error: 'Too many concurrent requests. Wait for your current analysis to complete.' }, { status: 429 })
       releaseUser = dbUser.id
     }
-    const config = await db.query.tierConfig.findFirst({ where: (table, { eq }) => eq(table.tier, dbUser.tier) })
-    if (!config) return NextResponse.json({ error: 'Plan configuration is unavailable' }, { status: 503 })
     const reservation = await db.transaction(async (tx) => {
       const [current] = await tx.select().from(ideas).where(and(eq(ideas.id, idea.id), eq(ideas.userId, dbUser.id))).for('update')
       if (!current || !current.isActive || current.isReadOnly) throw new Error('Idea is no longer editable')

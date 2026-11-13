@@ -121,8 +121,9 @@ export default function CrowdfundingPage() {
   const resources = useWorkspaceResources()
   const { ideas, user } = resources
   const tier = user?.tier ?? 'free'
-  const hasAccess = tier === 'max_premium' || (user?.crowdfundingCredits ?? 0) > 0
-  const usesPack = tier !== 'max_premium' && (user?.crowdfundingCredits ?? 0) > 0
+  const included = Boolean(user?.unlimited || (resources.plan?.canCrowdfunding ?? tier === 'max_premium'))
+  const hasAccess = included || (user?.crowdfundingCredits ?? 0) > 0
+  const usesPack = !included && (user?.crowdfundingCredits ?? 0) > 0
   const balance = user ? totalCredits(user) : 0
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<AnalysisResult | null>(null)
@@ -207,7 +208,7 @@ export default function CrowdfundingPage() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="card-angular p-5">
               <p className="text-lg font-light text-[#89620B] mb-1">
-              {formatUsd(PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span>
+              {formatUsd(resources.plans?.max_premium.monthlyPriceUsd ?? PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span>
               </p>
               <p className="text-sm font-medium text-[#141923] mb-3">Max Premium</p>
               <p className="text-xs text-[#364152] opacity-60 mb-4">Campaign research with plan credits, PDF and Word downloads</p>
@@ -816,13 +817,13 @@ export default function CrowdfundingPage() {
 
         <button
           type="submit"
-          disabled={loading || (!usesPack && balance < CREDIT_COSTS.CROWDFUNDING)}
+          disabled={loading || (!user?.unlimited && !usesPack && balance < CREDIT_COSTS.CROWDFUNDING)}
           className="w-full py-3 text-sm font-medium text-[#141923] disabled:opacity-50 cursor-pointer"
           style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 12px 2px 12px' }}
         >
-          {loading ? 'Analysing campaign…' : `Analyze campaign · ${usesPack ? '1 campaign pack' : CREDIT_COSTS.CROWDFUNDING + ' credits'}`}
+          {loading ? 'Analysing campaign…' : `Analyze campaign · ${user?.unlimited ? 'owner allowance' : usesPack ? '1 campaign pack' : CREDIT_COSTS.CROWDFUNDING + ' credits'}`}
         </button>
-        <p className="text-xs leading-relaxed text-slate-500">{usesPack ? 'Uses one of your purchased campaign runs.' : `${balance.toLocaleString()} credits available. Charged only when the analysis is saved.`} {!usesPack && balance < CREDIT_COSTS.CROWDFUNDING && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
+        <p className="text-xs leading-relaxed text-slate-500">{user?.unlimited ? 'Included with your unlimited owner allowance.' : usesPack ? 'Uses one of your purchased campaign runs.' : `${balance.toLocaleString()} credits available. Charged only when the analysis is saved.`} {!user?.unlimited && !usesPack && balance < CREDIT_COSTS.CROWDFUNDING && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
       </form>
     </div>
   )

@@ -47,5 +47,6 @@ export async function runRiskAgent(idea: IdeaInput, researchDigest: string, opts
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

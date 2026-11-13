@@ -34,7 +34,8 @@ function CreditsContent() {
   const history = historyState.ownerId === ownerId ? historyState : EMPTY_HISTORY
   const loadingHistory = Boolean(ownerId && (history.loading || history.version !== historyVersion))
   const available = Boolean(account.data?.billing.credits)
-  const overview = user ? creditOverview(user) : null
+  const overview = user ? creditOverview(user, account.data?.plan) : null
+  const plan = account.data?.plan ?? (user ? PLAN_CATALOG[user.tier] : null)
 
   useEffect(() => {
     if (!ownerId) return
@@ -92,42 +93,42 @@ function CreditsContent() {
     {!user && <p role="status" className="text-sm text-[#53616A]">{account.loading ? 'Loading your balance…' : 'Refresh to load your account.'}</p>}
     {user && overview && <>
       <section className="card-angular grid gap-8 bg-[#FBF8F0] p-6 sm:p-8 md:grid-cols-2">
-        <div><p className="text-sm text-[#53616A]">Credits available</p><p className="mt-2 text-5xl font-light tabular-nums">{overview.total.toLocaleString()}</p>
-          <p className="mt-4 text-sm">{PLAN_CATALOG[user.tier].name} · {formatUsd(PLAN_CATALOG[user.tier].monthlyPriceUsd)}{user.tier === 'free' ? '' : '/month'}</p>
+        <div><p className="text-sm text-[#53616A]">{user.unlimited ? 'Owner research allowance' : 'Credits available'}</p><p className="mt-2 text-5xl font-light tabular-nums">{user.unlimited ? 'Unlimited' : overview.total.toLocaleString()}</p>
+          <p className="mt-4 text-sm">{user.unlimited ? 'Owner plan · all research tools included' : `${plan?.name} · ${formatUsd(plan?.monthlyPriceUsd ?? 0)}${user.tier === 'free' ? '' : '/month'}`}</p>
           <Link href="/dashboard/settings" className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Manage plan<ArrowUpRight size={14} aria-hidden="true" /></Link></div>
-        <div className="space-y-4"><div className="flex items-baseline justify-between gap-3 text-sm"><span>Plan credits remaining</span><strong className="tabular-nums">{overview.monthlyRemaining.toLocaleString()} / {overview.allocation.toLocaleString()}</strong></div>
+        {user.unlimited ? <div className="space-y-4"><h2 className="font-medium">Your owner access</h2><p className="text-sm text-[#53616A]">Research runs use your unlimited allowance. No credit top-ups or monthly renewal are needed.</p><p className="text-sm text-[#53616A]">Saved credit balances remain recorded separately for account history.</p>{user.isAdmin && <Link href="/admin" className="inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Open command center<ArrowUpRight size={14} aria-hidden="true" /></Link>}</div> : <div className="space-y-4"><div className="flex items-baseline justify-between gap-3 text-sm"><span>Plan credits remaining</span><strong className="tabular-nums">{overview.monthlyRemaining.toLocaleString()} / {overview.allocation.toLocaleString()}</strong></div>
           <progress max={overview.allocation} value={overview.monthlySpent} aria-label="Plan credits used" className="h-2 w-full accent-[#89620B]" />
           <p className="text-xs text-[#53616A]">Renews {date(user.creditResetAt)}. Unused plan credits reset each cycle.</p>
-          <div className="border-t border-[#E4DECF] pt-4 text-sm"><strong className="tabular-nums">{overview.purchasedRemaining.toLocaleString()}</strong> purchased credits · carry forward</div>
+          <div className="border-t border-[#E4DECF] pt-4 text-sm"><strong className="tabular-nums">{overview.purchasedRemaining.toLocaleString()}</strong> general credits · purchases and grants · carry forward</div>
           <div className="text-sm"><strong className="tabular-nums">{overview.rewardRemaining.toLocaleString()}</strong> earned ad credits · carry forward</div>
-          <p className="text-xs text-[#53616A]">Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p></div>
+          <p className="text-xs text-[#53616A]">Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p></div>}
       </section>
-      <RewardedCredits key={user.id} ownerId={user.id} emailVerified={user.emailVerified} />
+      {!user.unlimited && <RewardedCredits key={user.id} ownerId={user.id} emailVerified={user.emailVerified} />}
       <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-medium">What you can run</h2><p className="mt-1 text-xs text-[#53616A]">Each row is a separate estimate using your current balance. Plan and validation limits apply.</p></div>
         <Link href="/dashboard/usage" className="inline-flex min-h-11 items-center gap-2 text-sm">View usage<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
         <div className="overflow-x-auto rounded border border-[#E5E7EB] bg-white"><table className="w-full min-w-[540px] text-left text-sm"><thead className="bg-[#F7F8FA] text-xs text-[#53616A]"><tr><th scope="col" className="p-4">Analysis</th><th scope="col" className="p-4">Cost per run</th><th scope="col" className="p-4">Access</th><th scope="col" className="p-4 text-right">Available runs</th></tr></thead>
-          <tbody className="divide-y divide-[#E5E7EB]">{CREDIT_ACTIONS.map(item => { const allowance = actionAllowance(user, item.key); return <tr key={item.key}>
-            <td className="p-4 font-medium">{item.name}</td><td className="p-4 tabular-nums">{allowance.unit === 'module credit' ? '1 module credit' : `${item.cost} credits`}</td>
-            <td className="p-4 text-xs text-[#53616A]">{item.access}</td><td className="p-4 text-right tabular-nums">{allowance.permitted ? allowance.runs.toLocaleString() : 'Requires access'}</td>
+          <tbody className="divide-y divide-[#E5E7EB]">{CREDIT_ACTIONS.map(item => { const allowance = actionAllowance(user, item.key, plan?.validationLimit, account.data?.plan); return <tr key={item.key}>
+            <td className="p-4 font-medium">{item.name}</td><td className="p-4 tabular-nums">{user.unlimited ? 'Included' : allowance.unit === 'module credit' ? '1 module credit' : `${item.cost} credits`}</td>
+            <td className="p-4 text-xs text-[#53616A]">{user.unlimited ? 'Owner access' : allowance.unit === 'module credit' ? 'Module credits' : allowance.permitted ? 'Included in your plan' : 'Not included in your plan'}</td><td className="p-4 text-right tabular-nums">{user.unlimited ? 'Unlimited' : allowance.permitted ? allowance.runs.toLocaleString() : 'Requires access'}</td>
           </tr> })}</tbody></table></div>
-        <p className="text-xs text-[#53616A]">A module credit pays for one run of that module. Max Premium uses universal credits for its included tools. PDF and Word validation downloads are included.</p>
-        <p className="text-xs text-[#53616A]">Plan credits are used first, then earned credits, then purchased credits. On the Free plan, each additional Lite validation beyond the two included runs uses 50 earned credits only. Reopening a saved report and downloading it do not spend more credits.</p>
+        {!user.unlimited && <><p className="text-xs text-[#53616A]">A module credit pays for one run of that module. Tools included in your plan use universal credits. Word downloads are included.{account.data?.plan?.canExportPdf !== false ? ' PDF downloads are included in your plan.' : ''}</p>
+        <p className="text-xs text-[#53616A]">Plan credits are used first, then earned credits, then purchased credits. On the Free plan, each additional Lite validation beyond the included runs uses 50 earned credits only. Reopening a saved report and downloading it do not spend more credits.</p></>}
       </section>
     </>}
-    <section className="space-y-4"><div><h2 className="font-medium">Add to your workspace</h2><p className="mt-1 text-sm text-[#53616A]">One-time purchases in USD. Your plan stays the same.</p></div>
+    {!user?.unlimited && <section className="space-y-4"><div><h2 className="font-medium">Add to your workspace</h2><p className="mt-1 text-sm text-[#53616A]">One-time purchases in USD. Your plan stays the same.</p></div>
       {!account.loading && !available && <p role="status" className="rounded border border-[#E5E7EB] bg-white p-4 text-sm text-[#53616A]">Credit purchases are coming soon. You can use the credits already included in your plan.</p>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{PACK_ORDER.map(key => { const pack = CREDIT_PACKAGES[key]; return <article key={key} className="card-angular flex flex-col bg-white p-5">
         <h3 className="font-medium">{pack.name}</h3><p className="mt-4 text-3xl font-light tabular-nums">{formatUsd(pack.amountUsd)}<span className="ml-2 text-xs text-[#53616A]">once</span></p>
         <p className="mb-5 mt-3 flex-1 text-sm leading-relaxed text-[#53616A]">{key === 'credit_topup' ? `${CREDIT_PACKAGES.credit_topup.credits.universalCredits.toLocaleString()} universal credits. Purchased credits carry forward; feature and validation limits still apply.` : key === 'bundle' ? 'One crowdfunding analysis and one pitch deck, with their included exports.' : key === 'crowdfunding' ? 'One campaign feasibility analysis, without a subscription upgrade.' : 'One investor pitch deck, with PPTX export.'}</p>
         <button type="button" onClick={() => purchase(key)} disabled={Boolean(buying) || !available || !user} className="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-[#141923] px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50">{buying === key ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Check size={15} aria-hidden="true" />}{available ? 'Buy for ' + formatUsd(pack.amountUsd) : 'Coming soon'}</button>
       </article> })}</div>
-    </section>
+    </section>}
     <section className="space-y-4"><h2 className="font-medium">Credit history</h2>
       {history.error && <p role="alert" className="text-sm text-amber-900">{history.error}</p>}
       <div className="overflow-x-auto rounded border border-[#E5E7EB] bg-white"><table className="w-full min-w-[560px] text-left text-sm"><thead className="bg-[#F7F8FA] text-xs text-[#53616A]"><tr><th scope="col" className="p-4">Date</th><th scope="col" className="p-4">Activity</th><th scope="col" className="p-4 text-right">Change</th><th scope="col" className="p-4">Details</th></tr></thead>
         <tbody className="divide-y divide-[#E5E7EB]">{history.loading ? <tr><td colSpan={4} className="p-8 text-center text-[#53616A]">{user ? 'Loading history…' : 'Load your account to view history.'}</td></tr> : history.entries.length ? history.entries.map(item => <tr key={item.id}>
           <td className="whitespace-nowrap p-4 text-[#53616A]">{date(item.createdAt)}</td><td className="p-4 capitalize">{item.transactionType.toLowerCase().replaceAll('_', ' ')}</td>
-          <td className={'whitespace-nowrap p-4 text-right tabular-nums ' + (item.amount > 0 ? 'text-emerald-800' : 'text-[#141923]')}>{item.amount > 0 ? '+' : ''}{item.amount.toLocaleString()} {item.transactionType.endsWith('_PACK') ? 'runs' : 'credits'}</td>
+          <td className={'whitespace-nowrap p-4 text-right tabular-nums ' + (item.amount > 0 ? 'text-emerald-800' : 'text-[#141923]')}>{item.amount > 0 ? '+' : ''}{item.amount.toLocaleString()} {item.transactionType.endsWith('_PACK') || ['ADMIN_CROWDFUNDING_GRANT', 'ADMIN_PITCH_DECK_GRANT'].includes(item.transactionType) ? 'runs' : 'credits'}</td>
           <td className="max-w-sm break-words p-4 text-xs text-[#53616A]">{creditEntryDescription(item.description)}</td>
         </tr>) : <tr><td colSpan={4} className="p-8 text-center text-[#53616A]">No recorded credit transactions yet.</td></tr>}</tbody></table></div>
       <p className="text-xs text-[#53616A]">Showing the latest 50 transactions. Credit balances refresh after each analysis and when you return to this workspace.</p>

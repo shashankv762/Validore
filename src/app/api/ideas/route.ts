@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
-import { ideas, users, validationJobs, tierConfig } from '@/db/schema'
+import { ideas, users, validationJobs } from '@/db/schema'
 import { eq, and, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 import { IdeaInputSchema } from '@/lib/idea-input'
 import { isSameOriginMutation } from '@/lib/api-security'
 import { rateLimitCheck } from '@/lib/rate-limit'
+import { isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
+import { getPlan } from '@/lib/plan-catalog'
 
 async function authenticatedUser() {
   const { data: { user } } = await (await createClient()).auth.getUser()
@@ -34,10 +36,12 @@ export async function POST(request: NextRequest) {
     return await db.transaction(async (tx) => {
       const [locked] = await tx.select().from(users).where(eq(users.id, user.id)).for('update')
       if (!locked) return NextResponse.json({ error: 'User not found' }, { status: 404 })
-      const [config] = await tx.select().from(tierConfig).where(eq(tierConfig.tier, locked.tier)).limit(1)
-      if (!config) return NextResponse.json({ error: 'Plan configuration is unavailable' }, { status: 503 })
-      const active = await tx.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.userId, user.id), eq(ideas.isActive, true), eq(ideas.isReadOnly, false))).limit(config.maxActiveIdeas)
-      if (active.length >= config.maxActiveIdeas) return NextResponse.json({ error: 'Your plan has reached its active idea limit. Upgrade or use an existing idea.' }, { status: 403 })
+      if (!isActiveAccount(locked)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
+      if (!isOwnerAccount(locked)) {
+        const config = await getPlan(locked.tier, tx)
+        const active = await tx.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.userId, user.id), eq(ideas.isActive, true), eq(ideas.isReadOnly, false))).limit(Math.max(1, config.maxActiveIdeas))
+        if (active.length >= config.maxActiveIdeas) return NextResponse.json({ error: 'Your plan has reached its active idea limit. Upgrade or use an existing idea.' }, { status: 403 })
+      }
       const [idea] = await tx.insert(ideas).values({ userId: user.id, ...parsed.data }).returning()
       return NextResponse.json({ idea }, { status: 201 })
     })

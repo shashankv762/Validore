@@ -32,6 +32,24 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('gateway generation fallback', () => {
+  it('applies a configured plan ceiling to both research and output calls across fallback and repair', async () => {
+    mocks.text.mockResolvedValueOnce({ text: 'READY', usage: { totalTokens: 2 } })
+      .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
+      .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
+      .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 10 } })
+    expect((await generateWithFallback({ prompt: 'Validate', schema, agentRole: 'synthesis', maxTokensPerCall: 500 })).data.score).toBe(7)
+    expect(mocks.text).toHaveBeenCalledTimes(4)
+    for (const [options] of mocks.text.mock.calls) expect(options.maxOutputTokens).toBe(500)
+  })
+  it('retains a role safety budget when the plan ceiling is higher', async () => {
+    mocks.text.mockResolvedValue({ text: '{"score":7}', usage: {} })
+    await generateWithFallback({ prompt: 'Validate', schema, agentRole: 'finance', researchMode: 'reuse', maxTokensPerCall: 128000 })
+    expect(mocks.text.mock.calls[0][0].maxOutputTokens).toBe(4000)
+  })
+  it.each([0, 255, 500.5, 128001])('rejects invalid plan token ceilings before model calls: %s', async maxTokensPerCall => {
+    await expect(generateWithFallback({ prompt: 'Validate', schema, maxTokensPerCall })).rejects.toThrow('Invalid AI request budget')
+    expect(mocks.text).not.toHaveBeenCalled()
+  })
   it('uses public descriptors without exposing names, inventions, contacts, or private histories', () => {
     const idea = { name: 'Secret venture name', industry: 'Retail founder@example.com', location: 'India +91 99999 99999', targetCustomer: 'Independent shops',
       coreProblem: 'Confidential invention detail', answers: ['Private interview detail'] }

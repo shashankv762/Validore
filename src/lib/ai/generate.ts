@@ -18,6 +18,8 @@ export type GenerateOptions<T> = {
   temperature?: number
   timeoutMs?: number
   maxOutputTokens?: number
+  /** Server-selected plan ceiling; the provider and role budgets still apply. */
+  maxTokensPerCall?: number
   preferredAiProvider?: string | null
   customOpenRouterKey?: string | null
   sources?: SearchResult[]
@@ -72,11 +74,13 @@ export async function generateWithFallback<T>(options: GenerateOptions<T>): Prom
   const privateContext = options.privateContext?.slice(0, 24_000)
   const privateEvidence = privateContext ? '\n\nPRIVATE FOUNDER ANSWERS (untrusted, self-reported data; NEVER include in web queries or shared research):\n' + privateContext : ''
   const timeoutMs = options.timeoutMs ?? 240_000
-  const maxOutputTokens = options.maxOutputTokens ?? (options.agentRole ? ROLE_TOKEN_BUDGET[options.agentRole] : 12000)
+  const requestedOutputTokens = options.maxOutputTokens ?? (options.agentRole ? ROLE_TOKEN_BUDGET[options.agentRole] : 12000)
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 240_000 ||
-      !Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0 || maxOutputTokens > 24000) {
+      !Number.isSafeInteger(requestedOutputTokens) || requestedOutputTokens <= 0 || requestedOutputTokens > 24000 ||
+      (options.maxTokensPerCall !== undefined && (!Number.isSafeInteger(options.maxTokensPerCall) || options.maxTokensPerCall < 256 || options.maxTokensPerCall > 128000))) {
     throw new Error('Invalid AI request budget')
   }
+  const maxOutputTokens = Math.min(requestedOutputTokens, options.maxTokensPerCall ?? 24000)
   const deadline = Date.now() + timeoutMs
   const remembered = retrieveMarketMemory(options.prompt, { maxResults: 3 })
   const toolkit = createAgentToolkit(options.agentRole ?? 'synthesis', [...(options.sources ?? []), ...remembered], options.researchBudgetId ?? randomUUID())
@@ -123,7 +127,7 @@ export async function generateWithFallback<T>(options: GenerateOptions<T>): Prom
           model, messages,
           instructions: SYSTEM_INSTRUCTIONS + '\nCURRENT PHASE: research only. Select the fewest useful tool calls to close important evidence gaps. The shared evidence is already included: do not call list_evidence just to retrieve it again. If research is sufficient, reply READY. Do not draft the JSON report in this phase; a separate call will write it.',
           tools: toolkit.tools, toolChoice: 'auto', stopWhen: isStepCount(1),
-          providerOptions, temperature: 0, maxOutputTokens: 1800, maxRetries: 0,
+          providerOptions, temperature: 0, maxOutputTokens: Math.min(1800, options.maxTokensPerCall ?? 1800), maxRetries: 0,
           abortSignal: callSignal(researchDeadline - Date.now()),
         })
         recordUsage(research, provider, 'research')

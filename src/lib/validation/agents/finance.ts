@@ -53,5 +53,6 @@ export async function runFinanceAgent(idea: IdeaInput, researchDigest: string, o
     privateContext: opts?.privateContext,
     researchBudgetId: opts?.researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
+    maxTokensPerCall: opts?.maxTokensPerCall,
   })
 }

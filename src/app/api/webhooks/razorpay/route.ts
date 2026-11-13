@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { PaymentMetadataSchema, fulfillCreditPurchase } from '@/lib/credit-fulfillment'
-import { TIER_MONTHLY_CREDITS } from '@/lib/credit-costs'
+import { getPlan } from '@/lib/plan-catalog'
 
 const EventSchema = z.object({
   event: z.string(),
@@ -52,8 +52,10 @@ export async function POST(req: Request) {
         const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
         if (!user) throw new Error('Subscription recipient not found')
         const newCycle = user.subscriptionId !== subscription.id || user.tier !== tier || (periodEnd && (!user.creditResetAt || periodEnd > user.creditResetAt))
+        const allowance = (await getPlan(tier, tx)).monthlyCredits
         await tx.update(users).set({ tier, subscriptionId: subscription.id, subscriptionStatus: subscription.status, currentPeriodEnd: periodEnd,
-          ...(newCycle ? { creditBalance: TIER_MONTHLY_CREDITS[tier], creditsUsedThisCycle: 0,
+          ...(newCycle ? { creditBalance: allowance, creditCycleAllowance: allowance, creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
+            creditCycleStartedAt: new Date(),
             creditResetAt: periodEnd ?? new Date(Date.now() + 30 * 86400000) } : {}),
         }).where(eq(users.id, userId))
       })

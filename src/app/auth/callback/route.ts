@@ -4,6 +4,8 @@ import { createClientWithDeferredCookies } from '@/lib/supabase/server'
 import { syncUserToDatabase } from '@/lib/auth-sync'
 import { safeNextPath } from '@/lib/auth-redirect'
 import { authOrigin } from '@/lib/auth-form'
+import { authenticatedDestination, isActiveAccount, isVerifiedOwnerIdentity } from '@/lib/admin-access'
+import { getPlatformSettings } from '@/lib/platform-settings'
 
 const EMAIL_TYPES = new Set<EmailOtpType>(['email', 'signup', 'invite', 'magiclink', 'recovery', 'email_change'])
 
@@ -31,19 +33,30 @@ export async function GET(request: NextRequest) {
 
     let profile
     try {
-      profile = await syncUserToDatabase({ id: data.user.id, email: data.user.email })
+      profile = await syncUserToDatabase(data.user)
     } catch (error) {
       await supabase.auth.signOut({ scope: 'local' })
       throw error
     }
 
-    commitCookies()
+    if (profile && !isActiveAccount(profile)) {
+      await supabase.auth.signOut({ scope: 'local' })
+      commitCookies()
+      return NextResponse.redirect(new URL('/auth/signin?error=account_inactive', origin))
+    }
     if (!profile) {
+      if (!(await getPlatformSettings()).signupEnabled && !isVerifiedOwnerIdentity(data.user)) {
+        await supabase.auth.signOut({ scope: 'local' })
+        commitCookies()
+        return NextResponse.redirect(new URL('/auth/signin?error=registration_closed', origin))
+      }
+      commitCookies()
       const destination = new URL('/auth/complete-signup', origin)
       destination.searchParams.set('next', next)
       return NextResponse.redirect(destination)
     }
-    return NextResponse.redirect(new URL(next, origin))
+    commitCookies()
+    return NextResponse.redirect(new URL(authenticatedDestination(data.user, profile, next), origin))
   } catch (error) {
     console.error('[auth/callback] Failed:', error)
     return failure()

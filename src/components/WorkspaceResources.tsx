@@ -38,7 +38,7 @@ export function useWorkspaceResources() {
     return () => controller.abort()
   }, [ownerId, attempt])
   const current = state.ownerId === ownerId
-  return { ideas: current ? state.ideas : [], user: account.data?.user ?? null,
+  return { ideas: current ? state.ideas : [], user: account.data?.user ?? null, plan: account.data?.plan, plans: account.data?.plans,
     loading: account.loading || Boolean(ownerId && (!current || state.loading)),
     error: (current ? state.error : null) || (account.data ? null : account.error),
     retry: () => { void account.refresh(); setState(current => ({ ...current, loading: true, error: null })); setAttempt(current => current + 1) } }
