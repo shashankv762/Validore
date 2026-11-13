@@ -39,7 +39,7 @@ services:
       - key: AI_FREE_ONLY
         value: 'true'
       - key: AI_GATEWAY_ENABLED
-        value: pixrouter,opencode,openrouter
+        value: pixrouter
       - key: AI_GATEWAY_ORDER
         value: pixrouter,opencode,openrouter
       - key: PIXROUTER_MODELS

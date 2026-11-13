@@ -127,16 +127,38 @@ describe('real SDK and research pipeline with synthetic external services', () =
     checkPrivacyBoundary()
   })
 
-  it('counts an invalid JSON response and retries only the failed report call', async () => {
+  it('counts both SDK-rejected outputs, repairs once, and falls back without repeating research', async () => {
     malformedRole = 'finance'
     const { runMultiAgentValidation } = await import('@/lib/validation/agents/orchestrator')
     const result = await runMultiAgentValidation(PIPELINE_IDEA, { privateContext, researchBudgetId: 'synthetic-fallback' })
     expect(result!.agentTrail.agents.finance).toBe('ok')
-    expect(requests()).toHaveLength(20)
-    expect(result!.report.tokensUsed).toBe(2000)
+    // Eighteen other calls, two rejected finance outputs, and one valid fallback.
+    // The real SDK throws on both malformed replies; each still contributes 100 tokens.
+    expect(requests()).toHaveLength(21)
+    expect(result!.report.tokensUsed).toBe(2100)
+    expect(result!.agentTrail.totalTokens).toBe(2100)
     expect(mocks.failed).toHaveBeenCalledOnce()
+    expect(mocks.failed).toHaveBeenCalledWith(expect.objectContaining({ modelId: 'finance:1' }), expect.any(SyntaxError))
     expect(mocks.read).toHaveBeenCalledTimes(4)
-    expect(models.get('finance:2')!.doGenerateCalls[0].tools ?? []).toHaveLength(0)
+    expect(result!.agentTrail.tools!.filter(event => event.tool === 'read_market_indicator')).toEqual([
+      expect.objectContaining({ agent: 'market', status: 'complete' }),
+    ])
+    const primary = models.get('finance:1')!.doGenerateCalls
+    const fallback = models.get('finance:2')!.doGenerateCalls
+    expect(primary).toHaveLength(2)
+    expect(fallback).toHaveLength(1)
+    expect(JSON.stringify(primary[0].prompt)).not.toContain('OUTPUT CORRECTION')
+    expect(JSON.stringify(primary[1].prompt)).toContain('OUTPUT CORRECTION')
+    expect(JSON.stringify(fallback[0].prompt)).not.toContain('OUTPUT CORRECTION')
+    const reportInput = primary[0].prompt.filter(message => message.role === 'user')
+    expect(JSON.stringify(reportInput)).toContain('SP.POP.TOTL')
+    expect(JSON.stringify(reportInput)).toContain(PRIVATE_ANSWER)
+    for (const request of [...primary, ...fallback]) {
+      expect(request.tools ?? []).toHaveLength(0)
+      expect(request.prompt.some(message => message.role === 'tool')).toBe(false)
+      expect(request.prompt.filter(message => message.role === 'user')).toEqual(reportInput)
+      expect(JSON.stringify(request.prompt)).not.toContain('{invalid')
+    }
     checkPrivacyBoundary()
   })
 })

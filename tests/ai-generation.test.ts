@@ -14,6 +14,7 @@ vi.mock('../src/lib/ai/gateways', async () => ({
 }))
 import { generateWithFallback } from '../src/lib/ai/generate'
 import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
+import { CustomerAgentSchema } from '@/lib/validation/schemas'
 
 const first = { id: 'kios', modelId: 'flash', baseURL: 'https://kios.example/v1', apiKey: 'key-one', fingerprint: 'one' }
 const second = { id: 'seekai', modelId: 'reasoner', baseURL: 'https://seek.example/v1', apiKey: 'key-two', fingerprint: 'two' }
@@ -28,7 +29,7 @@ beforeEach(() => {
   mocks.candidates.mockResolvedValue([first, second])
   mocks.canTry.mockReturnValue(true)
 })
-afterEach(() => vi.unstubAllEnvs())
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('gateway generation fallback', () => {
   it('uses public descriptors without exposing names, inventions, contacts, or private histories', () => {
@@ -44,9 +45,12 @@ describe('gateway generation fallback', () => {
   it('includes private founder answers only in tool-free output, including provider fallbacks', async () => {
     mocks.text.mockResolvedValueOnce({ text: 'READY', usage: { totalTokens: 2 } })
       .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
+      .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
       .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 10 } })
     const privateContext = JSON.stringify({ answers: [{ answer: 'Private founder observation 4529' }] })
-    await generateWithFallback({ prompt: 'Prior finding derived from a private answer: revenue is confidential', researchPrompt: 'Public retail market research brief', privateContext, schema })
+    const result = await generateWithFallback({ prompt: 'Prior finding derived from a private answer: revenue is confidential', researchPrompt: 'Public retail market research brief', privateContext, schema })
+    expect(result.provider).toBe('seekai/reasoner')
+    expect(mocks.text.mock.calls[2][0].instructions).toContain('OUTPUT CORRECTION')
     expect(JSON.stringify(mocks.text.mock.calls[0][0])).not.toContain('Private founder observation')
     expect(JSON.stringify(mocks.text.mock.calls[0][0])).not.toContain('revenue is confidential')
     for (const [options] of mocks.text.mock.calls.slice(1)) {
@@ -99,12 +103,13 @@ describe('gateway generation fallback', () => {
     expect((await generateWithFallback({ prompt: 'Validate', schema, preferredAiProvider: 'paid_models' })).provider).toBe('google/test-native-model')
     expect(mocks.candidates).not.toHaveBeenCalled()
   })
-  it('falls back after invalid structured output and keeps each key with its host', async () => {
+  it('falls back after one unsuccessful output repair and keeps each key with its host', async () => {
     mocks.text.mockResolvedValueOnce({ text: 'READY', usage: { totalTokens: 2 } })
+      .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 20 } })
       .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 20 } })
       .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 30 } })
     const result = await generateWithFallback({ prompt: 'Validate', schema, agentRole: 'finance', preferredAiProvider: 'paid_models' })
-    expect(result).toEqual({ data: { score: 7 }, provider: 'seekai/reasoner', tokensUsed: 52, toolCalls: [], sources: [] })
+    expect(result).toEqual({ data: { score: 7 }, provider: 'seekai/reasoner', tokensUsed: 72, toolCalls: [], sources: [] })
     expect(mocks.failed).toHaveBeenCalledWith(first, expect.any(Error))
     expect(mocks.create.mock.calls.map(([config]) => [config.baseURL, config.apiKey])).toEqual([
       [first.baseURL, first.apiKey], [second.baseURL, second.apiKey],
@@ -112,6 +117,83 @@ describe('gateway generation fallback', () => {
     expect(mocks.text.mock.calls[1][0]).toEqual(expect.objectContaining({ maxRetries: 0, maxOutputTokens: 4000 }))
     expect(mocks.text.mock.calls[0][0]).not.toHaveProperty('output')
     expect(mocks.text.mock.calls[1][0].output.name).toBe('json')
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'flash', 'flash', 'reasoner'])
+    expect(mocks.text.mock.calls[3][0].instructions).not.toContain('OUTPUT CORRECTION')
+  })
+  it('corrects a malformed customer survey enum on the same model with schema-only guidance', async () => {
+    vi.stubEnv('AI_DIAGNOSTICS', 'true')
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const data = { wtpSurveyQuestions: [
+      { question: 'What would you pay?', type: 'open' },
+      { question: 'How useful is this?', type: 'scale' },
+      { question: 'Which plan would you choose?', type: 'multiple_choice', options: ['Monthly', 'Annual'] },
+    ] }
+    const invalid = { wtpSurveyQuestions: data.wtpSurveyQuestions.map((question, index) => index === 2 ? { ...question, type: 'private-invalid-value-9823' } : question) }
+    mocks.text.mockResolvedValueOnce({ text: JSON.stringify(invalid), usage: { totalTokens: 20 } })
+      .mockResolvedValueOnce({ text: JSON.stringify(data), usage: { totalTokens: 25 } })
+    const result = await generateWithFallback({ prompt: 'Draft customer survey questions', schema: CustomerAgentSchema.pick({ wtpSurveyQuestions: true }), agentRole: 'customer', researchMode: 'reuse' })
+    expect(result).toEqual({ data, provider: 'kios/flash', tokensUsed: 45, toolCalls: [], sources: [] })
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'flash'])
+    expect(mocks.create).toHaveBeenCalledOnce()
+    expect(mocks.failed).not.toHaveBeenCalled()
+    const repair = mocks.text.mock.calls[1][0]
+    expect(repair.instructions).toContain('"field":"wtpSurveyQuestions.2.type","expected":{"enum":["open","scale","multiple_choice"]}')
+    expect(repair.instructions).toContain('Do not invent missing facts')
+    expect(repair.prompt).toBe(mocks.text.mock.calls[0][0].prompt)
+    expect(JSON.stringify(repair)).not.toContain('private-invalid-value-9823')
+    expect(repair).not.toHaveProperty('tools')
+    expect(repair).not.toHaveProperty('messages')
+    expect(info).toHaveBeenCalledWith('[ai] Generation metadata', expect.objectContaining({ provider: 'kios/flash', agentRole: 'customer', phase: 'repair' }))
+    expect(JSON.stringify(info.mock.calls)).not.toContain('Which plan')
+  })
+  it.each([
+    new Error('Network unavailable'),
+    new SyntaxError('Provider HTTP body was not JSON'),
+    Object.assign(new Error('Authentication failed'), { statusCode: 401 }),
+    Object.assign(new Error('Quota exhausted'), { statusCode: 429 }),
+    Object.assign(new Error('Timed out'), { name: 'AbortError' }),
+  ])('does not retry transport/provider failures as output correction: %s', async error => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    mocks.text.mockRejectedValueOnce(error).mockResolvedValueOnce({ text: '{"score":7}', usage: {} })
+    const result = await generateWithFallback({ prompt: 'Validate', schema, agentRole: 'customer', researchMode: 'reuse' })
+    expect(result.provider).toBe('seekai/reasoner')
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'reasoner'])
+    for (const [options] of mocks.text.mock.calls) expect(options.instructions).not.toContain('OUTPUT CORRECTION')
+    expect(warn).toHaveBeenCalledWith('[ai] Candidate unavailable', expect.objectContaining({ agentRole: 'customer' }))
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(error.message)
+  })
+  it('reserves the final call for another candidate when there is no room for repair', async () => {
+    mocks.text.mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
+      .mockResolvedValueOnce({ text: '{"score":7}', usage: { totalTokens: 20 } })
+    const result = await generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse', maxModelCalls: 2 })
+    expect(result.provider).toBe('seekai/reasoner')
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'reasoner'])
+  })
+  it('shares the six-call ceiling across output repair and subsequent failing candidates', async () => {
+    mocks.candidates.mockResolvedValue(Array.from({ length: 30 }, (_, index) => ({ ...first, modelId: 'model-' + index })))
+    mocks.text.mockResolvedValue({ text: '{"score":100}', usage: { totalTokens: 10 } })
+    await expect(generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse' })).rejects.toThrow('No AI provider completed')
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['model-0', 'model-0', 'model-1', 'model-2', 'model-3', 'model-4'])
+    expect(mocks.text.mock.calls.filter(([options]) => options.instructions.includes('OUTPUT CORRECTION'))).toHaveLength(1)
+  })
+  it('shares the original deadline across research, output repair and fallback', async () => {
+    let now = 1000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const timeouts = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => new AbortController().signal)
+    mocks.text.mockImplementationOnce(async () => { now = 1020; return { text: 'READY', usage: {} } })
+      .mockImplementationOnce(async () => { now = 1060; return { text: '{"score":100}', usage: {} } })
+      .mockImplementationOnce(async () => { now = 1101; return { text: '{"score":100}', usage: {} } })
+    await expect(generateWithFallback({ prompt: 'Validate', schema, timeoutMs: 100 })).rejects.toThrow('No AI provider completed')
+    expect(timeouts.mock.calls.map(([timeout]) => timeout)).toEqual([100, 80, 40])
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'flash', 'flash'])
+    expect(mocks.create).toHaveBeenCalledOnce()
+  })
+  it('does not begin repair after the original deadline has already elapsed', async () => {
+    let now = 1000
+    vi.spyOn(Date, 'now').mockImplementation(() => now)
+    mocks.text.mockImplementationOnce(async () => { now = 1101; return { text: '{"score":100}', usage: {} } })
+    await expect(generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse', timeoutMs: 100 })).rejects.toThrow('No AI provider completed')
+    expect(mocks.text).toHaveBeenCalledOnce()
   })
   it('requests only free gateway candidates in free-only mode', async () => {
     vi.stubEnv('AI_DIRECT_FIRST', 'true')
@@ -137,6 +219,40 @@ describe('gateway generation fallback', () => {
     expect(result.provider).toBe('kios/flash')
     expect(result.tokensUsed).toBe(22)
     expect(mocks.text).toHaveBeenCalledTimes(2)
+    expect(mocks.failed).not.toHaveBeenCalled()
+  })
+  it.each([false, true])('repairs SDK-rejected malformed JSON without another research request (native=%s)', async native => {
+    if (native) {
+      vi.stubEnv('AI_FREE_ONLY', 'false')
+      vi.stubEnv('AI_DIRECT_FIRST', 'true')
+      vi.stubEnv('GOOGLE_GENERATIVE_AI_API_KEY', 'test-key')
+      vi.stubEnv('GOOGLE_AI_MODEL', 'test-native-model')
+    }
+    const rejectedText = '<tool_call>search_web confidential-output-4562</tool_call>'
+    const error = new NoObjectGeneratedError({
+      text: rejectedText,
+      response: { id: 'response-2', modelId: 'flash', timestamp: new Date('2026-10-31T00:00:00Z') },
+      usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20,
+        inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 },
+        outputTokenDetails: { textTokens: 10, reasoningTokens: 0 } },
+      finishReason: 'stop',
+    })
+    mocks.text.mockResolvedValueOnce({ text: 'READY', usage: { totalTokens: 2 } })
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce({ text: '{"score":7}', output: { score: 7 }, usage: { totalTokens: 10 } })
+    const result = await generateWithFallback({ prompt: 'Validate', schema, preferredAiProvider: native ? 'paid_models' : 'free_models' })
+    expect(result.data).toEqual({ score: 7 })
+    expect(result.provider).toBe(native ? 'google/test-native-model' : 'kios/flash')
+    expect(result.tokensUsed).toBe(32)
+    expect(mocks.text).toHaveBeenCalledTimes(3)
+    const report = mocks.text.mock.calls[1][0]
+    const repair = mocks.text.mock.calls[2][0]
+    expect(repair.model).toBe(report.model)
+    expect(repair.instructions).toContain('"field":"$","expected":"One syntactically valid JSON value')
+    expect(repair.prompt).toBe(report.prompt)
+    expect(repair).not.toHaveProperty('tools')
+    expect(repair).not.toHaveProperty('messages')
+    expect(JSON.stringify(repair)).not.toContain('confidential-output-4562')
     expect(mocks.failed).not.toHaveBeenCalled()
   })
   it('normalizes legacy paid preferences and separates research from tool-free JSON generation', async () => {
