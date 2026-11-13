@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-img-element -- ImageResponse rasterizes native image elements. */
 import { ImageResponse } from 'next/og'
 import { readPublicAsset } from '@/lib/public-assets'
 
