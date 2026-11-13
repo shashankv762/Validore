@@ -29,15 +29,20 @@ export async function GET(request: NextRequest) {
       return failure()
     }
 
+    let profile
     try {
-      const profile = await syncUserToDatabase({ id: data.user.id, email: data.user.email })
-      if (!profile) throw new Error('Account profile is unavailable')
+      profile = await syncUserToDatabase({ id: data.user.id, email: data.user.email })
     } catch (error) {
       await supabase.auth.signOut({ scope: 'local' })
       throw error
     }
 
     commitCookies()
+    if (!profile) {
+      const destination = new URL('/auth/complete-signup', origin)
+      destination.searchParams.set('next', next)
+      return NextResponse.redirect(destination)
+    }
     return NextResponse.redirect(new URL(next, origin))
   } catch (error) {
     console.error('[auth/callback] Failed:', error)

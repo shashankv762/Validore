@@ -104,6 +104,12 @@ async function verify() {
   const rewardColumn = await client`SELECT column_name FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'reward_credits' AND is_nullable = 'NO'`
   if (rewardColumn.length !== 1) { console.error('Reward credit column is missing. Apply migration 0004 before deploying.'); hasErrors = true }
+  const cycleColumn = await client`SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'credit_cycle_started_at'`
+  if (cycleColumn.length !== 1) { console.error('Credit cycle start column is missing. Apply migration 0005 before deploying.'); hasErrors = true }
+  const monthlyUsageColumn = await client`SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'monthly_credits_used_this_cycle' AND is_nullable = 'NO'`
+  if (monthlyUsageColumn.length !== 1) { console.error('Monthly credit consumption column is missing. Apply migration 0005 before deploying.'); hasErrors = true }
 
   // 3. Verify all 4 enums
   console.log('\n--- 2. Enums Verification ---')

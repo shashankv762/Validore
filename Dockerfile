@@ -8,15 +8,16 @@ COPY . .
 # Public values are inlined by Next.js. Private credentials belong only at runtime.
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_APP_URL
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN test -n "$NEXT_PUBLIC_SUPABASE_URL" && test -n "$NEXT_PUBLIC_SUPABASE_ANON_KEY" && test -n "$NEXT_PUBLIC_APP_URL" \
- && npm run build
+ENV NEXT_TELEMETRY_DISABLED=1 BUILD_PROFILE=release
+RUN npm run build:deploy
 
 FROM node:24-alpine AS runner
 WORKDIR /app
 ARG GIT_COMMIT="unknown"
 ARG VERSION="dev"
+ENV BUILD_COMMIT_SHA=$GIT_COMMIT
 LABEL org.opencontainers.image.title="Validore" \
       org.opencontainers.image.revision="$GIT_COMMIT" \
       org.opencontainers.image.version="$VERSION"

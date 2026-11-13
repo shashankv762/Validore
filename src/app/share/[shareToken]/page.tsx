@@ -1,57 +1,30 @@
-import React from 'react';
-import { db } from '@/db';
-import { validationReports, ideas } from '@/db/schema';
-import { eq } from 'drizzle-orm';
-import { notFound } from 'next/navigation';
-import ReportView from '@/app/dashboard/report/ReportView';
+import type { Metadata } from 'next'
+import { and, eq } from 'drizzle-orm'
+import { z } from 'zod'
+import { notFound } from 'next/navigation'
+import { db } from '@/db'
+import { users, validationReports } from '@/db/schema'
+import { createClient } from '@/lib/supabase/server'
+import ReportView from '@/app/dashboard/report/ReportView'
 
-export async function generateMetadata({ params }: { params: Promise<{ shareToken: string }> }) {
-  const { shareToken } = await params;
-  
-  const reports = await db
-    .select({ ideaName: ideas.name })
-    .from(validationReports)
-    .innerJoin(ideas, eq(validationReports.ideaId, ideas.id))
-    .where(eq(validationReports.shareToken, shareToken))
-    .limit(1);
-
-  const report = reports[0];
-  const title = report ? `${report.ideaName} - Validation Report` : 'Validore Validation Report';
-
-  return {
-    title,
-    description: 'View this shared AI-powered startup validation report from Validore.',
-    openGraph: {
-      title,
-      description: 'View this shared AI-powered startup validation report from Validore.',
-      siteName: 'Validore',
-      images: ['/og-image.svg'],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title,
-    }
-  }
+export const dynamic = 'force-dynamic'
+// Metadata never reveals the founder's idea to link preview services.
+export const metadata: Metadata = {
+  title: 'Your validation report',
+  description: 'Sign in to view your Validore validation report.',
+  robots: { index: false, follow: false },
 }
 
 export default async function SharePage({ params }: { params: Promise<{ shareToken: string }> }) {
-  const { shareToken } = await params;
-  
-  const reports = await db
-    .select()
-    .from(validationReports)
-    .where(eq(validationReports.shareToken, shareToken))
-    .limit(1);
-
-  const report = reports[0];
-
-  if (!report) {
-    notFound();
-  }
-
-  return (
-    <div className="min-h-screen bg-[#F5F0E8]">
-      <ReportView report={report} isSharePage={true} />
-    </div>
-  );
+  const { shareToken } = await params
+  if (!z.uuid().safeParse(shareToken).success) notFound()
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  if (!user) notFound()
+  const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id), columns: { id: true } })
+  if (!owner) notFound()
+  const report = await db.query.validationReports.findFirst({
+    where: and(eq(validationReports.shareToken, shareToken), eq(validationReports.userId, owner.id)),
+  })
+  if (!report) notFound()
+  return <div className="min-h-screen bg-[#F5F0E8]"><ReportView report={report} isSharePage /></div>
 }

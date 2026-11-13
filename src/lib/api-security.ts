@@ -52,7 +52,7 @@ export const SIGNED_API_PATHS = new Set(['/api/webhooks/stripe', '/api/webhooks/
 export async function guardApiRequest(request: NextRequest): Promise<NextResponse | null> {
   if (['GET', 'HEAD', 'OPTIONS'].includes(request.method) || SIGNED_API_PATHS.has(request.nextUrl.pathname)) return null
   if (!isSameOriginMutation(request)) return NextResponse.json({ error: 'Invalid request origin' }, { status: 403, headers: PRIVATE_HEADERS })
-  const nativeAuth = /^\/api\/auth\/(signin|signup|google|signout|forgot-password|reset-password)$/.test(request.nextUrl.pathname)
+  const nativeAuth = /^\/api\/auth\/(signin|signup|complete-signup|google|signout|forgot-password|reset-password)$/.test(request.nextUrl.pathname)
   const type = request.headers.get('content-type') ?? ''
   if (!/^application\/json(?:\s*;|$)/i.test(type) && !(nativeAuth && /^(application\/x-www-form-urlencoded|multipart\/form-data)(?:\s*;|$)/i.test(type))) {
     // Empty native sign-out forms are allowed. Other API writes require JSON.

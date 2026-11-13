@@ -24,7 +24,7 @@ describeIfDb('auth-sync database tests', () => {
     const testId = `test-user-${Date.now()}`
     const testEmail = `${testId}@example.com`
 
-    const synced = await syncUserToDatabase({ id: testId, email: testEmail })
+    const synced = await syncUserToDatabase({ id: testId, email: testEmail }, { createNew: true })
     expect(synced).toBeDefined()
     expect(synced?.email).toBe(testEmail)
     expect(synced?.supabaseId).toBe(testId)
@@ -40,7 +40,7 @@ describeIfDb('auth-sync database tests', () => {
     const testId = `test-existing-${Date.now()}`
     const testEmail = `${testId}@example.com`
 
-    const first = await syncUserToDatabase({ id: testId, email: testEmail })
+    const first = await syncUserToDatabase({ id: testId, email: testEmail }, { createNew: true })
     expect(first).toBeDefined()
 
     const second = await syncUserToDatabase({ id: testId, email: testEmail })
@@ -57,6 +57,7 @@ describeIfDb('auth-sync database tests', () => {
     const testId = `test-helper-${Date.now()}`
     const testEmail = `${testId}@example.com`
 
+    await syncUserToDatabase({ id: testId, email: testEmail }, { createNew: true })
     const user = await getOrCreateDbUser({ id: testId, email: testEmail })
     expect(user).toBeDefined()
     expect(user?.supabaseId).toBe(testId)

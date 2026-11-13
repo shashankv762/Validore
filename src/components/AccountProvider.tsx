@@ -1,8 +1,9 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import type { PlanTier } from '@/lib/plans'
+import { registrationRecoveryPath } from '@/lib/registration-recovery'
 
 export type AccountUser = {
   id: string
@@ -49,6 +50,11 @@ export function notifyAccountUpdated() {
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const currentRouter = useRef(router)
+  currentRouter.current = router
+  const currentPath = useRef(pathname)
+  currentPath.current = pathname
   const [snapshot, setSnapshot] = useState<Omit<AccountState, 'refresh'>>({ data: null, loading: true, error: null, updatedAt: null })
   const pending = useRef<Promise<AccountData | null> | null>(null)
   const controller = useRef<AbortController | null>(null)
@@ -73,6 +79,20 @@ export function AccountProvider({ children }: { children: ReactNode }) {
             lastSuccess.current = 0
             if (alive.current && !abort.signal.aborted) setSnapshot({ data: null, loading: false, updatedAt: null, error: 'Your session has expired. Sign in again to continue.' })
             return null
+          }
+          if (response.status === 403) {
+            const body: unknown = await response.json().catch(() => null)
+            const destination = registrationRecoveryPath(body,
+              currentPath.current + (window.location?.search || '') + (window.location?.hash || ''),
+              window.location?.origin || 'http://localhost')
+            if (destination) {
+              lastSuccess.current = 0
+              if (alive.current && !abort.signal.aborted) {
+                setSnapshot({ data: null, loading: false, updatedAt: null, error: 'Complete your registration to open the workspace.' })
+                currentRouter.current.replace(destination)
+              }
+              return null
+            }
           }
           if (!response.ok) throw new Error(response.status === 401
             ? 'Your session has expired. Sign in again to continue.' : 'Your account could not be refreshed. Please try again.')

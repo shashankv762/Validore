@@ -8,6 +8,7 @@ import { topUpMonthlyCredits } from '@/lib/credits'
 import { billingAvailability } from '@/lib/billing-availability'
 import { effectiveAiPreference, freeModelsOnly } from '@/lib/ai/model-policy'
 import { PLAN_CATALOG } from '@/lib/plans'
+import { REGISTRATION_REQUIRED, REGISTRATION_PATH } from '@/lib/registration-recovery'
 
 const headers = { 'Cache-Control': 'private, no-store' }
 
@@ -19,8 +20,8 @@ export async function GET() {
 
   const foundUser = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
   let dbUser = foundUser ?? (await syncUserToDatabase({ id: user.id, email: user.email }))
-  if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404, headers })
-  if (!dbUser.creditResetAt || dbUser.creditResetAt <= new Date()) {
+  if (!dbUser) return NextResponse.json({ code: REGISTRATION_REQUIRED, error: 'Complete your registration to open the workspace.', next: REGISTRATION_PATH }, { status: 403, headers })
+  if (!dbUser.creditResetAt || dbUser.creditResetAt <= new Date() || !dbUser.creditCycleStartedAt) {
     await topUpMonthlyCredits(dbUser.id)
     dbUser = (await db.query.users.findFirst({ where: eq(users.id, dbUser.id) })) ?? dbUser
   }

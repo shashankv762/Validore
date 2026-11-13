@@ -14,8 +14,10 @@ function requireHttpsOrigin(name, value) {
   try { url = new URL(value || '') }
   catch { throw new Error(`${name} must be a configured HTTPS origin for a release build`) }
   if (url.protocol !== 'https:' || url.username || url.password ||
+    url.pathname !== '/' || url.search || url.hash ||
+    !url.hostname.includes('.') || url.hostname.endsWith('.localhost') ||
     ['localhost', '127.0.0.1', '[::1]', 'example.supabase.co'].includes(url.hostname)) {
-    throw new Error(`${name} must be a real HTTPS origin without embedded credentials`)
+    throw new Error(`${name} must be a real HTTPS origin without a path, query, fragment or embedded credentials`)
   }
 }
 
@@ -40,7 +42,7 @@ export function validateBuildConfig(env = process.env, nodeVersion = process.ver
     const key = publicKeys.find(Boolean) || ''
     // Classify the public key format; this does not verify JWT signatures or
     // make an Auth request. Hosted sign-in still needs an integration check.
-    if (!key.startsWith('sb_publishable_') && !(key.split('.').length === 3 && jwtRole(key) === 'anon')) {
+    if (!/^sb_publishable_[A-Za-z0-9_-]+$/.test(key) && !(key.split('.').length === 3 && key.split('.').every(Boolean) && jwtRole(key) === 'anon')) {
       throw new Error('Release requires a public Supabase anon/publishable key; never a service-role key')
     }
   }

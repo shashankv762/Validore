@@ -27,6 +27,12 @@ describe('clampScore', () => {
   it('clamps to max weight', () => expect(clampScore(25, 20)).toBe(20))
   it('clamps to 0 minimum', () => expect(clampScore(-5, 20)).toBe(0))
   it('passes through valid score', () => expect(clampScore(15, 20)).toBe(15))
+  it('normalizes fractional model scores to bounded whole points', () => {
+    expect(clampScore(12.5, 20)).toBe(13)
+    expect(clampScore(19.99, 20)).toBe(20)
+    expect(clampScore(0.2, 20)).toBe(0)
+    expect(() => clampScore(Number.NaN, 20)).toThrow('Invalid score')
+  })
 })
 
 describe('getCampaignClassificationBand', () => {

@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
     const primaryReport = userReports.find(r => r.ideaId === primaryIdea.id && (!specificReportId || r.id === specificReportId))
     const primaryDeck = userDecks.find(d => d.ideaId === primaryIdea.id && (!specificDeckId || d.id === specificDeckId))
 
-    const overallScore = primaryReport?.overallScore ?? primaryDeck?.qualityScore ?? 'Not available'
+    const overallScore = (specificDeckId ? primaryDeck?.qualityScore : primaryReport?.overallScore ?? primaryDeck?.qualityScore) ?? 'Not available'
     const decision = primaryReport?.decision ?? 'Not available'
     const reportData = (primaryReport?.reportData || {}) as Record<string, unknown>
     const tamSamSom = reportData.tamSamSom as Record<string, unknown> | undefined

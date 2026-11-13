@@ -10,6 +10,7 @@ import { runInlineStep, type RunValidationStep } from './steps'
 import type { IdeaInput } from './schemas'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { loadFounderContext } from '@/lib/interview/context'
+import { normalizeValidationScores } from '@/lib/scoring'
 
 type GeneratedReport = Awaited<ReturnType<typeof runLiteValidation>> | NonNullable<Awaited<ReturnType<typeof runFullValidation>>>
 
@@ -54,6 +55,8 @@ export async function completeValidationJob(jobId: string, report: GeneratedRepo
     const [existing] = await tx.select().from(validationReports).where(eq(validationReports.jobId, jobId)).limit(1)
     if (existing) return existing.id
     if (job.status === 'failed') throw new Error('Validation job was already refunded')
+    // Also normalize cached reports produced before this release on queue replay.
+    report = normalizeValidationScores(report)
     const data = report as unknown as Record<string, unknown>
     const trail = data.agentTrail as { agents?: Record<string, string> } | undefined
     const partial = Object.values(trail?.agents ?? {}).some(status => status === 'failed' || status === 'partial')

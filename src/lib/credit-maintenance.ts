@@ -9,7 +9,7 @@ import { reapStaleValidationJobs } from './validation/jobs'
 export async function maintainCredits() {
   const now = new Date()
   await reapStaleValidationJobs()
-  const expired = await db.query.users.findMany({ where: or(lt(users.creditResetAt, now), isNull(users.creditResetAt)), columns: { id: true }, limit: 500 })
+  const expired = await db.query.users.findMany({ where: or(lt(users.creditResetAt, now), isNull(users.creditResetAt), isNull(users.creditCycleStartedAt)), columns: { id: true }, limit: 500 })
   let resetCount = 0
   for (const user of expired) if (await topUpMonthlyCredits(user.id)) resetCount++
   await pruneResearchHistory(now)

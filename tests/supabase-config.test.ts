@@ -36,4 +36,23 @@ describe('Supabase public key configuration', () => {
     expect((await proxy(new NextRequest('http://localhost/dashboard'))).status).toBe(503)
     expect(mocks.server).not.toHaveBeenCalled()
   })
+
+  it('marks owner-only report link responses private and no-store', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.example.com')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'public-key')
+    mocks.server.mockReturnValue({ auth: { getUser: async () => ({ data: { user: null } }) } })
+    const response = await proxy(new NextRequest('http://localhost/share/11111111-1111-4111-8111-111111111111'))
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('content-security-policy')).toContain('nonce-')
+  })
+
+  it('preserves the signed-in workspace destination so account recovery can complete registration', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://project.example.com')
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', 'public-key')
+    mocks.server.mockReturnValue({ auth: { getUser: async () => ({ data: { user: { id: 'new-auth-identity' } } }) } })
+    const response = await proxy(new NextRequest('https://validore.onrender.com/auth/signin?next=%2Fdashboard%2Freports%3Fsaved%3D123'))
+    expect(response.status).toBe(307)
+    expect(response.headers.get('location')).toBe('https://validore.onrender.com/dashboard/reports?saved=123')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+  })
 })

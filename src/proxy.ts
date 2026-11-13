@@ -59,4 +59,4 @@ export async function proxy(request: NextRequest) {
 }
 
 // Public pages, health probes, signed webhooks, and assets need no auth round trip.
-export const config = { matcher: ['/dashboard/:path*', '/auth/signin', '/auth/signup', '/api/:path*'] }
+export const config = { matcher: ['/dashboard/:path*', '/share/:path*', '/auth/signin', '/auth/signup', '/auth/complete-signup', '/api/:path*'] }

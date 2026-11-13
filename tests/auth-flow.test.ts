@@ -103,11 +103,13 @@ describe('Profile provisioning failures', () => {
     expect(response.headers.get('location')).not.toContain('private database details')
   })
 
-  it('clears the new session when an identity cannot be provisioned', async () => {
+  it('sends a new identity to registration completion without provisioning it', async () => {
     mocks.sync.mockResolvedValue(null)
     const response = await signin(formRequest('signin'))
-    expect(mocks.signout).toHaveBeenCalledWith({ scope: 'local' })
-    expect(response.headers.get('location')).toContain('needs+support')
+    expect(mocks.signout).not.toHaveBeenCalled()
+    expect(mocks.commit).toHaveBeenCalledOnce()
+    expect(response.headers.get('location')).toContain('/auth/complete-signup?next=')
+    expect(mocks.sync).toHaveBeenCalledWith({ id: 'auth-id', email: 'founder@example.com' })
   })
 })
 
@@ -173,10 +175,12 @@ describe('Supabase confirmation callbacks', () => {
     expect(mocks.commit).not.toHaveBeenCalled()
   })
 
-  it('clears the callback session when profile synchronization fails', async () => {
+  it('requires registration completion for a new callback identity', async () => {
     mocks.sync.mockResolvedValue(null)
     const response = await callback(new NextRequest('http://localhost:3001/auth/callback?code=test-code'))
-    expect(mocks.signout).toHaveBeenCalledWith({ scope: 'local' })
-    expect(response.headers.get('location')).toContain('auth_callback_failed')
+    expect(mocks.signout).not.toHaveBeenCalled()
+    expect(mocks.commit).toHaveBeenCalledOnce()
+    expect(response.headers.get('location')).toContain('/auth/complete-signup?next=')
+    expect(mocks.sync).toHaveBeenCalledWith({ id: 'auth-id', email: 'founder@example.com' })
   })
 })

@@ -6,8 +6,13 @@ import { resolve, join, sep } from 'node:path'
 import { mkdir, lstat, writeFile } from 'node:fs/promises'
 import { realpath as resolveRealpath } from 'node:fs'
 import { promisify } from 'node:util'
+import nextEnv from '@next/env'
 
 const realpath = promisify(resolveRealpath)
+// Inspect the same public settings used by the local build; host-injected
+// environment variables still take priority over .env.local.
+nextEnv.loadEnvConfig(process.cwd(), false)
+const expectedOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://validore.tech').origin
 
 await import('./prepare-standalone.mjs')
 const reservation = createServer()
@@ -63,6 +68,8 @@ try {
   assert(html.toLowerCase().includes('validore'), 'Landing page content missing')
   checksPassed.push('landing')
   assert(html.includes('rel="canonical"'), 'Landing canonical URL missing')
+  const canonical = html.match(/<link\b[^>]*rel="canonical"[^>]*href="([^"]+)"/)?.[1]
+  assert(canonical && new URL(canonical).origin === expectedOrigin, 'Landing canonical URL must match the deployed app origin')
   assert(html.includes('property="og:image"') && html.includes('summary_large_image'), 'Social metadata missing')
   assert.equal(home.headers.get('x-content-type-options'), 'nosniff', 'Content type protection missing')
   checksPassed.push('metadata-and-headers')
@@ -70,6 +77,20 @@ try {
   assert.equal(demo.status, 200, 'Sample report page failed')
   assert((await demo.text()).includes('Sample report.'), 'Sample must be clearly labeled')
   checksPassed.push('sample-report')
+  // Verify actual packaged browser resources, not only server-rendered HTML.
+  // Next.js standalone omits these by default; missing files break styling and
+  // hydration even when every public page returns 200.
+  const assets = [...new Set([...html.matchAll(/(?:src|href)="([^"?#]+\.(?:js|css))(?:\?[^\"]*)?"/g)]
+    .map(match => match[1]).filter(path => path.startsWith('/_next/static/')))]
+  assert(assets.some(path => path.endsWith('.js')) && assets.some(path => path.endsWith('.css')), 'Landing must reference JavaScript and CSS')
+  for (const path of assets) {
+    const response = await fetchPage(path)
+    assert.equal(response.status, 200, 'Browser asset failed: ' + path)
+    const mime = response.headers.get('content-type') || ''
+    assert(path.endsWith('.css') ? mime.includes('text/css') : /javascript/.test(mime), 'Browser asset has the wrong MIME type: ' + path)
+    assert((await response.arrayBuffer()).byteLength > 0, 'Browser asset is empty: ' + path)
+  }
+  checksPassed.push('browser-assets')
   const logo = await fetchPage('/logo/validore-favicon.svg')
   assert.equal(logo.status, 200, 'Public logo asset failed')
   assert((await logo.text()).includes('<svg'), 'Logo content is not SVG')
@@ -123,6 +144,13 @@ try {
     assert(response.headers.get('cache-control')?.includes('no-store'), 'Private data endpoint must not be cached')
   }
   checksPassed.push('api-request-and-privacy-boundaries')
+  for (const path of ['/share/not-a-uuid', '/share/11111111-1111-4111-8111-111111111111']) {
+    const response = await fetch(base + path, { redirect: 'manual', signal: AbortSignal.timeout(5000) })
+    assert([307, 308, 404].includes(response.status), 'Shared reports must require authentication: ' + path)
+    assert(response.headers.get('cache-control')?.includes('no-store'), 'Shared reports must not be cached')
+    if (response.status !== 404) assert(new URL(response.headers.get('location'), base).pathname === '/auth/signin', 'Private share must lead to sign-in')
+  }
+  checksPassed.push('private-share-boundary')
   const missing = await fetchPage('/missing-page-production-smoke')
   assert.equal(missing.status, 404, 'Missing page must return 404')
   assert((await missing.text()).includes('Page not found'), 'Missing-page recovery content missing')

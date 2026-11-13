@@ -28,6 +28,10 @@ Generate a random encryption key with a trusted password/secret manager or crypt
 
 The service-role env slot is reserved for administration; ordinary app routes use Supabase Auth plus the private PostgreSQL connection and do not require that key.
 
+New Google, email-confirmation, and direct Supabase identities complete `/auth/complete-signup` before an application profile or initial credits are created. This server POST verifies the authenticated email, current terms acceptance, permanent email address, and the shared `validore:registration_ip` weekly quota. It does not trust Auth user metadata as registration approval. Email signup has a separate pre-send quota to bound confirmation requests. Missing trusted ingress IP or Redis fails closed in production; configure `TRUSTED_PROXY_HOPS` for the actual ingress chain and `SIGNUP_MAX_PER_IP_WEEK` for the pilot network. Existing application profiles sign in without this new-account gate. Configure Supabase's own signup controls separately: the app admission gate prevents workspace/credit creation but does not disable the provider's public Auth endpoints.
+
+Report links under `/share/` require the authenticated application owner. Their responses are private/no-store and use generic non-indexable metadata; a random token alone does not authorize access.
+
 ## Database rollout
 
 Use a separate staging database and take a verified backup before changing an existing deployment. The repository does not contain a complete versioned baseline migration history. For a fresh development database, review Drizzle's proposed schema, apply npm run db:push, and run npm run db:seed. For an existing database, review/apply SQL deltas in order after the base tables exist:
@@ -37,6 +41,9 @@ Use a separate staging database and take a verified backup before changing an ex
 3. drizzle/0002_free_model_default.sql changes the default AI preference for new accounts to free_models; existing preferences are preserved. The API also normalizes legacy paid preferences while free-only mode is active.
 4. drizzle/0003_founder_interviews_research.sql adds private founder interviews and durable public research, indexes, bounded JSON state, RLS and browser-role revocations. **Apply before serving this application revision.** It does not modify existing customer records.
 5. drizzle/0004_rewarded_ads.sql adds the nonnegative earned balance, reward sessions, replay-protection index and browser-role restrictions. **Required before this release even with ads disabled**, because account queries include the new column. It does not rewrite plan or purchased balances.
+6. drizzle/0005_credit_cycle_start.sql adds explicit cycle start and monthly-pool consumption, preserving existing balances and ledger history. The additive backfill uses the known cycle's recorded monthly debits/refunds and a conservative balance-derived floor; it does not treat purchased/earned spending as monthly spending. Paid starts are reconciled from Stripe's exact period when credit operations next run. Apply before starting the updated application.
+
+Plan scores are rounded to bounded whole points before PostgreSQL persistence. Credit debits record cycle start, tier and subscription identity. Paid renewals and signed Stripe events use the same account lock and authoritative period start/end, so repeated events preserve spending in that period. An expired paid period must be reconciled before new plan credits become available; an unavailable provider returns a recoverable request failure. Purchased and earned credits retain their source on refunds. Verify delayed/duplicate renewal, 28-/30-/31-day periods and cancellation with staging billing before enabling sales.
 
 These files are reviewed SQL deltas, not an automatically journaled migration chain. The second migration targets Supabase roles and is required even after db:push because the explicit grants are not represented by that command. Unique indexes deliberately fail if duplicate historical payments/reports need reconciliation. Inspect those rows and reconcile accounting; do not automatically delete customer records to satisfy an index.
 

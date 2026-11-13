@@ -18,6 +18,9 @@ import { toDatabaseInteger } from '@/lib/numbers'
 import * as fin from '@/lib/financial'
 import { CAMPAIGN_WEIGHTS, clampScore, getCampaignClassificationBand } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
+import { moduleHistory } from '@/lib/module-history'
+
+export async function GET(request: NextRequest) { return moduleHistory(request, 'crowdfunding') }
 
 const CrowdfundingInputSchema = z.object({
   ideaId: z.string().uuid(),

@@ -9,10 +9,10 @@ export interface SupabaseAuthUser {
 
 /**
  * Synchronizes an authenticated Supabase user into the application's PostgreSQL users table.
- * If the user does not exist, a new record is created with tier 'free'.
+ * Only registration handlers that already checked consent and abuse limits may create a profile.
  * Existing identities are matched by supabaseId. Email cannot transfer account ownership.
  */
-export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
+export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser, options?: { createNew: boolean }) {
   if (!supabaseUser?.id) return null
 
   // 1. Check if user already exists by supabaseId
@@ -24,11 +24,17 @@ export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
     return existingBySupabaseId
   }
 
+  // A public Supabase session alone cannot claim a new workspace allowance.
+  // Read/export/billing callers and generic OAuth callbacks only resolve existing profiles.
+  if (!options?.createNew) return null
+
   const email = supabaseUser.email || `user-${supabaseUser.id}@validore.app`
 
   // A distinct auth identity must never inherit an account merely by matching email.
   const existingByEmail = await db.query.users.findFirst({ where: eq(users.email, email) })
-  if (existingByEmail) return null
+  // Another request for this same verified identity may have inserted the row
+  // after the first lookup. Resolve it without granting another allowance.
+  if (existingByEmail) return existingByEmail.supabaseId === supabaseUser.id ? existingByEmail : null
 
   // 3. Insert new row
   try {
@@ -56,7 +62,8 @@ export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser) {
 }
 
 /**
- * Convenience helper to get or auto-provision the database user for an authenticated Supabase user.
+ * Resolve an existing database user for an authenticated Supabase user.
+ * Kept under its historical name for callers; creation requires the registration gate.
  */
 export async function getOrCreateDbUser(supabaseUser: SupabaseAuthUser) {
   return syncUserToDatabase(supabaseUser)

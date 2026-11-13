@@ -15,8 +15,10 @@ const QuerySchema = z.object({
   ideaId: z.string().uuid().optional().nullable(),
   canvasId: z.string().uuid().optional().nullable(),
   deckId: z.uuid().optional().nullable(),
+  simulationId: z.uuid().optional().nullable(),
+  analysisId: z.uuid().optional().nullable(),
   documentKind: z.enum(['validation', 'canvas', 'pricing', 'crowdfunding', 'pitch']).optional().nullable(),
-}).refine(data => (data.reportId || data.ideaId || data.deckId) && (!data.canvasId || (data.ideaId && !data.reportId)), {
+}).refine(data => (data.reportId || data.ideaId || data.deckId || data.simulationId || data.analysisId) && (!data.canvasId || (data.ideaId && !data.reportId)), {
   message: "Either reportId or ideaId is required"
 })
 
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const reportIdParam = searchParams.get('reportId')
     const ideaIdParam = searchParams.get('ideaId')
-    const parsedQuery = QuerySchema.safeParse({ reportId: reportIdParam, ideaId: ideaIdParam, canvasId: searchParams.get('canvasId'), deckId: searchParams.get('deckId'), documentKind: searchParams.get('module') })
+    const parsedQuery = QuerySchema.safeParse({ reportId: reportIdParam, ideaId: ideaIdParam, canvasId: searchParams.get('canvasId'), deckId: searchParams.get('deckId'), simulationId: searchParams.get('simulationId'), analysisId: searchParams.get('analysisId'), documentKind: searchParams.get('module') })
     if (!parsedQuery.success) {
       return NextResponse.json(
         { error: 'Either reportId or ideaId parameter is required and must be a valid UUID' },
@@ -73,7 +75,7 @@ export async function GET(request: NextRequest) {
 
     if (!(await rateLimitCheck(user.id, 'export')).success) return NextResponse.json({ error: 'Please wait a minute before downloading another report.' }, { status: 429 })
 
-    if (documentKind === 'pitch' || parsedQuery.data.deckId) {
+    if (['pitch', 'pricing', 'crowdfunding'].includes(documentKind || '') || parsedQuery.data.deckId || parsedQuery.data.simulationId || parsedQuery.data.analysisId) {
       const loaded = await loadExportDocument(searchParams, user.id)
       if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
       return new NextResponse(['Category,Metric,Score_Or_Value,Details', ...loaded.document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, '')))].join('\r\n'), {

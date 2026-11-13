@@ -1,0 +1,35 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), account: vi.fn(), sync: vi.fn(), topup: vi.fn() }))
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: mocks.auth } }) }))
+vi.mock('@/db', () => ({ db: { query: { users: { findFirst: mocks.account } } } }))
+vi.mock('@/lib/auth-sync', () => ({ syncUserToDatabase: mocks.sync }))
+vi.mock('@/lib/credits', () => ({ topUpMonthlyCredits: mocks.topup }))
+import { GET } from '@/app/api/me/route'
+beforeEach(() => {
+  vi.resetAllMocks()
+  mocks.auth.mockResolvedValue({ data: { user: { id: 'public-identity', email: 'new@example.test' } } })
+  mocks.account.mockResolvedValue(undefined)
+  mocks.sync.mockResolvedValue(null)
+})
+describe('account registration recovery response', () => {
+  it('returns an explicit private recovery response without provisioning or credits', async () => {
+    const response = await GET()
+    expect(response.status).toBe(403)
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(await response.json()).toEqual({ code: 'registration_required', error: 'Complete your registration to open the workspace.', next: '/auth/complete-signup' })
+    expect(mocks.sync).toHaveBeenCalledExactlyOnceWith({ id: 'public-identity', email: 'new@example.test' })
+    expect(mocks.topup).not.toHaveBeenCalled()
+  })
+  it('keeps anonymous and unavailable storage responses distinct from incomplete registration', async () => {
+    mocks.auth.mockResolvedValueOnce({ data: { user: null } })
+    const anonymous = await GET()
+    expect(anonymous.status).toBe(401)
+    expect(await anonymous.json()).not.toHaveProperty('code')
+    mocks.account.mockRejectedValue(new Error('Storage unavailable'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const outage = await GET()
+    expect(outage.status).toBe(503)
+    expect(await outage.json()).not.toHaveProperty('code')
+    vi.restoreAllMocks()
+  })
+})

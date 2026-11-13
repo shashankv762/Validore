@@ -6,6 +6,7 @@ import { buildReportDocument, type ReportDocument } from './document'
 
 const Query = z.object({
   reportId: z.uuid().optional(), ideaId: z.uuid().optional(), canvasId: z.uuid().optional(), deckId: z.uuid().optional(),
+  simulationId: z.uuid().optional(), analysisId: z.uuid().optional(),
   module: z.enum(['validation', 'canvas', 'pricing', 'crowdfunding', 'pitch']).optional(),
 })
 type Loaded = { document: ReportDocument; filename: string } | { error: string; status: number }
@@ -13,9 +14,9 @@ type Loaded = { document: ReportDocument; filename: string } | { error: string; 
 export async function loadExportDocument(search: URLSearchParams, supabaseId: string): Promise<Loaded> {
   const parsed = Query.safeParse(Object.fromEntries(search))
   if (!parsed.success) return { error: 'Provide a valid report, idea or document reference.', status: 400 }
-  const { reportId, ideaId, canvasId, deckId } = parsed.data
-  const kind = parsed.data.module || (canvasId ? 'canvas' : deckId ? 'pitch' : 'validation')
-  if ((!reportId && !ideaId && !deckId) || (reportId && (kind !== 'validation' || canvasId || deckId)) || (canvasId && (kind !== 'canvas' || !ideaId)) || (deckId && kind !== 'pitch'))
+  const { reportId, ideaId, canvasId, deckId, simulationId, analysisId } = parsed.data
+  const kind = parsed.data.module || (canvasId ? 'canvas' : deckId ? 'pitch' : simulationId ? 'pricing' : analysisId ? 'crowdfunding' : 'validation')
+  if ((!reportId && !ideaId && !deckId && !simulationId && !analysisId) || [reportId, canvasId, deckId, simulationId, analysisId].filter(Boolean).length > 1 || (reportId && kind !== 'validation') || (canvasId && (kind !== 'canvas' || !ideaId)) || (deckId && kind !== 'pitch') || (simulationId && kind !== 'pricing') || (analysisId && kind !== 'crowdfunding'))
     return { error: 'Select one report or document to download.', status: 400 }
   const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, supabaseId) })
   if (!owner) return { error: 'Account not found.', status: 404 }
@@ -29,10 +30,10 @@ export async function loadExportDocument(search: URLSearchParams, supabaseId: st
     orderBy: [desc(leanCanvases.version)],
   })
   else if (kind === 'pricing') record = await db.query.pricingSimulations.findFirst({
-    where: and(eq(pricingSimulations.userId, owner.id), eq(pricingSimulations.ideaId, ideaId!)), orderBy: [desc(pricingSimulations.createdAt)],
+    where: and(eq(pricingSimulations.userId, owner.id), simulationId ? eq(pricingSimulations.id, simulationId) : undefined, ideaId ? eq(pricingSimulations.ideaId, ideaId) : undefined), orderBy: [desc(pricingSimulations.createdAt)],
   })
   else if (kind === 'crowdfunding') record = await db.query.crowdfundingAnalyses.findFirst({
-    where: and(eq(crowdfundingAnalyses.userId, owner.id), eq(crowdfundingAnalyses.ideaId, ideaId!)), orderBy: [desc(crowdfundingAnalyses.createdAt)],
+    where: and(eq(crowdfundingAnalyses.userId, owner.id), analysisId ? eq(crowdfundingAnalyses.id, analysisId) : undefined, ideaId ? eq(crowdfundingAnalyses.ideaId, ideaId) : undefined), orderBy: [desc(crowdfundingAnalyses.createdAt)],
   })
   else if (kind === 'pitch') record = await db.query.pitchDecks.findFirst({
     where: and(eq(pitchDecks.userId, owner.id), deckId ? eq(pitchDecks.id, deckId) : eq(pitchDecks.ideaId, ideaId!)), orderBy: [desc(pitchDecks.createdAt)],

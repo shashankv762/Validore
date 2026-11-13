@@ -11,6 +11,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs())
 
 describe('public marketing liveness check', () => {
+  it('identifies the Render runtime revision even when an old build override exists', async () => {
+    vi.stubEnv('BUILD_COMMIT_SHA', 'old-build')
+    vi.stubEnv('RENDER_GIT_COMMIT', 'current-render-revision')
+    expect(await (await GET(request())).json()).toMatchObject({ commit: 'current-render-revision' })
+    vi.stubEnv('RENDER_GIT_COMMIT', '')
+    expect(await (await GET(request())).json()).toMatchObject({ commit: 'old-build' })
+  })
   it.each(['https://validore.tech', 'https://www.validore.tech'])('allows only a credential-free health response for %s', async origin => {
     const response = await GET(request(origin))
     expect(response.status).toBe(200)

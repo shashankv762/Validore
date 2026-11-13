@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  checks:
+    name: Lint, types and regression tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --include=dev --no-fund
+      - run: npm run verify:release-files
+      - run: npm run ci
+      - name: Check the independent marketing JavaScript
+        run: npm --prefix 'static webpage' run check
+
+  postgres:
+    name: PostgreSQL concurrency and migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: validore_test
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: validore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --include=dev --no-fund
+      - name: Test real PostgreSQL in a disposable schema
+        run: npm run test:postgres
+        env:
+          TEST_DATABASE_URL: postgresql://validore_test:ci-local-only@127.0.0.1:5432/validore_test
+
+  production:
+    name: Production build, assets and dependency audit
+    needs: [checks, postgres]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BUILD_PROFILE: release
+      # Synthetic public Auth settings only. No production secrets are used or
+      # hosted/provider calls made by these build and smoke checks.
+      NEXT_PUBLIC_APP_URL: https://validore.onrender.com
+      NEXT_PUBLIC_SUPABASE_URL: https://validore-ci-fixture.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_fixture_only
+      BUILD_COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --include=dev --no-fund
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build:deploy
+      - run: npm run smoke:production
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: production-smoke
+          path: reports/production-smoke.json
+          if-no-files-found: ignore
+          retention-days: 7

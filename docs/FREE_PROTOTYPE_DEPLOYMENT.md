@@ -63,7 +63,7 @@ npm audit --omit=dev
 
 ## 4. Prepare PostgreSQL before deploying the new code
 
-**Migration `drizzle/0004_rewarded_ads.sql` is mandatory even with ads disabled.** Application account queries now include `reward_credits`. Deploying without that column will break account loading.
+**Apply required migrations through `drizzle/0005_credit_cycle_start.sql`, even with ads disabled.** Account queries include earned credits and explicit cycle accounting. Deploying without those columns will break account loading.
 
 For an **existing database**:
 
@@ -75,6 +75,7 @@ For an **existing database**:
    - `drizzle/0002_free_model_default.sql`
    - `drizzle/0003_founder_interviews_research.sql`
    - `drizzle/0004_rewarded_ads.sql`
+   - `drizzle/0005_credit_cycle_start.sql`
 4. Point your local `DATABASE_URL` at the intended database and run `npm run db:verify`. This command reads configuration from `.env.local`; check the target before invoking it.
 
 For a **new, empty Supabase project**, first review Drizzle's proposed schema and run `npm run db:push`, then `npm run db:seed` for the plans and synthetic reference campaigns. Apply the reviewed SQL deltas above as well, particularly the browser-role revocations. The seed is for setup; do not use it as a repair command for an existing customer database.
@@ -179,7 +180,7 @@ Follow [rewarded ads, payout and crypto setup](REWARDED_ADS.md). Default caps ar
 - Let the service sleep naturally, revisit it and record the cold-start experience. Inspect Render memory during a validation and export. 512 MB must be measured against your workload, not assumed sufficient for every concurrent task.
 - After ad approval, use the provider's sanctioned test mode to check completion, skip, no fill, duplicate delivery and one `AD_REWARD` entry. Then verify real inventory under the provider's testing rules.
 
-The local suite and browser fixtures cover application behavior; they do not certify your external accounts, real ads or a public deployment. This release was prepared locally and is not published by these instructions.
+The local suite and browser fixtures cover application behavior. Verify the GitHub checks for the selected revision and the hosted authentication, queue, report persistence and exports after deployment. These setup instructions do not themselves publish a release or verify real ad delivery.
 
 ## 10. Keep the pilot free and recoverable
 
@@ -197,7 +198,7 @@ If quotas, sleep or memory become a problem, the honest next step is a measured 
 | --- | --- |
 | `Cannot find module .../scripts/ci-config.mjs` | Replace the whole saved Build Command with the command in section 5, or deploy the restored `ci-config.mjs`, `test-ci.mjs` and updated `package.json` together. Root directory must be the app repository root. |
 | First request shows a loading page | Expected Render Free wake-up; allow about a minute |
-| Credits/account API fails after release | Apply migration 0004; verify PostgreSQL URL and grants |
+| Credits/account API fails after release | Apply required migrations through 0005; verify PostgreSQL URL and grants |
 | Signup says temporarily unavailable | Redis URL/token, trusted client IP and SMTP configuration |
 | Fourth or later signup from one network is blocked | Use the reviewed pilot setting `SIGNUP_MAX_PER_IP_WEEK=10`; attempts and provider limits still apply |
 | Google says redirect mismatch | Google's URI must be Supabase's `/auth/v1/callback`; Supabase must allow the app callback |

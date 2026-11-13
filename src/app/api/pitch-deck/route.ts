@@ -15,6 +15,9 @@ import { loadFounderContext } from '@/lib/interview/context'
 import { z } from 'zod'
 import { PITCH_WEIGHTS, clampScore } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
+import { moduleHistory } from '@/lib/module-history'
+
+export async function GET(request: NextRequest) { return moduleHistory(request, 'pitch-deck') }
 
 const PitchDeckInputSchema = z.object({
   ideaId: z.string().uuid(),

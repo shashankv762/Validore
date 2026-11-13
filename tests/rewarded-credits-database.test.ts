@@ -39,8 +39,8 @@ beforeAll(async () => {
       is_founding_member boolean DEFAULT false, crowdfunding_credits integer NOT NULL DEFAULT 0,
       pitch_deck_credits integer NOT NULL DEFAULT 0, validations_this_month integer NOT NULL DEFAULT 0,
       validation_reset_at timestamp, credit_balance integer NOT NULL DEFAULT 0,
-      purchased_credits integer NOT NULL DEFAULT 0, credits_used_this_cycle integer NOT NULL DEFAULT 0,
-      credit_reset_at timestamp, preferred_ai_provider text DEFAULT 'free_models', encrypted_openrouter_key text,
+      purchased_credits integer NOT NULL DEFAULT 0, credits_used_this_cycle integer NOT NULL DEFAULT 0, monthly_credits_used_this_cycle integer NOT NULL DEFAULT 0,
+      credit_reset_at timestamp, credit_cycle_started_at timestamp, preferred_ai_provider text DEFAULT 'free_models', encrypted_openrouter_key text,
       created_at timestamp DEFAULT now(), updated_at timestamp DEFAULT now()
     );
     CREATE TABLE credit_ledger (
@@ -55,7 +55,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   await state.client.exec('TRUNCATE credit_ledger, rewarded_ad_sessions, users CASCADE')
   await db.insert(users).values([owner, other].map(id => ({ id, email: id + '@example.test', supabaseId: id,
-    creditBalance: 100, purchasedCredits: 25, creditResetAt: new Date(Date.now() + 29 * 86_400_000) })))
+    creditBalance: 100, purchasedCredits: 25, creditCycleStartedAt: new Date(Date.now() - 86_400_000), creditResetAt: new Date(Date.now() + 29 * 86_400_000) })))
 })
 afterAll(async () => { await state.client.close() })
 

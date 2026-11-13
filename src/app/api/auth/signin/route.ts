@@ -25,8 +25,13 @@ export async function POST(req: NextRequest) {
       throw error
     }
     if (!profile) {
-      await supabase.auth.signOut({ scope: 'local' })
-      return authFormResponse(req, '/auth/signin', 'error', 'This account needs support before it can access the workspace.', 409, next)
+      commitCookies()
+      const destination = new URL('/auth/complete-signup', authOrigin(req))
+      destination.searchParams.set('next', safeNextPath(next, destination.origin))
+      if (req.headers.get('content-type')?.includes('application/json')) {
+        return NextResponse.json({ error: 'Complete your registration before opening the workspace.', next: destination.pathname + destination.search }, { status: 403 })
+      }
+      return NextResponse.redirect(destination, 303)
     }
     commitCookies()
     if (!req.headers.get('content-type')?.includes('application/json')) {

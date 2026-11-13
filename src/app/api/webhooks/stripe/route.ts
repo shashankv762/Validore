@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { PaymentMetadataSchema, fulfillCreditPurchase } from '@/lib/credit-fulfillment'
-import { TIER_MONTHLY_CREDITS } from '@/lib/credit-costs'
+import { reconcileStripeCredits } from '@/lib/subscription-credits'
 
 export async function POST(req: Request) {
   const secret = process.env.STRIPE_SECRET_KEY
@@ -30,30 +30,13 @@ export async function POST(req: Request) {
       }
     } else if (event.type === 'customer.subscription.created' || event.type === 'customer.subscription.updated' || event.type === 'customer.subscription.deleted') {
       // Retrieve current provider state so delayed, out-of-order events cannot restore an old plan.
-      const subscription = await stripe.subscriptions.retrieve(event.data.object.id)
-      const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id
-      const item = subscription.items.data[0]
-      const priceId = item?.price.id
-      const active = subscription.status === 'active' || subscription.status === 'trialing'
-      let tier: 'free' | 'premium' | 'max_premium' = 'free'
-      if (active && priceId && priceId === process.env.STRIPE_PREMIUM_PRICE_ID) tier = 'premium'
-      if (active && priceId && priceId === process.env.STRIPE_MAX_PREMIUM_PRICE_ID) tier = 'max_premium'
-      const periodEnd = item?.current_period_end ? new Date(item.current_period_end * 1000) : null
+      const customer = event.data.object.customer
+      const customerId = typeof customer === 'string' ? customer : customer.id
       await db.transaction(async (tx) => {
         const [user] = await tx.select().from(users).where(eq(users.stripeCustomerId, customerId)).for('update')
         if (!user) return
-        if (user.subscriptionId && user.subscriptionId !== subscription.id) {
-          if (!active) return // An old cancellation must not cancel the replacement plan.
-          const previous = await stripe.subscriptions.retrieve(user.subscriptionId)
-          if (previous.status === 'active' || previous.status === 'trialing') return
-        }
-        const newCycle = active && periodEnd && (user.subscriptionId !== subscription.id || user.tier !== tier || !user.creditResetAt || periodEnd > user.creditResetAt)
-        await tx.update(users).set({
-          tier, subscriptionId: subscription.id, subscriptionStatus: subscription.status,
-          cancelAtPeriodEnd: subscription.cancel_at_period_end, currentPeriodEnd: periodEnd,
-          ...(tier === 'free' && user.tier !== 'free' ? { creditBalance: Math.min(user.creditBalance, TIER_MONTHLY_CREDITS.free) } : {}),
-          ...(newCycle ? { creditBalance: TIER_MONTHLY_CREDITS[tier], creditsUsedThisCycle: 0, creditResetAt: periodEnd } : {}),
-        }).where(eq(users.id, user.id))
+        const subscription = await stripe.subscriptions.retrieve(event.data.object.id)
+        await reconcileStripeCredits(tx, user, subscription)
       })
     }
   } catch (error) {

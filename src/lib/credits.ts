@@ -1,8 +1,10 @@
 import { db } from '@/db'
 import { users, creditLedger } from '@/db/schema'
-import { eq, and, gt, like, sql } from 'drizzle-orm'
+import { eq, and, like, sql } from 'drizzle-orm'
 import { CREDIT_COSTS, TIER_MONTHLY_CREDITS } from './credit-costs'
 import { allocateCredits, canFundExtraLite, totalCredits } from './credit-allocation'
+import { reconcileStripeCredits } from './subscription-credits'
+import { stripeBillingClient } from './billing'
 
 function assertAmount(amount: number, allowZero = false) {
   if (!Number.isSafeInteger(amount) || amount < (allowZero ? 0 : 1)) {
@@ -12,14 +14,18 @@ function assertAmount(amount: number, allowZero = false) {
 
 export async function checkCredits(userId: string, cost: number): Promise<{ allowed: boolean; balance: number }> {
   assertAmount(cost, true)
-  const user = await db.query.users.findFirst({
+  let user = await db.query.users.findFirst({
     where: eq(users.id, userId),
-    columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, tier: true },
+    columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true },
   })
   if (!user) return { allowed: false, balance: 0 }
-  const monthlyBalance = !user.creditResetAt || user.creditResetAt <= new Date()
-    ? TIER_MONTHLY_CREDITS[user.tier] : user.creditBalance
-  const balance = totalCredits({ ...user, creditBalance: monthlyBalance })
+  if (user.tier !== 'free' || !user.creditResetAt || user.creditResetAt <= new Date() || !user.creditCycleStartedAt) {
+    await topUpMonthlyCredits(userId)
+    user = await db.query.users.findFirst({ where: eq(users.id, userId),
+      columns: { creditBalance: true, purchasedCredits: true, rewardCredits: true, creditResetAt: true, creditCycleStartedAt: true, tier: true } })
+    if (!user) return { allowed: false, balance: 0 }
+  }
+  const balance = totalCredits(user)
   return { allowed: balance >= cost, balance }
 }
 
@@ -40,11 +46,14 @@ export async function deductCredits(userId: string, cost: number, action: string
       purchasedCredits: sql`${users.purchasedCredits} - ${purchased}`,
       rewardCredits: sql`${users.rewardCredits} - ${reward}`,
       creditsUsedThisCycle: sql`${users.creditsUsedThisCycle} + ${cost}`,
+      monthlyCreditsUsedThisCycle: sql`${users.monthlyCreditsUsedThisCycle} + ${monthly}`,
       ...(action === 'VALIDATION' ? { validationsThisMonth: sql`${users.validationsThisMonth} + 1` } : {}),
     }).where(eq(users.id, userId))
     await tx.insert(creditLedger).values({
       userId, amount: -cost, transactionType: action,
-      description: JSON.stringify({ entityId: entityId ?? null, monthly, purchased, reward }),
+      description: JSON.stringify({ entityId: entityId ?? null, monthly, purchased, reward,
+        cycleStartedAt: user.creditCycleStartedAt?.toISOString() ?? null,
+        cycleTier: user.tier, cycleSubscriptionId: user.subscriptionId }),
     })
     return true
   }
@@ -54,9 +63,26 @@ export async function deductCredits(userId: string, cost: number, action: string
 /** Reset a due cycle once, using the current plan under the same user lock. */
 async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inferSelect) {
   const now = new Date()
-  if (user.creditResetAt && user.creditResetAt > now) return user
+  if (user.creditResetAt && user.creditResetAt > now && user.creditCycleStartedAt) return settlePendingMonthlyRefunds(tx, user)
+  if (user.tier !== 'free') {
+    if (!user.stripeCustomerId || !user.subscriptionId?.startsWith('sub_')) {
+      // Disabled legacy billing must not receive unconfirmed renewals.
+      if (user.creditResetAt && user.creditResetAt > now) return user
+      const values = { creditBalance: 0 }
+      await tx.update(users).set(values).where(eq(users.id, user.id))
+      return { ...user, ...values }
+    }
+    const subscription = await stripeBillingClient().subscriptions.retrieve(user.subscriptionId)
+    return settlePendingMonthlyRefunds(tx, await reconcileStripeCredits(tx, user, subscription, now))
+  }
+  if (user.creditResetAt && user.creditResetAt > now) {
+    const values = { creditCycleStartedAt: new Date(user.creditResetAt.getTime() - 30 * 86_400_000) }
+    await tx.update(users).set(values).where(eq(users.id, user.id))
+    return { ...user, ...values }
+  }
   const values = {
-    creditBalance: TIER_MONTHLY_CREDITS[user.tier], creditsUsedThisCycle: 0,
+    creditBalance: TIER_MONTHLY_CREDITS[user.tier], creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
+    creditCycleStartedAt: now,
     creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
   }
   await tx.update(users).set(values).where(eq(users.id, user.id))
@@ -87,6 +113,34 @@ export async function addPurchasedCredits(userId: string, amount: number): Promi
 /** Refund an unsuccessful validation once, restoring the original credit sources. */
 export type CreditTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0]
 
+/** Legacy paid debits may predate the exact cycle start. Preserve their monthly
+ * refund until a normal credit operation hydrates authoritative billing state. */
+async function settlePendingMonthlyRefunds(tx: CreditTransaction, user: typeof users.$inferSelect) {
+  if (user.tier === 'free' || !user.creditCycleStartedAt || !user.creditResetAt) return user
+  const pending = await tx.select().from(creditLedger).where(and(eq(creditLedger.userId, user.id),
+    eq(creditLedger.transactionType, 'VALIDATION_MONTHLY_REFUND_PENDING')))
+  let current = user
+  for (const entry of pending) {
+    const request = JSON.parse(entry.description!) as { monthly: number; debit: number; cycleEndsAt: string; spentAt: string; subscriptionId: string | null }
+    const sameSubscription = request.subscriptionId === current.subscriptionId
+    const cycleResolved = request.cycleEndsAt === current.creditResetAt!.toISOString()
+    if (sameSubscription && !cycleResolved && new Date(request.cycleEndsAt) > current.creditCycleStartedAt!) continue
+    const sameCycle = sameSubscription && cycleResolved &&
+      new Date(request.spentAt) >= current.creditCycleStartedAt! && current.creditResetAt! > new Date()
+    const consumed = Math.max(current.monthlyCreditsUsedThisCycle, TIER_MONTHLY_CREDITS[current.tier] - current.creditBalance, 0)
+    const remaining = Math.max(0, consumed - (sameCycle ? request.monthly : 0))
+    const amount = sameCycle ? Math.max(0, TIER_MONTHLY_CREDITS[current.tier] - remaining - current.creditBalance) : 0
+    if (sameCycle) {
+      const values = { creditBalance: current.creditBalance + amount, monthlyCreditsUsedThisCycle: remaining,
+        creditsUsedThisCycle: Math.max(0, current.creditsUsedThisCycle - request.debit) }
+      await tx.update(users).set(values).where(eq(users.id, user.id))
+      current = { ...current, ...values }
+    }
+    await tx.update(creditLedger).set({ transactionType: 'VALIDATION_MONTHLY_REFUND_SETTLED', amount }).where(eq(creditLedger.id, entry.id))
+  }
+  return current
+}
+
 export async function refundValidationCredits(userId: string, jobId: string, transaction?: CreditTransaction): Promise<void> {
   if (!/^[a-f0-9-]{36}$/i.test(jobId)) throw new Error('Invalid refund job reference')
   const refund = async (tx: CreditTransaction) => {
@@ -102,18 +156,28 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
       like(creditLedger.description, '%"entityId":"' + jobId + '"%'),
     )).limit(1)
     if (!spend?.description) return
-    const sources = JSON.parse(spend.description) as { monthly: number; purchased: number; reward?: number }
+    const sources = JSON.parse(spend.description) as { monthly: number; purchased: number; reward?: number;
+      cycleStartedAt?: string | null; cycleTier?: string; cycleSubscriptionId?: string | null }
     const reward = sources.reward ?? 0 // Older ledger entries predate rewarded credits.
     assertAmount(sources.monthly, true)
     assertAmount(sources.purchased, true)
     assertAmount(reward, true)
     if (sources.monthly + sources.purchased + reward !== -spend.amount) throw new Error('Refund ledger mismatch')
-    const user = await applyDueCycleReset(tx, lockedUser)
     const now = new Date()
-    const cycleStart = user.creditResetAt ? new Date(user.creditResetAt.getTime() - 30 * 86_400_000) : null
-    const sameCycle = !spend.createdAt || !cycleStart || spend.createdAt >= cycleStart
+    // Returning nonexpiring sources never depends on payment-provider access.
+    // Paid periods are already authoritative in this row; only missing legacy
+    // starts need hydration, and that lookup is deliberately outside refunds.
+    const user = lockedUser.tier === 'free' ? await applyDueCycleReset(tx, lockedUser) : lockedUser
+    const cycleStart = user.creditCycleStartedAt
+    const sameCycle = Boolean(user.creditResetAt && user.creditResetAt > now) && (sources.cycleStartedAt
+      ? sources.cycleStartedAt === cycleStart?.toISOString() &&
+        (sources.cycleSubscriptionId === undefined || sources.cycleSubscriptionId === user.subscriptionId)
+      : Boolean(spend.createdAt && cycleStart && spend.createdAt >= cycleStart))
     const sameValidationMonth = !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
-    const monthlyRefund = sameCycle ? Math.min(sources.monthly, Math.max(0, TIER_MONTHLY_CREDITS[user.tier] - user.creditBalance)) : 0
+    const consumedMonthly = Math.max(user.monthlyCreditsUsedThisCycle ?? 0,
+      TIER_MONTHLY_CREDITS[user.tier] - user.creditBalance, 0)
+    const remainingConsumed = Math.max(0, consumedMonthly - (sameCycle ? sources.monthly : 0))
+    const monthlyRefund = sameCycle ? Math.max(0, TIER_MONTHLY_CREDITS[user.tier] - remainingConsumed - user.creditBalance) : 0
     const refundedAmount = monthlyRefund + sources.purchased + reward
     // Expired plan credits cannot refill a new cycle or erase its spending.
     // Purchased credits never expire and always return to their original pool.
@@ -121,10 +185,17 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
       creditBalance: sql`least(${TIER_MONTHLY_CREDITS[user.tier]}, ${users.creditBalance} + ${monthlyRefund})`,
       purchasedCredits: sql`${users.purchasedCredits} + ${sources.purchased}`,
       rewardCredits: sql`${users.rewardCredits} + ${reward}`,
-      creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${sameCycle ? refundedAmount : 0})`,
+      monthlyCreditsUsedThisCycle: remainingConsumed,
+      creditsUsedThisCycle: sql`greatest(0, ${users.creditsUsedThisCycle} - ${sameCycle ? sources.monthly + sources.purchased + reward : 0})`,
       validationsThisMonth: sql`greatest(0, ${users.validationsThisMonth} - ${sameValidationMonth ? 1 : 0})`,
     }).where(eq(users.id, userId))
     await tx.insert(creditLedger).values({ userId, amount: refundedAmount, transactionType: 'VALIDATION_REFUND', description: reference })
+    if (user.tier !== 'free' && !cycleStart && sources.monthly > 0 && user.creditResetAt && spend.createdAt) {
+      await tx.insert(creditLedger).values({ userId, amount: 0, transactionType: 'VALIDATION_MONTHLY_REFUND_PENDING',
+        description: JSON.stringify({ jobId, monthly: sources.monthly, debit: -spend.amount,
+          cycleEndsAt: user.creditResetAt.toISOString(), spentAt: spend.createdAt.toISOString(),
+          subscriptionId: sources.cycleSubscriptionId ?? user.subscriptionId }) })
+    }
   }
   if (transaction) await refund(transaction)
   else await db.transaction(refund)

@@ -30,13 +30,15 @@ describe('legacy Render build configuration entry point', () => {
     expect(() => validateBuildConfig({ ...release(), NEXT_PUBLIC_SUPABASE_ANON_KEY: key }, '24.14.1')).toThrow('private Supabase key')
   })
 
-  it.each(['', 'http://validore.onrender.com', 'https://localhost', 'https://user:password@validore.onrender.com'])('rejects an invalid release origin without exposing its value', value => {
+  it.each(['', 'http://validore.onrender.com', 'https://localhost', 'https://user:password@validore.onrender.com',
+    'https://validore.onrender.com/dashboard', 'https://validore.onrender.com?token=hidden',
+    'https://validore.onrender.com#fragment', 'https://validore.localhost'])('rejects an invalid release origin without exposing its value', value => {
     expect(() => validateBuildConfig({ ...release(), NEXT_PUBLIC_APP_URL: value }, '24.14.1')).toThrow('NEXT_PUBLIC_APP_URL')
     expect(() => validateBuildConfig({ ...release(), NEXT_PUBLIC_SUPABASE_URL: value }, '24.14.1')).toThrow('NEXT_PUBLIC_SUPABASE_URL')
   })
 
   it('rejects missing or malformed public keys for a release', () => {
-    for (const key of ['', 'invalid-key', jwt('authenticated')]) {
+    for (const key of ['', 'invalid-key', 'sb_publishable_', 'sb_publishable_with spaces', jwt('authenticated')]) {
       expect(() => validateBuildConfig({ ...release(), NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: key }, '24.14.1')).toThrow('public Supabase anon/publishable key')
     }
   })

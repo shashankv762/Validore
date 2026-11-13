@@ -16,6 +16,8 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { totalCredits } from '@/lib/credit-allocation'
 import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
+import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
+import { calculateLTVCACRatio } from '@/lib/financial'
 
 const PricingReport = dynamic(() => import('./PricingReport').then(module => module.PricingReport), {
   loading: () => <p role="status" className="p-6 text-sm">Loading your pricing report…</p>,
@@ -27,7 +29,7 @@ const breakEven = (fc: number, p: number, vc: number) => vc < p ? fc / (p - vc) 
 const gm = (p: number, vc: number) => p > 0 ? ((p - vc) / p) * 100 : 0
 const muPct = (p: number, c: number) => c > 0 ? ((p - c) / c) * 100 : 0
 const ltvFn = (margin: number, months: number) => margin * months
-const ltvCacFn = (l: number, cac: number) => cac > 0 ? l / cac : 0
+const ltvCacFn = calculateLTVCACRatio
 const cacPaybackFn = (cac: number, margin: number) => margin > 0 ? cac / margin : Infinity
 const fmt = (n: number) => n > 1e6 ? `₹${(n / 1e6).toFixed(1)}M` : n > 1e3 ? `₹${(n / 1e3).toFixed(0)}K` : `₹${n.toFixed(0)}`
 
@@ -147,6 +149,7 @@ export default function PricingPage() {
   const balance = user ? totalCredits(user) : 0
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState<PricingResult | null>(null)
+  const [simulationId, setSimulationId] = useState<string | null>(null)
 
   const [price, setPrice] = useState(1000)
   const [customers, setCustomers] = useState(100)
@@ -156,8 +159,16 @@ export default function PricingPage() {
   const [cac, setCac] = useState(500)
   const [retention, setRetention] = useState(18)
   const [showPowerBIGuide, setShowPowerBIGuide] = useState(false)
+  const history = useSavedModuleHistory('pricing', record => {
+    const inputs = record.reportData?.inputs
+    if (inputs) {
+      setPrice(inputs.sellingPrice); setCustomers(inputs.expectedCustomers); setVc(inputs.variableCostPerUnit)
+      setFc(inputs.fixedCostMonthly); setDiscount(inputs.discountPercent); setCac(inputs.estimatedCac); setRetention(inputs.retentionMonths)
+    }
+    setSelectedIdeaId(record.ideaId); setSimulationId(record.id); setAiResult(record.reportData)
+  })
 
-  const updateInput = (set: (value: number) => void, value: number) => { set(value); setAiResult(null) }
+  const updateInput = (set: (value: number) => void, value: number) => { set(value); setAiResult(null); setSimulationId(null); history.clear() }
 
   const metrics = useMemo(() => {
     const margin = cm(price, vc)
@@ -229,6 +240,7 @@ export default function PricingPage() {
       const data = await res.json()
       if (res.ok) {
         setAiResult(data.result)
+        setSimulationId(data.simulationId); history.open(data.simulationId); history.refresh()
         toast.success('AI pricing analysis complete!')
       } else {
         toast.error(data.error ?? 'AI analysis failed')
@@ -243,9 +255,10 @@ export default function PricingPage() {
 
   if (resources.loading || resources.error) return <WorkspaceResourceStatus {...resources} />
 
-  if (!isPremium) {
+  if (!isPremium && !aiResult) {
     return (
       <div className="max-w-2xl mx-auto mt-20 text-center card-angular p-12">
+        <SavedModuleHistory history={history} />
         <span className="text-4xl mb-4 block">🔒</span>
         <h2 className="text-xl font-light text-[#141923] mb-2">Pricing Simulator — Premium Feature</h2>
         <p className="text-sm text-[#364152] opacity-60 mb-6">
@@ -270,7 +283,7 @@ export default function PricingPage() {
   const beUnits = isFinite(metrics.be) ? metrics.be : Infinity
   const beScore = Math.min(10, beUnits <= customers * 0.5 ? 10 : Math.max(0, Math.round((1 - beUnits / (customers * 2)) * 10)))
   const ltvCac = metrics.ratio
-  const cacLtvScore = Math.min(10, ltvCac >= 3 ? 10 : Math.max(0, Math.round((ltvCac / 3) * 10)))
+  const cacLtvScore = Number.isFinite(ltvCac) ? Math.min(10, ltvCac >= 3 ? 10 : Math.max(0, Math.round((ltvCac / 3) * 10))) : 0
 
   const factorScores = [
     { label: 'Willingness to Pay', score: aiResult?.aiAnalysis?.customerWtpScore ?? 0, maxScore: 20 },
@@ -298,6 +311,7 @@ export default function PricingPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
+      <SavedModuleHistory history={history} disabled={analyzing} />
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-light text-[#141923] mb-1">Smart Pricing Simulator</h1>
@@ -308,20 +322,21 @@ export default function PricingPage() {
             </span>.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
           {aiResult && <ExportToolbar
             ideaId={selectedIdeaId}
+            simulationId={simulationId ?? undefined}
             deckType="pricing"
             formats={['pdf', 'docx', 'csv', 'pptx']}
             compact={true}
           />}
           <label htmlFor="pricing-idea" className="sr-only">Idea for pricing analysis</label>
-          <select id="pricing-idea" value={selectedIdeaId} disabled={analyzing} onChange={e => { setSelectedIdeaId(e.target.value); setAiResult(null) }}
+          <select id="pricing-idea" value={selectedIdeaId} disabled={analyzing} onChange={e => { setSelectedIdeaId(e.target.value); setAiResult(null); setSimulationId(null); history.clear() }}
             className="max-w-full px-3 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:border-[#E0A526] focus:outline-none">
             <option value="">— Idea for AI analysis —</option>
             {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <button onClick={runAi} disabled={analyzing || !selectedIdeaId || balance < CREDIT_COSTS.PRICING}
+          <button onClick={runAi} disabled={analyzing || !isPremium || !selectedIdeaId || balance < CREDIT_COSTS.PRICING}
             className="px-5 py-2 text-sm font-medium text-[#141923] disabled:opacity-40 cursor-pointer shadow-xs"
             style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}>
             {analyzing ? 'Analysing…' : `AI analysis · ${CREDIT_COSTS.PRICING} credits`}
@@ -356,7 +371,7 @@ export default function PricingPage() {
               { l: 'Monthly Revenue', v: fmt(metrics.revenue), s: 'ASSUMPTION' },
               { l: 'Monthly Profit', v: fmt(metrics.profit), s: metrics.profit >= 0 ? '✓ Profitable' : '✗ Loss', c: metrics.profit >= 0 ? '#22c55e' : '#ef4444' },
               { l: 'LTV', v: fmt(metrics.ltv), s: `${retention} mo retention (ASSUMPTION)` },
-              { l: 'LTV:CAC', v: metrics.ratio.toFixed(2), s: metrics.ratio >= 3 ? '✓ Healthy (≥3)' : '⚠ Low (<3)', c: metrics.ratio >= 3 ? '#22c55e' : '#f97316' },
+              { l: 'LTV:CAC', v: Number.isFinite(metrics.ratio) ? metrics.ratio.toFixed(2) : 'Not available', s: !Number.isFinite(metrics.ratio) ? 'Enter acquisition cost to assess this ratio' : metrics.ratio >= 3 ? '✓ Healthy (≥3)' : '⚠ Low (<3)', c: !Number.isFinite(metrics.ratio) ? '#64748b' : metrics.ratio >= 3 ? '#22c55e' : '#f97316' },
               { l: 'CAC Payback', v: isFinite(metrics.payback) ? `${metrics.payback.toFixed(1)} mo` : '∞', s: 'ASSUMPTION' },
               { l: 'Markup %', v: `${metrics.markup.toFixed(1)}%`, s: '≠ Gross Margin %' },
               {

@@ -4,7 +4,7 @@
 
 Validore helps founders examine startup ideas, market assumptions, pricing, and launch plans. It combines a guided idea form, specialist AI agents, saved reports, Lean Canvas versions, pricing simulation, crowdfunding analysis, pitch decks, and exports. AI conclusions are estimates; source matching establishes citation provenance, not proof of demand.
 
-The requested deployment now has **two independent sites**: the marketing website at `https://validore.tech`, entirely inside [static webpage](static%20webpage/README.md), and the full SaaS at `https://validore.onrender.com`. The static folder includes Vercel and Cloudflare Pages configuration, visitor-triggered wake-up checks, and step-by-step publishing instructions. Vercel Hobby excludes commercial use; Cloudflare Pages Free is the free commercial option for this marketing site. The [Render Free guide](docs/FREE_PROTOTYPE_DEPLOYMENT.md) covers the ten-user backend and its external services. The [Cloudflare Workers guide](docs/GO_LIVE.md) is an alternative full-app deployment, not part of this split setup. These changes are prepared locally and have not been deployed.
+The deployment uses **two independent sites**: the marketing website at `https://validore.tech`, entirely inside [static webpage](static%20webpage/README.md), and the full SaaS at `https://validore.onrender.com`. The static folder includes Vercel and Cloudflare Pages configuration, visitor-triggered wake-up checks, and publishing instructions. The [Render Free guide](docs/FREE_PROTOTYPE_DEPLOYMENT.md) covers the backend and its external services. The [Cloudflare Workers guide](docs/GO_LIVE.md) describes the alternative full-app deployment. Check `/api/health` on the SaaS for the live release revision.
 
 Operator: **Shashank V, India**. Public support and privacy contact: **aegixchainai@gmail.com**.
 
@@ -16,7 +16,7 @@ The project also includes **48 official World Bank observations** for India and 
 npm run data:refresh
 ```
 
-The refresh command uses direct public HTTPS requests and does not load application keys, call models, or access the database. Review [data provenance](docs/DATA_SOURCES.md) and [memory behavior](docs/MARKET_MEMORY.md). Agents still consume model tokens when analyzing a plan or tailoring questions. **Apply required deltas through `drizzle/0004_rewarded_ads.sql` before running this version against an existing database, even when ads are disabled.** Optional `npm run db:seed:research` copies the reviewed snapshot into PostgreSQL; it is a separate write operation.
+The refresh command uses direct public HTTPS requests and does not load application keys, call models, or access the database. Review [data provenance](docs/DATA_SOURCES.md) and [memory behavior](docs/MARKET_MEMORY.md). Agents still consume model tokens when analyzing a plan or tailoring questions. **Back up and apply the required additive deltas through `drizzle/0005_credit_cycle_start.sql` before running this version against an existing database, even when ads are disabled.** Optional `npm run db:seed:research` copies the reviewed snapshot into PostgreSQL; it is a separate write operation.
 
 ## Start locally
 
@@ -58,7 +58,9 @@ For a **new development database**, review the schema before running `npm run db
 npm run verify:release-files
 npm run lint
 npm run typecheck
-npm test
+npm run test:ci
+# Requires an explicitly configured disposable loopback PostgreSQL database.
+npm run test:postgres
 npm run build:deploy
 npm run smoke:production
 npm audit --omit=dev
@@ -66,15 +68,15 @@ npm audit --omit=dev
 
 For Workers, also run `npm run build:cloudflare`, `npm run check:cloudflare`, and `npm run smoke:cloudflare`. The Node smoke starts the built standalone app on a loopback port, verifies public pages, branding, generated images, metadata, headers, sign-in rendering and error recovery, then stops it. Results are written to ignored `reports/production-smoke.json`.
 
-Most tests use synthetic services. Reward accounting tests run the real SQL migration and transactions in isolated PGlite PostgreSQL, without network/database credentials. Other live database tests require a separate `TEST_DATABASE_URL` in ignored `.env.test.local`; the suite does not load the application's `.env.local`. Local tests do not establish hosted email, payment, queue or multi-connection database behavior.
+Most tests use synthetic services. PGlite accounting and persistence tests run actual SQL and transactions without hosted credentials. `npm run test:postgres` runs transaction, ownership, migration and concurrency checks in a fresh schema on an explicitly supplied loopback `TEST_DATABASE_URL`; it never loads `.env.local` and refuses a hosted database. GitHub CI provisions PostgreSQL for this gate. Hosted email, payment and queue behavior need separate integration checks.
 
-For a focused check of search reuse, agent tool execution, usage accounting, private context, fallback and job replay, run `npm run verify:agents`. It includes the real coordinator and AI SDK with synthetic external services, so it uses no application AI tokens. This release passed **532 tests** with **8 external-database tests skipped**; see [current verification status](docs/IMPLEMENTATION_STATUS.md). Historical live-model runs are identified separately.
+For a focused check of search reuse, agent tool execution, usage accounting, private context, fallback and job replay, run `npm run verify:agents`. It includes the real coordinator and AI SDK with synthetic external services, so it uses no application AI tokens. See [current verification status](docs/IMPLEMENTATION_STATUS.md) and the repository's [GitHub checks](https://github.com/shashankv762/Validore/actions). Historical live-model runs are identified separately.
 
 `.gitignore` and the Worker asset boundary exclude local credentials, browser sessions, account exports, test screenshots, logs, backups and generated output. `verify:release-files` checks source-control rules and confirms that public research snapshots, SQL migrations, fonts, templates and the lockfile remain included. Ignore rules do not remove files already tracked in Git or replace a secret-content scan. Keep deployments manual and review the diff before committing.
 
 ## Deployment
 
-Jenkins pipelines, Jenkins setup scripts, the GitHub Actions CI workflow, and the Render deployment helper/blueprint have been removed. Cloudflare deployment uses the manual `npm run deploy:cloudflare` command; no Git integration is configured in this repository. Releases are manual; the lint, test, build, and smoke commands remain available for local verification.
+GitHub Actions runs lint, types, regressions, real PostgreSQL concurrency/migration tests, a production dependency audit, the standalone build, asset/privacy smoke checks and static marketing JavaScript checks. The workflow runs for main pushes, pull requests and manual requests. Deploy the exact passing commit to the existing Render service using [render.yaml](render.yaml); this file also documents its build/start commands and required environment. Render deployment remains manual.
 
 Follow the [free prototype guide](docs/FREE_PROTOTYPE_DEPLOYMENT.md) for Render's exact build/start settings and all external services. Render Free can sleep or hit quotas; free hosting does not imply unlimited free AI. The checked-in Cloudflare CPU configuration uses Workers Paid (currently from US$5/month plus usage); follow [its launch guide](docs/GO_LIVE.md) if selecting that option. Bundle size alone no longer rules out Workers Free.
 
@@ -97,7 +99,7 @@ The daily credit-maintenance cron and Inngest jobs are application features. Ren
 - [Brand and interface decisions](DESIGN.md)
 - [Optional local presentation](docs/CLASSROOM_DEMO.md)
 
-Earlier Render acceptance is archived in [historical release evidence](docs/RELEASE_EVIDENCE_2026-10-31.md); it does not verify this Cloudflare Workers release.
+Earlier Render acceptance is archived in [historical release evidence](docs/RELEASE_EVIDENCE_2026-10-31.md). The current repair scope and verification sequence are recorded in [the release repair plan](docs/RELEASE_REPAIR_PLAN_2026-11-12.md).
 
 ## Source layout
 

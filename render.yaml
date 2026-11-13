@@ -9,12 +9,16 @@ services:
     plan: free
     autoDeployTrigger: 'off'
     buildCommand: npm ci --include=dev --no-fund && npm run build:deploy
-    startCommand: npm run start:standalone
+    startCommand: node --max-old-space-size=256 .next/standalone/server.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: '24'
       - key: NODE_ENV
+        value: production
+      - key: BUILD_PROFILE
+        value: release
+      - key: APP_ENV
         value: production
       - key: HOSTNAME
         value: 0.0.0.0
@@ -32,6 +36,26 @@ services:
         value: '1'
       - key: CREDIT_MAINTENANCE_RUNNER
         value: inngest
+      - key: AI_FREE_ONLY
+        value: 'true'
+      - key: AI_GATEWAY_ENABLED
+        value: pixrouter,opencode,openrouter
+      - key: AI_GATEWAY_ORDER
+        value: pixrouter,opencode,openrouter
+      - key: PIXROUTER_MODELS
+        value: qwen/qwen3.8-27b:free,z-ai/glm-4.5-flash:free,openrouter/free
+      - key: PIXROUTER_FREE_MODELS
+        value: qwen/qwen3.8-27b:free,z-ai/glm-4.5-flash:free,openrouter/free
+      - key: AI_GATEWAY_ROTATE
+        value: 'false'
+      - key: AI_DIRECT_FIRST
+        value: 'false'
+      - key: SEARCH_KEYED_ENABLED
+        value: 'false'
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false
       - key: REWARDED_ADS_ENABLED
         value: 'false'
       - key: NEXT_PUBLIC_SUPABASE_URL
@@ -47,6 +71,8 @@ services:
       - key: INNGEST_EVENT_KEY
         sync: false
       - key: INNGEST_SIGNING_KEY
+        sync: false
+      - key: PIXROUTER_API_KEY
         sync: false
 # Set the chosen AI provider keys and any other required secrets in Render.
 # Do not attach validore.tech here: that domain serves the static marketing site.

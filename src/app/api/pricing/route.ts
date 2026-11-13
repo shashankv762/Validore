@@ -17,6 +17,9 @@ import { finiteOrNull } from '@/lib/numbers'
 import * as fin from '@/lib/financial'
 import { PRICING_WEIGHTS, clampScore, validateWeightTable } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
+import { moduleHistory } from '@/lib/module-history'
+
+export async function GET(request: NextRequest) { return moduleHistory(request, 'pricing') }
 
 const PricingInputSchema = z.object({
   ideaId: z.string().uuid(),
@@ -254,8 +257,8 @@ CRITICAL RULES:
 
     // Compute formula-based scores
     const cmScore = clampScore(contributionMarginPct >= 60 ? PRICING_WEIGHTS.contributionMargin : Math.round(contributionMarginPct / 60 * PRICING_WEIGHTS.contributionMargin), PRICING_WEIGHTS.contributionMargin)
-    const beScore = clampScore(breakEvenUnits <= i.expectedCustomers * 0.5 ? PRICING_WEIGHTS.breakEvenFeasibility : Math.round((1 - breakEvenUnits / (i.expectedCustomers * 2)) * PRICING_WEIGHTS.breakEvenFeasibility), PRICING_WEIGHTS.breakEvenFeasibility)
-    const cacLtvScore = clampScore(ltvCacRatio >= 3 ? PRICING_WEIGHTS.cacLtvEconomics : Math.round((ltvCacRatio / 3) * PRICING_WEIGHTS.cacLtvEconomics), PRICING_WEIGHTS.cacLtvEconomics)
+    const beScore = Number.isFinite(breakEvenUnits) ? clampScore(breakEvenUnits <= i.expectedCustomers * 0.5 ? PRICING_WEIGHTS.breakEvenFeasibility : Math.round((1 - breakEvenUnits / (i.expectedCustomers * 2)) * PRICING_WEIGHTS.breakEvenFeasibility), PRICING_WEIGHTS.breakEvenFeasibility) : 0
+    const cacLtvScore = i.estimatedCac > 0 && Number.isFinite(ltvCacRatio) ? clampScore(ltvCacRatio >= 3 ? PRICING_WEIGHTS.cacLtvEconomics : Math.round((ltvCacRatio / 3) * PRICING_WEIGHTS.cacLtvEconomics), PRICING_WEIGHTS.cacLtvEconomics) : 0
 
     const pricingScore = clampScore(ai.customerWtpScore, PRICING_WEIGHTS.customerWillingnessToPay)
       + clampScore(ai.customerValueScore, PRICING_WEIGHTS.customerValue)

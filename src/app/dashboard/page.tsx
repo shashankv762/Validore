@@ -11,6 +11,7 @@ import { totalCredits } from '@/lib/credit-allocation'
 import { FULL_AGENT_COUNT, LITE_AGENT_COUNT } from '@/lib/ai/roles'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
 import { ValidationProgress } from '@/components/ValidationProgress'
+import { persistBrief, restoreBrief } from '@/lib/idea-draft'
 
 const FounderInterview = dynamic(() => import('@/components/FounderInterview').then(module => module.FounderInterview), {
   loading: () => <p role="status" className="p-6 text-sm text-[#53616A]">Loading your founder interview…</p>,
@@ -62,27 +63,59 @@ export default function IdeaWizard() {
   const active = useRef(false)
   const request = useRef<AbortController | null>(null)
   const saved = useRef<{ id: string; fingerprint: string } | null>(null)
+  const [hydratedOwner, setHydratedOwner] = useState<string | null>(null)
+  const [existingIdeas, setExistingIdeas] = useState<Array<IdeaDraft & { id: string; isReadOnly?: boolean }>>([])
+  const [existingIdeasOwner, setExistingIdeasOwner] = useState<string | null>(null)
+  const [ideasError, setIdeasError] = useState('')
   useEffect(() => () => request.current?.abort(), [])
+  useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
+    const ownerId = account?.id
+    if (!ownerId || hydratedOwner === ownerId) return
     let active = true
-    void refresh().then(data => {
-      if (!active || !data?.user) return
+    void Promise.resolve().then(() => {
+      if (!active) return
+      if (hydratedOwner && hydratedOwner !== ownerId) {
+        touched.current = false; saved.current = null
+        setSavedIdeaId(null); setDraft(EMPTY); setStep(0)
+      }
       try {
-        const stored = JSON.parse(sessionStorage.getItem('validore:brief:' + data.user.id) || 'null')
-        if (stored?.draft && !touched.current) {
-          const restored = Object.fromEntries(FIELDS.map(field => [field.key, typeof stored.draft[field.key] === 'string' ? stored.draft[field.key].slice(0, field.max) : ''])) as IdeaDraft
-          setDraft(restored)
-          setStep(Number.isInteger(stored.step) ? Math.max(0, Math.min(stored.ideaId ? 4 : 2, stored.step)) : 0)
-          if (typeof stored.ideaId === 'string') { saved.current = { id: stored.ideaId, fingerprint: '' }; setSavedIdeaId(stored.ideaId) }
+        const stored = restoreBrief(sessionStorage, ownerId)
+        if (stored && !touched.current) {
+          setDraft(stored.draft)
+          setStep(stored.step)
+          if (stored.ideaId) { saved.current = { id: stored.ideaId, fingerprint: '' }; setSavedIdeaId(stored.ideaId) }
         }
       } catch { /* The form still works when browser storage is unavailable. */ }
+      setHydratedOwner(ownerId)
     })
     return () => { active = false }
-  }, [refresh])
+  }, [account?.id, hydratedOwner])
   useEffect(() => {
     if (!account) return
-    try { sessionStorage.setItem('validore:brief:' + account.id, JSON.stringify({ draft, step, ideaId: saved.current?.id })) } catch {}
-  }, [draft, step, account])
+    try { persistBrief(sessionStorage, account.id, hydratedOwner, { draft, step, ideaId: saved.current?.id }) } catch {}
+  }, [draft, step, account, hydratedOwner])
+  useEffect(() => {
+    const ownerId = account?.id
+    if (!ownerId) return
+    const controller = new AbortController()
+    void fetch('/api/ideas', { cache: 'no-store', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]) })
+      .then(async response => { if (!response.ok) throw new Error('Your saved ideas could not be loaded. Refresh to try again.'); return response.json() })
+      .then(data => { if (!controller.signal.aborted) { setExistingIdeas(Array.isArray(data.ideas) ? data.ideas : []); setExistingIdeasOwner(ownerId); setIdeasError('') } })
+      .catch(error => { if (!controller.signal.aborted) setIdeasError(error instanceof Error ? error.message : 'Your saved ideas could not load.') })
+    return () => controller.abort()
+  }, [account?.id])
+  const accountIdeas = existingIdeasOwner === account?.id ? existingIdeas : []
+  const selectIdea = (id: string) => {
+    const idea = accountIdeas.find(item => item.id === id)
+    touched.current = true
+    setError(''); setErrorField(''); setStep(0)
+    if (!idea) { saved.current = null; setSavedIdeaId(null); setDraft(EMPTY); return }
+    const brief = Object.fromEntries(FIELDS.map(field => [field.key, typeof idea[field.key] === 'string' ? idea[field.key].slice(0, field.max) : ''])) as IdeaDraft
+    const parsed = IdeaInputSchema.safeParse(brief)
+    saved.current = { id: idea.id, fingerprint: parsed.success ? JSON.stringify(parsed.data) : '' }
+    setSavedIdeaId(idea.id); setDraft(brief)
+  }
   const group = GROUPS[step] ?? GROUPS[0]
   const fields = group.fields.map(key => FIELDS.find(field => field.key === key)!)
   const cost = account?.tier === 'free' ? CREDIT_COSTS.LITE_VALIDATION : CREDIT_COSTS.DEEP_VALIDATION
@@ -103,6 +136,7 @@ export default function IdeaWizard() {
     return saved.current.id
   }
   const next = async () => {
+    if (!account || hydratedOwner !== account.id) return
     if (advancing.current || savingBrief || interviewBusy) return
     for (const field of fields) {
       const result = IdeaInputSchema.shape[field.key].safeParse(draft[field.key])
@@ -120,6 +154,7 @@ export default function IdeaWizard() {
     setStep(value => Math.min(4, value + 1))
   }
   const handleSubmit = async () => {
+    if (!account || hydratedOwner !== account.id) return
     if (active.current) return
     const parsed = IdeaInputSchema.safeParse(draft)
     if (!parsed.success) {
@@ -191,6 +226,16 @@ export default function IdeaWizard() {
     </div>
     <div className="idea-workspace-grid">
       <div className="idea-brief">
+        {!loading && <div className="brief-panel mb-4">
+          <label htmlFor="brief-idea" className="block text-sm font-medium mb-2">Idea to validate</label>
+          <select id="brief-idea" value={savedIdeaId ?? ''} disabled={savingBrief || interviewBusy || !account || hydratedOwner !== account.id} onChange={event => selectIdea(event.target.value)} className="w-full border border-slate-300 rounded p-3 text-sm">
+            <option value="">New idea</option>
+            {savedIdeaId && !accountIdeas.some(idea => idea.id === savedIdeaId) && <option value={savedIdeaId}>Current saved brief</option>}
+            {accountIdeas.filter(idea => !idea.isReadOnly).map(idea => <option key={idea.id} value={idea.id}>{idea.name}</option>)}
+          </select>
+          <p className="mt-2 text-xs text-slate-600">Select a saved idea to update its brief or run another validation.</p>
+          {ideasError && <p role="alert" className="mt-2 text-sm text-red-700">{ideasError}</p>}
+        </div>}
         {!loading && <nav className="brief-steps" aria-label="Idea brief steps">{GROUPS.map((item, index) =>
           <button key={item.title} type="button" disabled={index > step || savingBrief || interviewBusy} aria-current={index === step ? 'step' : undefined}
             onClick={() => { setStep(index); setError(''); setErrorField('') }} className={index === step ? 'is-current' : index < step ? 'is-complete' : ''}>
@@ -221,7 +266,7 @@ export default function IdeaWizard() {
           {accountError && <p className="brief-error" role="status">Your account details could not load. Refresh the page before starting an analysis; your brief stays in this tab.</p>}
           <div className="brief-actions">
             <button type="button" disabled={step === 0 || savingBrief || interviewBusy} onClick={() => { setStep(value => Math.max(0, value - 1)); setError(''); setErrorField('') }} className="workspace-button-secondary"><ArrowLeft size={15} aria-hidden="true" />Back</button>
-            <button type="submit" disabled={loading || savingBrief || interviewBusy || (step === 2 && !account) || (step === 4 && (!account || cost > totalCredits(account)))} className="workspace-button-primary">
+            <button type="submit" disabled={loading || savingBrief || interviewBusy || !account || hydratedOwner !== account.id || (step === 4 && cost > totalCredits(account))} className="workspace-button-primary">
               {savingBrief ? <><Loader2 size={15} className="animate-spin" aria-hidden="true" />Saving brief…</> : step < 4 ? <>{step === 3 ? 'Continue to review' : 'Continue'}<ArrowRight size={15} aria-hidden="true" /></> : <>Start validation<ArrowRight size={15} aria-hidden="true" /></>}
             </button>
           </div>

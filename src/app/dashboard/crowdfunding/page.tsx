@@ -17,6 +17,8 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
 import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
+import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
+import { getCampaignClassificationBand } from '@/lib/scoring'
 
 interface RewardTier {
   tier: string
@@ -87,6 +89,7 @@ interface AiCampaignData {
 }
 
 type AnalysisResult = {
+  analysisId: string
   performanceScore: number
   classificationBand: string
   band: string
@@ -149,6 +152,11 @@ export default function CrowdfundingPage() {
     hasVideo: true,
     marketingBudget: 2000,
   })
+  const history = useSavedModuleHistory('crowdfunding', record => {
+    const classification = getCampaignClassificationBand(record.performanceScore)
+    setForm(current => ({ ...current, ...(record.reportData?.inputs ?? {}), ideaId: record.ideaId }))
+    setResult({ analysisId: record.id, performanceScore: record.performanceScore, classificationBand: classification.label, band: classification.band, disclaimer: record.reportData?.disclaimer ?? classification.disclaimer, recommendation: record.recommendation, result: record.reportData })
+  })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -156,21 +164,19 @@ export default function CrowdfundingPage() {
       toast.error('Please select an idea first')
       return
     }
+    if (form.projectDescription.trim().length < 20) { toast.error('Describe your campaign in at least 20 characters.'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/crowdfunding', {
         method: 'POST',
         signal: AbortSignal.timeout(280_000),
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          projectDescription: (form.projectDescription ||
-            ideas.find(i => i.id === form.ideaId)?.name) ?? 'Startup idea',
-        }),
+        body: JSON.stringify({ ...form, projectDescription: form.projectDescription.trim() }),
       })
       const data = await res.json()
       if (res.ok) {
         setResult(data)
+        history.open(data.analysisId); history.refresh()
         toast.success('Crowdfunding analysis completed!')
       } else {
         toast.error(data.error ?? 'Analysis failed')
@@ -191,6 +197,7 @@ export default function CrowdfundingPage() {
   if (!hasAccess && !result) {
     return (
       <div className="max-w-2xl mx-auto mt-20">
+        <SavedModuleHistory history={history} />
         <div className="card-angular p-10 text-center">
           <span className="text-4xl block mb-4">🔒</span>
           <h2 className="text-xl font-light text-[#141923] mb-2">Crowdfunding Performance Predictor</h2>
@@ -299,6 +306,7 @@ export default function CrowdfundingPage() {
 
     return (
       <div className="max-w-6xl mx-auto space-y-6">
+        <SavedModuleHistory history={history} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-light text-[#141923]">Campaign Performance Predictor</h1>
@@ -309,12 +317,13 @@ export default function CrowdfundingPage() {
           <div className="flex flex-wrap items-center gap-3">
             <ExportToolbar
               ideaId={form.ideaId}
+              analysisId={result.analysisId}
               deckType="crowdfunding"
               formats={['pdf', 'docx', 'csv', 'pptx']}
               compact={true}
             />
             <button
-              onClick={() => setResult(null)}
+              onClick={() => { setResult(null); history.clear() }}
               className="text-sm text-[#89620B] hover:underline"
             >
               ← New analysis
@@ -678,6 +687,7 @@ export default function CrowdfundingPage() {
         </p>
       </div>
 
+      <SavedModuleHistory history={history} disabled={loading} />
       <form onSubmit={handleSubmit} className="card-angular p-5 sm:p-8 space-y-4">
         <fieldset disabled={loading} className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
           {/* Idea */}
@@ -694,6 +704,11 @@ export default function CrowdfundingPage() {
             </select>
           </div>
 
+          <div className="sm:col-span-2">
+            <label htmlFor="campaign-description" className="block text-xs font-medium text-[#89620B] mb-1">Campaign description *</label>
+            <textarea id="campaign-description" value={form.projectDescription} onChange={event => setF('projectDescription', event.target.value)} required minLength={20} maxLength={8000} rows={4} aria-describedby="campaign-description-hint" className="w-full p-3 border border-[#E5E7EB] rounded text-sm" placeholder="Describe the product, the problem it solves, and what this campaign will fund." />
+            <p id="campaign-description-hint" className="mt-1 text-xs text-slate-600">At least 20 characters. Explain what backers will receive and what you will deliver.</p>
+          </div>
           {/* Funding Goal */}
           <div>
 <label htmlFor="crowdfunding-funding-goal" className="block text-xs font-medium text-[#89620B]  mb-1">Funding Goal ($) *</label>

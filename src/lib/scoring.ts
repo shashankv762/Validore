@@ -19,7 +19,26 @@ export function calculateStartupValidationScore(
 }
 
 export function clampScore(score: number, maxWeight: number): number {
-  return Math.max(0, Math.min(score, maxWeight))
+  if (!Number.isFinite(score) || !Number.isSafeInteger(maxWeight) || maxWeight < 0) throw new Error('Invalid score')
+  // Scores are whole points in both reports and PostgreSQL integer columns.
+  return Math.round(Math.max(0, Math.min(score, maxWeight)))
+}
+
+export function normalizeValidationScores<T extends {
+  problemScore: number; customerScore: number; marketScore: number; competitiveScore: number;
+  wtpScore: number; businessModelScore: number; financialScore: number; executionScore: number;
+}>(report: T) {
+  const scores = {
+    problemScore: clampScore(report.problemScore, STARTUP_WEIGHTS.problemValidation),
+    customerScore: clampScore(report.customerScore, STARTUP_WEIGHTS.customerValidation),
+    marketScore: clampScore(report.marketScore, STARTUP_WEIGHTS.marketOpportunity),
+    competitiveScore: clampScore(report.competitiveScore, STARTUP_WEIGHTS.competitiveDifferentiation),
+    wtpScore: clampScore(report.wtpScore, STARTUP_WEIGHTS.willingnessToPay),
+    businessModelScore: clampScore(report.businessModelScore, STARTUP_WEIGHTS.businessModel),
+    financialScore: clampScore(report.financialScore, STARTUP_WEIGHTS.financialFeasibility),
+    executionScore: clampScore(report.executionScore, STARTUP_WEIGHTS.executionFeasibility),
+  }
+  return { ...report, ...scores, overallScore: Object.values(scores).reduce((sum, score) => sum + score, 0) }
 }
 
 export const EvidenceStrength = z.enum(['WEAK', 'MODERATE', 'STRONGER'])

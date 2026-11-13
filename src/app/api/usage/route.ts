@@ -15,12 +15,12 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers })
     let account = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
     if (!account) return NextResponse.json({ error: 'Account not found' }, { status: 404, headers })
-    if (!account.creditResetAt || account.creditResetAt <= new Date()) {
+    if (!account.creditResetAt || account.creditResetAt <= new Date() || !account.creditCycleStartedAt) {
       await topUpMonthlyCredits(account.id)
       account = await db.query.users.findFirst({ where: eq(users.id, account.id) }) ?? account
     }
     const now = new Date()
-    const start = creditCycleStart(account.creditResetAt, now)
+    const start = account.creditCycleStartedAt ?? creditCycleStart(account.creditResetAt, now)
     const jobScope = and(eq(validationJobs.userId, account.id), gte(validationJobs.createdAt, start), lt(validationJobs.createdAt, now))
     const [totals, activity, recentJobs] = await Promise.all([
       db.select({

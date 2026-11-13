@@ -32,8 +32,10 @@ describe('API browser boundary', () => {
   })
   it('rejects form and text submissions to JSON API routes but accepts native auth forms', async () => {
     expect((await guardApiRequest(request('/api/ideas', { headers: { 'content-type': 'text/plain' } })))?.status).toBe(415)
-    const form = request('/api/auth/signup', { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'email=founder%40example.com' })
-    expect(await guardApiRequest(form)).toBeNull()
+    for (const path of ['/api/auth/signup', '/api/auth/complete-signup']) {
+      const form = request(path, { headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'consent=on' })
+      expect(await guardApiRequest(form)).toBeNull()
+    }
   })
   it.each(['/api/webhooks/stripe', '/api/webhooks/razorpay', '/api/inngest'])('leaves signature verification to its handler: %s', async path => {
     expect(await guardApiRequest(request(path, { headers: { origin: 'https://service.example', 'content-type': 'application/octet-stream' } }))).toBeNull()

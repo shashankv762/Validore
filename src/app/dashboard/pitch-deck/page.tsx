@@ -10,6 +10,7 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
 import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
+import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
 
 type Slide = {
   slideNumber: number
@@ -87,7 +88,7 @@ type DeckResult = {
     pitchScript60sec: string
     investorQa: Array<{ question: string; answer: string; label: string }>
     roadmap: RoadmapPhase[]
-    integrityNote: string
+    integrityNote?: string
     portfolioSections?: PortfolioSection[]
     reportData?: {
       inputs?: unknown
@@ -134,6 +135,11 @@ export default function PitchDeckPage() {
     currentTraction: '',
     milestones: [] as Milestone[],
   })
+  const history = useSavedModuleHistory('pitch-deck', record => {
+    setForm(current => ({ ...current, ...(record.reportData?.inputs ?? {}), ideaId: record.ideaId }))
+    setResult({ deckId: record.id, qualityScore: record.qualityScore, founderReadinessScore: record.founderReadinessScore, result: record as DeckResult['result'] })
+    setActiveTab('slides'); setOpenQa(null)
+  })
 
   const addMilestone = () =>
     setForm(f => ({
@@ -169,6 +175,7 @@ export default function PitchDeckPage() {
       const data = await res.json()
       if (res.ok) {
         setResult(data)
+        history.open(data.deckId); history.refresh()
         toast.success('Pitch deck generated successfully!')
       } else {
         toast.error(data.error ?? 'Deck generation failed. Please try again.')
@@ -187,6 +194,7 @@ export default function PitchDeckPage() {
   if (!hasAccess && !result) {
     return (
       <div className="max-w-2xl mx-auto mt-20">
+        <SavedModuleHistory history={history} />
         <div className="card-angular p-10 text-center">
           <span className="text-4xl block mb-4">🔒</span>
           <h2 className="text-xl font-light text-[#141923] mb-2">Pitch Deck Builder</h2>
@@ -233,6 +241,7 @@ export default function PitchDeckPage() {
   if (!result) {
     return (
       <div className="max-w-2xl mx-auto">
+        <SavedModuleHistory history={history} disabled={loading} />
         <div className="mb-8">
           <h1 className="text-2xl font-light text-[#141923] mb-1">Pitch Deck Builder</h1>
           <p className="text-sm text-[#364152] opacity-60">
@@ -395,6 +404,7 @@ export default function PitchDeckPage() {
 
   return (
     <div className="max-w-6xl mx-auto">
+      <SavedModuleHistory history={history} />
       {/* Header with export buttons */}
       <div className="mb-6 flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -409,7 +419,7 @@ export default function PitchDeckPage() {
             formats={['pdf', 'docx', 'pptx', 'portfolio-zip']}
             compact={true}
           />
-          <button onClick={() => setResult(null)} className="text-xs text-[#89620B] hover:underline cursor-pointer">
+          <button onClick={() => { setResult(null); history.clear() }} className="text-xs text-[#89620B] hover:underline cursor-pointer">
             ← New deck
           </button>
         </div>
@@ -479,7 +489,7 @@ export default function PitchDeckPage() {
       {/* Integrity note */}
       <div className="card-angular p-4 border-l-4 border-[#E0A526] mb-6 bg-[#FFFFFF]">
         <p className="text-xs font-semibold text-[#89620B] mb-1">Integrity Note</p>
-        <p className="text-xs text-[#364152] leading-relaxed">{result.result.integrityNote}</p>
+        <p className="text-xs text-[#364152] leading-relaxed">{ai?.integrityNote || result.result.integrityNote || 'Review the assumptions and source references before presenting this deck.'}</p>
       </div>
 
       {/* Tab nav */}

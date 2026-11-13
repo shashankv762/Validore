@@ -3,8 +3,8 @@ import PptxGenJS from 'pptxgenjs'
 import { createClient } from '@/lib/supabase/server'
 import { getOrCreateDbUser } from '@/lib/auth-sync'
 import { db } from '@/db'
-import { ideas, pitchDecks, validationReports, crowdfundingAnalyses, leanCanvases, pricingSimulations } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { ideas, pitchDecks, validationReports, crowdfundingAnalyses, pricingSimulations } from '@/db/schema'
+import { eq, and, desc } from 'drizzle-orm'
 import { getUserWithTierConfig } from '@/lib/tier-gate'
 import { z } from 'zod'
 
@@ -12,8 +12,10 @@ const PptxQuerySchema = z.object({
   ideaId: z.string().uuid().optional(),
   deckId: z.string().uuid().optional(),
   reportId: z.string().uuid().optional(),
+  simulationId: z.uuid().optional(),
+  analysisId: z.uuid().optional(),
   deckType: z.enum(['validation', 'pitch', 'crowdfunding', 'pricing']).optional().default('pitch'),
-}).refine(data => Boolean(data.ideaId || data.deckId || data.reportId), {
+}).refine(data => Boolean(data.ideaId || data.deckId || data.reportId || data.simulationId || data.analysisId) && [data.reportId, data.deckId, data.simulationId, data.analysisId].filter(Boolean).length <= 1 && (!data.deckId || data.deckType === 'pitch') && (!data.simulationId || data.deckType === 'pricing') && (!data.analysisId || data.deckType === 'crowdfunding'), {
   message: 'Either ideaId, deckId, or reportId must be provided',
 })
 
@@ -39,12 +41,16 @@ export async function GET(request: NextRequest) {
     const ideaIdParam = searchParams.get('ideaId') || undefined
     const deckIdParam = searchParams.get('deckId') || undefined
     const reportIdParam = searchParams.get('reportId') || undefined
-    const deckTypeParam = searchParams.get('deckType') || 'pitch'
+    const simulationIdParam = searchParams.get('simulationId') || undefined
+    const analysisIdParam = searchParams.get('analysisId') || undefined
+    const deckTypeParam = searchParams.get('deckType') || (simulationIdParam ? 'pricing' : analysisIdParam ? 'crowdfunding' : reportIdParam ? 'validation' : 'pitch')
 
     const parsedQuery = PptxQuerySchema.safeParse({
       ideaId: ideaIdParam,
       deckId: deckIdParam,
       reportId: reportIdParam,
+      simulationId: simulationIdParam,
+      analysisId: analysisIdParam,
       deckType: deckTypeParam,
     })
 
@@ -55,7 +61,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { ideaId, deckId, reportId } = parsedQuery.data
+    const { ideaId, deckId, reportId, simulationId, analysisId } = parsedQuery.data
 
     const dbUser = await getOrCreateDbUser(user)
 
@@ -67,40 +73,38 @@ export async function GET(request: NextRequest) {
     let ideaRecord = null
     let reportRecord: any = null
 
-    if (reportId) {
-      if (deckTypeParam === 'crowdfunding') {
-        reportRecord = await db.query.crowdfundingAnalyses.findFirst({
-          where: and(eq(crowdfundingAnalyses.id, reportId), eq(crowdfundingAnalyses.userId, dbUser.id)),
-        })
-      } else if (deckTypeParam === 'pricing') {
-        reportRecord = await db.query.pricingSimulations.findFirst({
-          where: and(eq(pricingSimulations.id, reportId), eq(pricingSimulations.userId, dbUser.id)),
-        })
-      } else {
-        reportRecord = await db.query.validationReports.findFirst({
-          where: and(eq(validationReports.id, reportId), eq(validationReports.userId, dbUser.id)),
-        })
-      }
-      if (reportRecord) {
-        ideaRecord = await db.query.ideas.findFirst({
-          where: eq(ideas.id, reportRecord.ideaId),
-        })
-      }
+    if (deckTypeParam === 'pricing') {
+      const reference = simulationId || reportId
+      reportRecord = await db.query.pricingSimulations.findFirst({
+        where: and(eq(pricingSimulations.userId, dbUser.id), reference ? eq(pricingSimulations.id, reference) : eq(pricingSimulations.ideaId, ideaId!), ideaId ? eq(pricingSimulations.ideaId, ideaId) : undefined),
+        orderBy: [desc(pricingSimulations.createdAt)],
+      })
+    } else if (deckTypeParam === 'crowdfunding') {
+      const reference = analysisId || reportId
+      reportRecord = await db.query.crowdfundingAnalyses.findFirst({
+        where: and(eq(crowdfundingAnalyses.userId, dbUser.id), reference ? eq(crowdfundingAnalyses.id, reference) : eq(crowdfundingAnalyses.ideaId, ideaId!), ideaId ? eq(crowdfundingAnalyses.ideaId, ideaId) : undefined),
+        orderBy: [desc(crowdfundingAnalyses.createdAt)],
+      })
+    } else if (deckTypeParam === 'validation' || reportId) {
+      reportRecord = await db.query.validationReports.findFirst({
+        where: and(eq(validationReports.userId, dbUser.id), reportId ? eq(validationReports.id, reportId) : eq(validationReports.ideaId, ideaId!), ideaId ? eq(validationReports.ideaId, ideaId) : undefined),
+        orderBy: [desc(validationReports.createdAt)],
+      })
     } else if (deckId) {
       pitchDeckRecord = await db.query.pitchDecks.findFirst({
         where: and(eq(pitchDecks.id, deckId), eq(pitchDecks.userId, dbUser.id)),
       })
-      if (pitchDeckRecord) {
-        ideaRecord = await db.query.ideas.findFirst({
-          where: eq(ideas.id, pitchDeckRecord.ideaId),
-        })
-      }
     } else if (ideaId) {
       pitchDeckRecord = await db.query.pitchDecks.findFirst({
         where: and(eq(pitchDecks.ideaId, ideaId), eq(pitchDecks.userId, dbUser.id)),
+        orderBy: [desc(pitchDecks.createdAt)],
       })
+    }
+    const source = reportRecord || pitchDeckRecord
+    if (source && source.userId !== dbUser.id) return NextResponse.json({ error: 'Report not found' }, { status: 404 })
+    if (source) {
       ideaRecord = await db.query.ideas.findFirst({
-        where: and(eq(ideas.id, ideaId), eq(ideas.userId, dbUser.id)),
+        where: and(eq(ideas.id, source.ideaId), eq(ideas.userId, dbUser.id)),
       })
     }
 
@@ -330,7 +334,7 @@ export async function GET(request: NextRequest) {
     })
 
     const buffer = (await pptx.write({ outputType: 'nodebuffer' })) as Buffer
-    const exportFileId = deckId || ideaId || 'presentation'
+    const exportFileId = deckId || simulationId || analysisId || reportId || ideaId || 'presentation'
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,

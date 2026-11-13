@@ -33,6 +33,9 @@ export const db = new Proxy({} as Database, {
   get(_target, property) {
     const database = currentDatabase()
     const value = Reflect.get(database, property)
-    return typeof value === 'function' ? value.bind(database) : value
+    // postgres-js is a callable client with its own methods (end, begin, etc.).
+    // Binding it as a Drizzle method drops those properties and prevents clean
+    // pool shutdown in integration tests and server maintenance.
+    return typeof value === 'function' && property !== '$client' ? value.bind(database) : value
   },
 })

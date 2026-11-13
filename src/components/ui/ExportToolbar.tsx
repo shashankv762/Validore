@@ -13,6 +13,8 @@ export interface ExportToolbarProps {
   canvasId?: string
   ideaId?: string
   deckId?: string
+  simulationId?: string
+  analysisId?: string
   deckType?: 'validation' | 'crowdfunding' | 'pitch' | 'pricing'
   formats?: ExportFormat[]
   className?: string
@@ -27,7 +29,7 @@ const FORMATS: Record<ExportFormat, { label: string; icon: LucideIcon; tier: Tie
   'portfolio-zip': { label: 'Portfolio ZIP', icon: Archive, tier: 'max_premium', mime: 'application/zip', filename: 'startup-portfolio.zip' },
 }
 
-export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, deckType = 'validation',
+export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, simulationId, analysisId, deckType = 'validation',
   formats = ['pdf', 'docx', 'csv', 'pptx'], className = '', compact = false }: ExportToolbarProps) {
   const router = useRouter()
   const [accountTier, setAccountTier] = useState<Tier>('free')
@@ -56,6 +58,8 @@ export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, deckTy
       const documentKind = canvasId ? 'canvas' : deckType
       params.set('module', documentKind)
       if (canvasId && ideaId) { params.set('canvasId', canvasId); params.set('ideaId', ideaId) }
+      else if (simulationId && documentKind === 'pricing') params.set('simulationId', simulationId)
+      else if (analysisId && documentKind === 'crowdfunding') params.set('analysisId', analysisId)
       else if (deckId && documentKind === 'pitch' && format !== 'csv') params.set('deckId', deckId)
       else if (reportId && documentKind === 'validation') params.set('reportId', reportId)
       else if (ideaId) params.set('ideaId', ideaId)
@@ -64,14 +68,17 @@ export function ExportToolbar({ tier, reportId, canvasId, ideaId, deckId, deckTy
       if (!reportId) { toast.info('Select a validation report first.'); return }
       route = 'pdf/white-label'; params.set('reportId', reportId)
     } else if (format === 'pptx') {
-      if (deckId) params.set('deckId', deckId)
+      if (simulationId && deckType === 'pricing') params.set('simulationId', simulationId)
+      else if (analysisId && deckType === 'crowdfunding') params.set('analysisId', analysisId)
+      else if (deckId) params.set('deckId', deckId)
       else if (ideaId) params.set('ideaId', ideaId)
       else { toast.info('Select an idea or pitch deck first.'); return }
       if (reportId) params.set('reportId', reportId)
       params.set('deckType', deckType)
     } else {
       route = 'portfolio'
-      if (ideaId) params.set('ideaId', ideaId)
+      if (deckId) params.set('deckId', deckId)
+      else if (ideaId) params.set('ideaId', ideaId)
       else if (reportId) params.set('reportId', reportId)
     }
     active.current = true

@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     {
       status: 'ok',
       service: 'validore',
-      commit: process.env.BUILD_COMMIT_SHA || undefined,
+      commit: process.env.RENDER_GIT_COMMIT || process.env.BUILD_COMMIT_SHA || undefined,
       timestamp: new Date().toISOString(),
     },
     {
