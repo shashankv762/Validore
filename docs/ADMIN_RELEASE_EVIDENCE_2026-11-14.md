@@ -4,9 +4,9 @@ The owner command center is deployed at `https://validore.onrender.com/admin`.
 
 | Evidence | Verified result |
 | --- | --- |
-| Application revision | `c2bcb54da793e82c8866985c048d7cbb1177b277` |
-| Hosted CI | [43582966721 — all jobs passed](https://github.com/shashankv762/Validore/actions/runs/43582966721) |
-| Render deployment | `dep-dbs32dui0phs73c02q5g` — live |
+| Application revision | `921a5eed689c6e31c669eefce542ce97653b0b01` |
+| Hosted CI | [43615417734 — all jobs passed](https://github.com/shashankv762/Validore/actions/runs/43615417734) |
+| Render deployment | `dep-dbs8nmlg1s2s73eguq7g` — live |
 | Owner | Confirmed Supabase identity for `shashankv7623@gmail.com`, pinned to its existing application profile |
 | Migration | `0006_admin_command_center.sql`, applied after backup restoration and repeated staging |
 
@@ -22,7 +22,7 @@ The initial overview date filter exposed a production-driver encoding difference
 
 Nine live acceptance groups verified the deployed revision, owner unlimited entitlement, owner sign-in routing, the private page, all admin read APIs, anonymous and ordinary-user denial, selected-user credit grants with duplicate retries, existing-session block/unblock, and deactivation followed by permanent deletion. Both disposable Auth identities and their application profiles were removed afterward. The activity log intentionally retains their administrative audit entries.
 
-Eleven live browser checks loaded all five command-center sections at 1440px and 390px, waited for their recorded data, checked page overflow, and opened the owner workspace and unlimited Credits view. No JavaScript errors or failed admin requests occurred. Separate isolated component-browser checks covered 1440px, 768px, 390px and 320px, confirmation dialogs, malformed search results, uncertain-response retries, and settings/plan editing.
+Twelve live browser checks loaded all five command-center sections at 1440px and 390px, waited for their recorded data, checked page overflow, opened the owner workspace and unlimited Credits view, and verified native sign-out returns to sign-in and denies admin API access. No JavaScript errors or failed admin requests occurred. Separate isolated component-browser checks covered 1440px, 768px, 390px and 320px, confirmation dialogs, malformed search results, uncertain-response retries, and settings/plan editing.
 
 Platform switches, pricing validation, plan benefits and next-cycle allowances were verified with isolated database and browser tests. Live maintenance and prices were not changed merely for acceptance. Provider limits and disabled payment/reward integrations remain as documented in production setup; unlimited owner entitlement does not remove provider capacity limits.
 
@@ -30,6 +30,6 @@ Native Computer Use was attempted, but the Windows URL check and later browser h
 
 ## Final interface polish
 
-The follow-up review clarified included validation and output-token labels, raised form boundary contrast above 3:1, added direct admin sign-out, and refreshed server-rendered notices after successful settings saves. **801 regression tests** pass, including a test that failed settings saves do not refresh the server notice and retry with the same request identity.
+The follow-up review clarified included validation and output-token labels, raised form boundary contrast above 3:1, added direct admin sign-out, and refreshed server-rendered notices after successful settings saves. **801 regression tests** pass, including a test that failed settings saves do not refresh the server notice and retry with the same request identity. On the published desktop and mobile pages, the Geist Sans font loaded for headings and form inputs, the main background resolved to `#0b0e13`, text to `#edf0f3`, and enabled input borders to `#64748b`.
 
 See [Admin operations](ADMIN_COMMAND_CENTER.md) for the controls, identity rules and deployment prerequisites.
