@@ -17,6 +17,8 @@
 .admin-owner-access strong { display: block; font-size: 12px; font-weight: 550; }
 .admin-owner-access span { display: block; color: #a0acbb; font-size: 10px; margin-top: 4px; }
 .admin-back-link { display: flex; align-items: center; gap: 9px; min-height: 42px; color: #a0acbb; font-size: 11px; }
+.admin-signout-button { width: 100%; text-align: left; }
+.admin-signout-button:disabled { opacity: .45; }
 .admin-main { display: flex; flex-direction: column; min-width: 0; }
 .admin-topbar { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 74px; padding: 18px 38px; border-bottom: 1px solid #222a35; font-size: 11px; color: #a0acbb; }
 .admin-topbar > span, .admin-topbar > a { display: inline-flex; align-items: center; gap: 8px; }
@@ -70,12 +72,12 @@
 @keyframes admin-spin { to { transform: rotate(360deg); } }
 .admin-error { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px; margin-bottom: 22px; border: 1px solid #805b3f; border-radius: 6px; background: #2c211a; color: #f3cca3; font-size: 12px; line-height: 1.7; }
 .admin-account-search { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
-.admin-search-field { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; max-width: 490px; padding: 10px 13px; border-radius: 6px; border: 1px solid #344050; background: #13181f; }
+.admin-search-field { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; max-width: 490px; padding: 10px 13px; border-radius: 6px; border: 1px solid #64748b; background: #13181f; }
 .admin-search-field svg { color: #a0acbb; flex-shrink: 0; }
 .admin-search-field input { width: 100%; min-width: 0; color: #edf0f3; background: transparent; font-size: 12px; border: 0; min-height: 22px; }
 .admin-shell input::placeholder, .admin-dialog input::placeholder, .admin-dialog textarea::placeholder, .admin-shell textarea::placeholder { color: #9aa7b8; opacity: 1; }
 .admin-filter { display: flex; align-items: center; gap: 10px; margin-left: auto; color: #a0acbb; font-size: 12px; }
-.admin-filter select, .admin-field input, .admin-field select, .admin-field textarea { display: block; width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #344050; border-radius: 6px; background: #0d131b; color: #edf0f3; font-size: 12px; font-weight: 400; line-height: 1.65; }
+.admin-filter select, .admin-field input, .admin-field select, .admin-field textarea { display: block; width: 100%; min-height: 43px; padding: 10px 12px; border: 1px solid #64748b; border-radius: 6px; background: #0d131b; color: #edf0f3; font-size: 12px; font-weight: 400; line-height: 1.65; }
 .admin-field textarea { resize: vertical; }
 .admin-field input:disabled { color: #a0acbb; background: #1a2029; }
 .admin-filter select { min-width: 153px; background: #13181f; }

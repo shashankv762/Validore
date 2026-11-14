@@ -4,8 +4,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { parseHTML } from 'linkedom'
 import type { AdminPlan, AdminUser, AdminUserDetail } from '@/lib/admin-types'
 
+const router = vi.hoisted(() => ({ refresh: vi.fn() }))
 vi.mock('@/components/Brand', () => ({ Brand: () => createElement('span', null, 'Validore') }))
 vi.mock('next/link', () => ({ default: ({ children, ...props }: { children: ReactNode; href: string }) => createElement('a', props, children) }))
+vi.mock('next/navigation', () => ({ useRouter: () => router }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn() } }))
 import AdminConsole from '@/app/admin/AdminConsole'
 
@@ -28,6 +30,7 @@ let failWrite: boolean
 let failAccounts: boolean
 
 beforeEach(() => {
+  router.refresh.mockClear()
   const { window, document } = parseHTML('<html><head></head><body><div id="root"></div></body></html>')
   Object.defineProperty(window.HTMLElement.prototype, 'open', { configurable: true, get() { return this.hasAttribute('open') } })
   Object.assign(window.HTMLElement.prototype, { showModal(this: HTMLDialogElement) { this.setAttribute('open', '') }, close(this: HTMLDialogElement) { this.removeAttribute('open') } })
@@ -67,6 +70,17 @@ const fill = async (element: HTMLInputElement | HTMLTextAreaElement, value: stri
 const submit = async (form: HTMLFormElement) => { await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) }); await settle() }
 
 describe('mounted owner command center', () => {
+  it('offers direct sign-out through the existing native POST endpoint', async () => {
+    await render()
+    const signout = container.querySelector('#admin-navigation form[action="/api/auth/signout"]')!
+    expect(signout.getAttribute('method')).toBe('post')
+    const submitButton = button('Sign out', signout)
+    expect(submitButton.getAttribute('type')).toBe('submit')
+    expect(submitButton.disabled).toBe(false)
+    expect(writes).toHaveLength(0)
+    expect(router.refresh).not.toHaveBeenCalled()
+  })
+
   it('loads recorded metrics, protects the owner selection and grants only after review with a stable retry reference', async () => {
     await render()
     expect(container.textContent).toContain('Registered accounts')
@@ -93,6 +107,7 @@ describe('mounted owner command center', () => {
     expect(writes[1].body.requestId).toBe(writes[0].body.requestId)
     expect(container.querySelector('dialog[aria-label="Review credit grant"]')).toBeNull()
     expect(container.textContent).not.toContain('accounts selected')
+    expect(router.refresh).not.toHaveBeenCalled()
   })
 
   it('requires deactivation and typed email, and resumes a previously pending deletion with its original key and reason', async () => {
@@ -122,8 +137,10 @@ describe('mounted owner command center', () => {
     expect(container.querySelector('a[href="/auth/signin?next=%2Fadmin"]')).toBeTruthy()
   })
 
-  it('reviews the precise platform change and requires a reason before saving', async () => {
+  it('reviews the precise platform change and refreshes server notices only after a successful save', async () => {
     await render(); await click(button('Platform controls'))
+    await click(button('Refresh data'))
+    expect(router.refresh).not.toHaveBeenCalled()
     await fill(container.querySelector('textarea')!, 'Maintenance this weekend')
     await submit(container.querySelector('.admin-settings-form')!)
     const review = container.querySelector('dialog[aria-label="Review platform changes"]')!
@@ -131,20 +148,32 @@ describe('mounted owner command center', () => {
     expect(button('Save changes', review).disabled).toBe(true)
     expect(writes).toHaveLength(0)
     await fill(review.querySelector('textarea')!, 'Planned operating notice')
+    failWrite = true
+    await submit(review.querySelector('form')!)
+    expect(review.textContent).toContain('Temporary interruption')
+    expect(router.refresh).not.toHaveBeenCalled()
+    failWrite = false
     await submit(review.querySelector('form')!)
     expect(writes[0]).toMatchObject({ method: 'PATCH', body: { settings: { ...platform, announcement: { enabled: true, message: 'Maintenance this weekend' } }, reason: 'Planned operating notice' } })
     expect(writes[0].body.requestId).toMatch(/^[a-f\d-]{36}$/)
+    expect(writes[1].body.requestId).toBe(writes[0].body.requestId)
+    expect(router.refresh).toHaveBeenCalledTimes(1)
   })
 
   it('normalizes listed plan benefits, shows them in review and saves the editable plan with a reason', async () => {
     await render(); await click(button('Plans & limits'))
+    expect(container.textContent).toContain('Included validation runs per month')
+    expect(container.textContent).toContain('Maximum output tokens per call')
     await fill(container.querySelector('.admin-plan textarea')!, '100 monthly credits\n\nA new benefit  ')
     await submit(container.querySelector('.admin-content > form')!)
     const review = container.querySelector('dialog[aria-label="Review plan changes"]')!
     expect(review.textContent).toContain('A new benefit')
+    expect(review.textContent).toContain('2 included validation runs per month')
+    expect(review.textContent).toContain('24,000 maximum output tokens per call')
     expect(writes).toHaveLength(0)
     await fill(review.querySelector('textarea')!, 'Clarified the entry plan')
     await submit(review.querySelector('form')!)
     expect(writes[0]).toMatchObject({ method: 'PUT', body: { plans: [{ ...plan, benefits: ['100 monthly credits', 'A new benefit'] }], reason: 'Clarified the entry plan' } })
+    expect(router.refresh).not.toHaveBeenCalled()
   })
 })
