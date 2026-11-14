@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or, sql } from 'drizzle-orm'
+import { and, count, desc, eq, gte, ilike, inArray, or, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { db } from '@/db'
 import { adminAuditLog, creditLedger, ideas, userDevices, users, validationJobs, validationReports } from '@/db/schema'
@@ -36,7 +36,7 @@ export async function getAdminOverview(actor: AdminActor): Promise<AdminOverview
     db.select({ total: count(), active: sql<number>`count(*) filter (where ${users.accountStatus} = 'active')::int`,
       blocked: sql<number>`count(*) filter (where ${users.accountStatus} = 'blocked')::int`,
       deactivated: sql<number>`count(*) filter (where ${users.accountStatus} = 'deactivated')::int`,
-      newThisWeek: sql<number>`count(*) filter (where ${users.createdAt} >= ${new Date(Date.now() - 7 * 86_400_000)})::int` }).from(users),
+      newThisWeek: sql<number>`count(*) filter (where ${gte(users.createdAt, new Date(Date.now() - 7 * 86_400_000))})::int` }).from(users),
     db.select({ total: count() }).from(ideas), db.select({ total: count() }).from(validationReports),
     db.select({ total: count() }).from(validationJobs).where(inArray(validationJobs.status, ['pending', 'running'])),
     db.select({ total: count() }).from(validationJobs).where(eq(validationJobs.status, 'failed')),

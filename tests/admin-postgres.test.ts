@@ -32,6 +32,7 @@ let grantAdminCredits: typeof import('@/lib/admin-actions').grantAdminCredits
 let changeAdminAccountStatus: typeof import('@/lib/admin-actions').changeAdminAccountStatus
 let deductCredits: typeof import('@/lib/credits').deductCredits
 let syncUserToDatabase: typeof import('@/lib/auth-sync').syncUserToDatabase
+let getAdminOverview: typeof import('@/lib/admin-data').getAdminOverview
 let actor: AdminActor
 let schemaName: string
 
@@ -49,6 +50,7 @@ describe.skipIf(!target)('Admin operations on real PostgreSQL connections', () =
     ;({ grantAdminCredits, changeAdminAccountStatus } = await import('@/lib/admin-actions'))
     ;({ deductCredits } = await import('@/lib/credits'))
     ;({ syncUserToDatabase } = await import('@/lib/auth-sync'))
+    ;({ getAdminOverview } = await import('@/lib/admin-data'))
     const [scope] = await database.execute(sql`select current_schema() as name, current_schemas(false) as schemas`)
     if (scope.name !== schemaName || !Array.isArray(scope.schemas) || scope.schemas.length !== 1 || scope.schemas[0] !== schemaName) {
       throw new Error('The PostgreSQL session must resolve only the validated disposable schema')
@@ -77,6 +79,14 @@ describe.skipIf(!target)('Admin operations on real PostgreSQL connections', () =
   })
 
   afterAll(async () => { if (database) await database.$client.end({ timeout: 5 }) })
+
+  it('encodes the overview date filter for the PostgreSQL driver and reports numeric counts', async () => {
+    await database.update(users).set({ createdAt: new Date(Date.now() - 8 * 86_400_000) }).where(eq(users.id, firstId))
+    const overview = await getAdminOverview(actor)
+    expect(overview.users).toEqual({ total: 3, active: 3, blocked: 0, deactivated: 0, newThisWeek: 2 })
+    expect(overview.activity).toEqual({ ideas: 0, reports: 0, activeJobs: 0, failedJobs: 0, creditsGranted: 0 })
+    expect(overview.recentActivity).toEqual([])
+  })
 
   it('returns the current owner grant to both first logins when promotion races', async () => {
     await database.update(users).set({ isAdmin: false }).where(eq(users.id, ownerId))
