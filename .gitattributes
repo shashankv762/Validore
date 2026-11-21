@@ -1,0 +1,4 @@
+# Keep copied vector assets byte-identical on Windows and Linux CI.
+/.gitignore text eol=lf
+/README.md text eol=lf
+*.svg text eol=lf

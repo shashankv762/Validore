@@ -85,6 +85,55 @@ venv/
 .agents/
 .rbxsync-trash/
 
+# Local agent instructions and editor state are not public application source.
+AGENTS.md
+AGENT.md
+CLAUDE.md
+.claude/
+.kilo/
+.codex/
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Internal planning notes and historical verification records.
+/DESIGN.md
+/PROJECT.md
+/TEST_INFRA.md
+/TEST_READY.md
+/docs/ADMIN_RELEASE_EVIDENCE_*.md
+/docs/CLASSROOM_DEMO.md
+/docs/CLOUDFLARE_MIGRATION.md
+/docs/GO_LIVE.md
+/docs/IMPLEMENTATION_STATUS.md
+/docs/PRIVACY_DATA_RELEASE_*.md
+/docs/RELEASE_*.md
+/docs/SECURITY_REVIEW_*.md
+/docs/SPECIFICATION.md
+
+# Retired full-app Workers deployment and one-off development helpers.
+/cloudflare/
+/open-next.config.ts
+/wrangler.jsonc
+/scripts/smoke-cloudflare.mjs
+/tests/cloudflare-runtime.test.ts
+/scripts/generators/
+/scripts/fix_full_report.py
+/scripts/patch-credits.js
+/scripts/probe-constraints-m1-2.ts
+/scripts/verify-start.ts
+/scripts/Start-ClassroomApp.ps1
+
+# Unused starter artwork and retired branding.
+/public/_headers
+/public/file.svg
+/public/globe.svg
+/public/next.svg
+/public/window.svg
+/public/og-image.svg
+/public/logo/aurexa-*.svg
+
 # Local one-off source repair helpers (not application source)
 /fix_routes.py
 /fix_syntax.py

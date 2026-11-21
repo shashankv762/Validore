@@ -4,7 +4,7 @@
 
 Validore helps founders examine startup ideas, market assumptions, pricing, and launch plans. It combines a guided idea form, specialist AI agents, saved reports, Lean Canvas versions, pricing simulation, crowdfunding analysis, pitch decks, and exports. AI conclusions are estimates; source matching establishes citation provenance, not proof of demand.
 
-The deployment uses **two independent sites**: the marketing website at `https://validore.tech`, entirely inside [static webpage](static%20webpage/README.md), and the full SaaS at `https://validore.onrender.com`. The static folder includes Vercel and Cloudflare Pages configuration, visitor-triggered wake-up checks, and publishing instructions. The [Render Free guide](docs/FREE_PROTOTYPE_DEPLOYMENT.md) covers the backend and its external services. The [Cloudflare Workers guide](docs/GO_LIVE.md) describes the alternative full-app deployment. Check `/api/health` on the SaaS for the live release revision.
+The deployment uses **two independent sites**: the marketing website at `https://validore.tech`, entirely inside [static webpage](static%20webpage/README.md), and the full SaaS at `https://validore.onrender.com`. The static folder includes Vercel and Cloudflare Pages configuration, visitor-triggered wake-up checks, and publishing instructions. The [Render Free guide](docs/FREE_PROTOTYPE_DEPLOYMENT.md) covers the backend and its external services. Check `/api/health` on the SaaS for the live release revision.
 
 Operator: **Shashank V, India**. Public support and privacy contact: **aegixchainai@gmail.com**.
 
@@ -43,7 +43,7 @@ For a **new development database**, review the schema before running `npm run db
 
 ## Architecture
 
-- A Node standalone server on Render, or the Cloudflare Worker adapter, serves Next.js pages and API routes together.
+- A Node standalone server on Render serves Next.js pages and API routes together.
 - Supabase Auth handles sessions, confirmation, Google sign-in, and password recovery. APIs verify identity and idea/report ownership.
 - Drizzle/PostgreSQL store ideas, private founder interviews, public research, jobs, reports, billing references, and the credit ledger. Credit reservation and refunds use transactions and row locks; concurrent validation requests reuse an existing active job.
 - Inngest runs Full and Lite validation as separate durable research, agent, and persistence steps. Completed steps are reused during replay. Keys stay on the server and are excluded from cached step results.

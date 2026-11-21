@@ -31,7 +31,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  // The optional Workers adapter is retained as a reference; its dependencies
-  // are not part of the Node/Render application or this release's toolchain.
-  "exclude": ["node_modules", ".tmp", "reports", "open-next.config.ts"]
+  "exclude": ["node_modules", ".tmp", "reports"]
 }

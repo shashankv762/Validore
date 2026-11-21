@@ -46,7 +46,6 @@ const included = [
   '.github/workflows/ci.yml', 'render.yaml', 'drizzle/0005_credit_cycle_start.sql', 'drizzle/0006_admin_command_center.sql',
   'src/app/admin/page.tsx', 'src/lib/admin-access.ts', 'src/lib/admin-actions.ts',
   'src/lib/ads/rewards.ts', 'src/components/RewardedCredits.tsx',
-  'AGENTS.md', 'CLAUDE.md',
   'public/fonts/NotoSans-Regular.ttf', 'public/fonts/NOTO-LICENSE.txt',
   'public/fonts/NotoSansDevanagari-Regular.ttf', 'public/fonts/NotoSansDevanagari-Bold.ttf', 'public/fonts/DEVANAGARI-PROVENANCE.txt',
   'src/lib/exports/pdf-text.ts',
