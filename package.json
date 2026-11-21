@@ -22,6 +22,7 @@
     "db:push": "drizzle-kit push",
     "db:seed": "tsx scripts/seed-tiers-and-counter.ts && tsx scripts/seed-crowdfunding-data.ts",
     "db:verify": "tsx scripts/verify-db-setup.ts",
+    "db:migrate:workspace": "tsx scripts/migrate-workspace.ts",
     "data:refresh": "node scripts/refresh-market-snapshot.mjs",
     "db:seed:research": "tsx scripts/seed-research.ts",
     "smoke:production": "node scripts/smoke-production.mjs",

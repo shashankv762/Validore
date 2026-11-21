@@ -4,11 +4,20 @@ import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useAccount } from './AccountProvider'
 
+type WorkspaceIdea = { id: string; name: string }
 type ResourceState = {
   ownerId: string | null
-  ideas: { id: string; name: string }[]
+  ideas: WorkspaceIdea[]
   loading: boolean
   error: string | null
+}
+
+const accessErrorCodes = new Set(['workspace_setup_required', 'maintenance_enabled', 'account_unavailable',
+  'account_blocked', 'account_deactivated', 'registration_required'])
+
+function isIdeasResponse(body: unknown): body is { ideas: WorkspaceIdea[] } {
+  return Boolean(body && typeof body === 'object' && 'ideas' in body && Array.isArray(body.ideas) &&
+    body.ideas.every(idea => idea && typeof idea === 'object' && typeof idea.id === 'string' && idea.id && typeof idea.name === 'string'))
 }
 
 export function useWorkspaceResources() {
@@ -20,14 +29,19 @@ export function useWorkspaceResources() {
     if (!ownerId) return
     const requestOwnerId = ownerId
     const controller = new AbortController()
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
     async function load() {
       try {
-        const response = await fetch('/api/ideas', { signal, cache: 'no-store' })
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)])
+        const response = await fetch('/api/ideas', { signal, cache: 'no-store', credentials: 'same-origin' })
         if (response.status === 401) throw new Error('Your session has expired. Sign in again to continue.')
-        if (!response.ok) throw new Error('Your workspace could not be loaded. Please try again.')
-        const ideas = await response.json()
-        if (!controller.signal.aborted) setState({ ownerId: requestOwnerId, ideas: ideas.ideas ?? [], loading: false, error: null })
+        const body: unknown = await response.json().catch(() => null)
+        if (!response.ok) {
+          const message = body && typeof body === 'object' && 'code' in body && typeof body.code === 'string' && accessErrorCodes.has(body.code) &&
+            'error' in body && typeof body.error === 'string' ? body.error : 'Your workspace could not be loaded. Please try again.'
+          throw new Error(message)
+        }
+        if (!isIdeasResponse(body)) throw new Error('Your workspace could not be loaded. Please try again.')
+        if (!controller.signal.aborted) setState({ ownerId: requestOwnerId, ideas: body.ideas, loading: false, error: null })
       } catch (error) {
         if (!controller.signal.aborted) setState({ ownerId: requestOwnerId, ideas: [], loading: false,
           error: error instanceof Error && !['AbortError', 'TimeoutError', 'TypeError'].includes(error.name)

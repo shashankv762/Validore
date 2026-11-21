@@ -7,6 +7,8 @@ import { users, ideas, validationJobs, validationReports, creditLedger, tierConf
 import { syncUserToDatabase } from '@/lib/auth-sync'
 import { checkCredits, deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
 import { failValidationJob, completeValidationJob, reapStaleValidationJobs } from '@/lib/validation/jobs'
+import { dispatchValidationJob } from '@/lib/validation/dispatch'
+import { inngest } from '@/inngest/client'
 import { reconcileStripeCredits } from '@/lib/subscription-credits'
 import { PIPELINE_LITE_REPLY } from './fixtures/agent-payloads'
 
@@ -59,6 +61,22 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const saved = await db.query.users.findFirst({ where: eq(users.id, user.id) })
     expect(saved?.creditBalance).toBe(0)
     expect(saved?.purchasedCredits).toBe(17)
+  })
+
+  it('leases and publishes a freshly admitted job with the real PostgreSQL driver', async () => {
+    vi.stubEnv('VALIDATION_RUNNER', 'inngest')
+    const user = await profile()
+    const [idea] = await db.insert(ideas).values({ userId: user.id, name: 'Validation queue fixture', industry: 'Software', product: 'Planner',
+      targetCustomer: 'Founders', location: 'India', businessModel: 'SaaS', coreProblem: 'Planning is slow', proposedSolution: 'Guided planning' }).returning()
+    const [job] = await db.insert(validationJobs).values({ userId: user.id, ideaId: idea.id, status: 'pending', isLite: true }).returning()
+    const send = vi.spyOn(inngest, 'send').mockResolvedValue({ ids: ['synthetic-event'] })
+    try {
+      await expect(dispatchValidationJob(job.id)).resolves.toBe(true)
+      await expect(dispatchValidationJob(job.id)).resolves.toBe(false)
+      expect(send).toHaveBeenCalledExactlyOnceWith({ id: job.id, name: 'validore/validation.requested', data: { jobId: job.id, userId: user.id } })
+      const saved = await db.query.validationJobs.findFirst({ where: eq(validationJobs.id, job.id) })
+      expect(saved).toMatchObject({ status: 'pending', dispatchedAt: expect.any(Date), dispatchLeaseExpiresAt: null })
+    } finally { send.mockRestore() }
   })
 
   it.each([new Date(0), null])('recovers a stale job with updatedAt=%s exactly once and rejects completion after its refund', async (updatedAt) => {

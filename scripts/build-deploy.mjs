@@ -9,8 +9,21 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 // that it will compile into the browser. Existing host variables take priority.
 nextEnv.loadEnvConfig(root, false)
 const environment = { ...process.env, NODE_ENV: 'production' }
-if (environment.RENDER === 'true' || environment.RENDER_SERVICE_ID) environment.BUILD_PROFILE = 'release'
+const onRender = environment.RENDER === 'true' || Boolean(environment.RENDER_SERVICE_ID)
+if (onRender) environment.BUILD_PROFILE = 'release'
 validateBuildConfig(environment)
+
+// Check the exact database this service will use before building a release.
+// An outdated schema must not replace the last working deployment.
+if (onRender) {
+  const preflight = spawnSync(process.execPath, ['--import', 'tsx', resolve(root, 'scripts/verify-db-setup.ts'), '--schema-only'], {
+    cwd: root, env: environment, windowsHide: true, timeout: 90_000, stdio: 'inherit',
+  })
+  if (preflight.error || preflight.status !== 0) {
+    console.error('[build] Render database verification failed. Check DATABASE_URL and apply the required SQL deltas before redeploying.')
+    process.exit(1)
+  }
+}
 const configuredRevision = environment.RENDER_GIT_COMMIT || environment.BUILD_COMMIT_SHA
 const gitRevision = configuredRevision || spawnSync('git', ['rev-parse', 'HEAD'], {
   cwd: root, encoding: 'utf8', windowsHide: true,

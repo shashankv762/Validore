@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as waitForLock } from 'node:timers/promises'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { eq, sql } from 'drizzle-orm'
-import { adminAuditLog, creditLedger, users, ideas, customerFeedback, planningModuleRequests, pricingSimulations, validationJobs } from '@/db/schema'
+import { adminAuditLog, creditLedger, users, ideas, customerFeedback, planningModuleRequests, pricingSimulations, tierConfig, validationJobs } from '@/db/schema'
 import type { AdminActor } from '@/lib/admin-requests'
 import { authenticatedDestination, OWNER_EMAIL } from '@/lib/admin-access'
 
@@ -91,6 +91,8 @@ describe.skipIf(!target)('Admin operations on real PostgreSQL connections', () =
   beforeEach(async () => {
     // Qualification and the strict URL check prevent any public-schema fixture writes.
     await database.execute(sql.raw(`TRUNCATE "${schemaName}"."users" CASCADE`))
+    // Other release suites may leave an edited plan in the same disposable schema.
+    await database.delete(tierConfig)
     const now = new Date()
     const cycle = { tier: 'free' as const, creditBalance: 100, purchasedCredits: 0, rewardCredits: 0,
       creditCycleAllowance: 100, creditCycleStartedAt: now, creditResetAt: new Date(now.getTime() + 30 * 86_400_000),

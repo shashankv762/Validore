@@ -46,7 +46,7 @@ npm audit --omit=dev
 
 ## 4. Prepare PostgreSQL before deploying the new code
 
-**Apply outstanding migrations through `drizzle/0015_ai_execution_leases.sql` before serving this revision, even with ads disabled. Apply `0016_subscription_prices.sql` before enabling paid checkouts.** Account, idea, saved planning and validation queries require these schema additions. The Render build and start commands do not apply SQL. The DB-free `/api/health` endpoint proves process liveness only; a passing health check does not prove the database is ready.
+**Apply outstanding migrations through `drizzle/0015_ai_execution_leases.sql` before deploying, even with ads disabled. Apply `0016_subscription_prices.sql` before enabling paid checkouts.** Account, idea, saved planning and validation queries require these schema additions. Render runs a read-only schema and access check before building. It does not apply SQL. The DB-free `/api/health` endpoint checks process liveness only.
 
 For an **existing database**:
 
@@ -71,6 +71,8 @@ For an **existing database**:
    - `drizzle/0015_ai_execution_leases.sql`
    - `drizzle/0016_subscription_prices.sql`
 4. Point your local `DATABASE_URL` at the intended database and run `npm run db:verify`. This command reads configuration from `.env.local`; check the target before invoking it.
+
+For a database already on the owner-console baseline (`0006`), the [workspace recovery procedure](PRODUCTION_SETUP.md#recovering-workspace-unavailable-after-a-release) provides an explicit, transactional upgrade through `0015`.
 
 Migration `0016` intentionally replaces saved Premium and Max Premium monthly prices with 800 and 2,000 USD cents while preserving credits, limits, Stripe price IDs and price history. It does not create provider prices or change existing Stripe subscriptions. Review matching Stripe prices before enabling checkouts. See [the complete ordered delta descriptions](PRODUCTION_SETUP.md#database-rollout), and verify authenticated account/idea loading and validation after deploying the exact passing commit.
 

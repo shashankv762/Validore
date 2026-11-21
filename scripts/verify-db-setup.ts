@@ -1,47 +1,24 @@
 import { config } from 'dotenv'
-config({ path: '.env.local' })
+config({ path: '.env.local', quiet: true })
 
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
-import { count } from 'drizzle-orm'
-import {
-  tierConfig,
-  foundingMemberCounter,
-  syntheticCampaigns,
-} from '../src/db/schema'
+import { count, getTableColumns, getTableName, is, Table } from 'drizzle-orm'
+import * as schema from '../src/db/schema'
+import { databaseErrorCode } from '../src/lib/database-errors'
+const { tierConfig, foundingMemberCounter, syntheticCampaigns } = schema
+const schemaOnly = process.argv.includes('--schema-only')
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL environment variable is required')
 }
 
-const client = postgres(process.env.DATABASE_URL, { prepare: false })
+const client = postgres(process.env.DATABASE_URL, { prepare: false, max: 1, connect_timeout: 10,
+  connection: { default_transaction_read_only: true, statement_timeout: 15_000 } })
 const db = drizzle(client)
 
-const EXPECTED_TABLES = [
-  'admin_audit_log',
-  'platform_settings',
-  'credit_ledger',
-  'user_devices',
-  'founder_interviews',
-  'research_sources',
-  'rewarded_ad_sessions',
-  'credit_purchases',
-  'customer_feedback',
-  'customer_feedback_analyses',
-  'crowdfunding_analyses',
-  'founding_member_counter',
-  'ideas',
-  'lean_canvases',
-  'pitch_decks',
-  'planning_module_requests',
-  'ai_execution_leases',
-  'pricing_simulations',
-  'synthetic_campaigns',
-  'tier_config',
-  'users',
-  'validation_jobs',
-  'validation_reports',
-].sort()
+const applicationTables = Object.values(schema).filter(table => is(table, Table))
+const EXPECTED_TABLES = applicationTables.map(getTableName).sort()
 
 const EXPECTED_ENUMS: Record<string, string[]> = {
   tier: ['free', 'premium', 'max_premium'],
@@ -51,7 +28,7 @@ const EXPECTED_ENUMS: Record<string, string[]> = {
 }
 
 async function verify() {
-  console.log('🔍 Running Database Setup & Seeding Verification...')
+  console.log(schemaOnly ? 'Checking database schema and access...' : '🔍 Running Database Setup & Seeding Verification...')
   let hasErrors = false
 
   // 1. Verify connection
@@ -61,9 +38,8 @@ async function verify() {
     console.log(`  Database: ${nowResult.db_name}`)
     console.log(`  Time: ${nowResult.current_time}`)
     console.log(`  Version: ${nowResult.pg_version}`)
-  } catch (err) {
-    console.error('❌ Database connection failed:', err)
-    process.exit(1)
+  } catch (cause) {
+    throw new Error('Database connection failed.', { cause })
   }
 
   // 2. Verify application tables and browser-role isolation.
@@ -86,13 +62,24 @@ async function verify() {
     console.log(`✅ All ${EXPECTED_TABLES.length} expected tables exist.`)
   }
 
+  const tableColumns = await client`SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'`
+  for (const table of applicationTables) {
+    const name = getTableName(table)
+    if (!existingTables.includes(name)) continue
+    const missing = Object.values(getTableColumns(table)).map(column => column.name)
+      .filter(column => !tableColumns.some(row => row.table_name === name && row.column_name === column))
+    if (missing.length) { console.error(`Schema mismatch in ${name}: missing ${missing.join(', ')}. Review the database rollout before serving this release.`); hasErrors = true }
+  }
+
   const access = await client`
-    SELECT c.relname AS table_name, c.relrowsecurity AS rls
+    SELECT c.relname AS table_name, c.relrowsecurity AS rls,
+      has_table_privilege(current_user, c.oid, 'SELECT') AS can_read
     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public' AND c.relname = ANY(${EXPECTED_TABLES})
   `
   for (const table of access) {
     if (!table.rls) { console.error('RLS disabled on application table:', table.table_name); hasErrors = true }
+    if (!table.can_read) { console.error('The server database role cannot read application table:', table.table_name); hasErrors = true }
   }
   const browserRoles = await client`SELECT rolname FROM pg_roles WHERE rolname IN ('anon', 'authenticated')`
   for (const role of browserRoles) {
@@ -136,22 +123,8 @@ async function verify() {
     WHERE n.nspname = 'public' AND conname IN ('users_account_status_valid', 'users_owner_active', 'users_credit_cycle_allowance_nonnegative')`
   if (adminConstraints.length !== 3) { console.error('Required account status and owner constraints are missing. Apply migration 0006 before deploying.'); hasErrors = true }
 
-  // The new flows depend on additive SQL constraints as well as Drizzle's
-  // table definitions. A db:push alone must not be reported as release-ready.
-  const workflowColumns = await client`SELECT table_name, column_name FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name IN ('customer_feedback', 'customer_feedback_analyses', 'planning_module_requests', 'ai_execution_leases', 'validation_jobs', 'ideas')`
-  const requiredWorkflowColumns: Record<string, string[]> = {
-    customer_feedback: ['user_id', 'idea_id', 'kind', 'content', 'source_label', 'source_url', 'occurred_at', 'rating', 'sentiment', 'provenance', 'fetched_at', 'content_hash', 'request_id', 'notice_version', 'created_at', 'deleted_at'],
-    customer_feedback_analyses: ['user_id', 'idea_id', 'source_digest', 'method_version', 'idea_fingerprint', 'analysis', 'analyzed_records', 'total_records', 'provider', 'tokens_used', 'created_at'],
-    planning_module_requests: ['user_id', 'idea_id', 'request_key', 'module', 'payload_hash', 'idea_fingerprint', 'status', 'lease_token', 'lease_expires_at', 'result_id', 'stage_data', 'context_snapshot', 'created_at', 'updated_at'],
-    ai_execution_leases: ['user_id', 'lease_kind', 'expires_at', 'created_at'],
-    validation_jobs: ['entitlement_snapshot', 'dispatched_at', 'dispatch_lease_expires_at'],
-    ideas: ['public_research_focus'],
-  }
-  for (const [table, columns] of Object.entries(requiredWorkflowColumns)) {
-    const missing = columns.filter(column => !workflowColumns.some(row => row.table_name === table && row.column_name === column))
-    if (missing.length) { console.error(`Missing workflow columns in ${table}: ${missing.join(', ')}. Apply migrations 0007–0014 before deploying.`); hasErrors = true }
-  }
+  // The reviewed SQL deltas also install constraints and indexes outside the
+  // Drizzle table definitions. A db:push alone is not a complete rollout.
   const requiredWorkflowIndexes = [
     'credit_ledger_signup_once_idx', 'credit_ledger_daily_claim_once_idx',
     'customer_feedback_content_uidx', 'customer_feedback_request_uidx', 'customer_feedback_owner_idx',
@@ -165,7 +138,7 @@ async function verify() {
   for (const name of requiredWorkflowIndexes) {
     const found = workflowIndexes.find(index => index.indexname === name)
     const needsUnique = name.includes('_once_') || name.endsWith('_uidx')
-    if (!found?.valid || needsUnique && !found.is_unique) { console.error(`Missing or invalid workflow index: ${name}. Apply migrations 0007–0009 before deploying.`); hasErrors = true }
+    if (!found?.valid || needsUnique && !found.is_unique) { console.error(`Missing or invalid workflow index: ${name}. Apply migrations 0007–0015 before deploying.`); hasErrors = true }
   }
   const requiredWorkflowConstraints = ['ai_execution_leases_kind_check', 'customer_feedback_kind_check', 'customer_feedback_sentiment_check',
     'customer_feedback_provenance_check', 'customer_feedback_content_size', 'customer_feedback_analysis_count_check',
@@ -208,6 +181,8 @@ async function verify() {
       }
     }
   }
+
+  if (schemaOnly) return !hasErrors
 
   // 4. Verify tier_config rows
   console.log('\n--- 3. Tier Config Verification ---')
@@ -272,19 +247,19 @@ async function verify() {
     console.log(`✅ All ${totalCampaigns} campaigns have data_label='SYNTHETIC DATA'.`)
   }
 
-  await client.end()
-
-  console.log('\n==========================================')
-  if (hasErrors) {
-    console.error('❌ VERIFICATION FAILED: Issues found in database setup.')
-    process.exit(1)
-  } else {
-    console.log('✅ Schema, seed, RLS, and table-grant checks passed. Verify hosted auth, owner isolation, queues, backups, views and RPC access separately before launch.')
-    console.log('==========================================')
-  }
+  return !hasErrors
 }
 
-verify().catch(err => {
-  console.error('❌ Verification script crashed:', err)
-  process.exit(1)
-})
+verify().then(passed => {
+  if (!passed) {
+    console.error('❌ VERIFICATION FAILED: Issues found in database setup.')
+    console.error('For an owner-console database missing workspace deltas 0007–0015, review npm run db:migrate:workspace (dry run). Back up and test in staging before applying.')
+    process.exitCode = 1
+    return
+  }
+  console.log(schemaOnly ? '✅ Database schema and access checks passed.'
+    : '✅ Schema, seed, RLS, and table-grant checks passed. Verify hosted auth, owner isolation, queues, backups, views and RPC access separately before launch.')
+}).catch(error => {
+  console.error('❌ Database verification could not complete.', { code: databaseErrorCode(error) })
+  process.exitCode = 1
+}).finally(() => client.end({ timeout: 5 }))

@@ -54,7 +54,7 @@ Use a separate staging database and take a verified backup before changing an ex
 16. drizzle/0015_ai_execution_leases.sql adds private, expiring feedback-analysis leases and their index.
 17. drizzle/0016_subscription_prices.sql sets saved Premium and Max Premium monthly prices to 800 and 2,000 USD cents. It preserves credits, limits, Stripe price IDs and price history, but intentionally replaces saved subscription amounts. Review the matching provider prices before enabling paid checkouts; this SQL does not change a Stripe subscription or create provider prices.
 
-**Apply outstanding deltas through 0015 before serving this application revision, and 0016 before enabling its paid checkouts.** The Render build and start commands do not apply SQL. After confirming the intended database target, run `npm run db:verify`; it reads `.env.local`. The DB-free `/api/health` route proves process liveness only, so a passing Render health check does not prove schema readiness. Verify authenticated account and idea loading, then the validation workflow after rollout.
+**Apply outstanding deltas through 0015 before deploying, and 0016 before enabling paid checkout.** Render runs the schema-only mode of `npm run db:verify` before compiling the app. This check reads schema and access rules from Render's configured database. A failed check stops the build. Operators can run the full `npm run db:verify` check after confirming the intended database target to verify seed data as well. The DB-free `/api/health` route checks process liveness. Verify authenticated account and idea loading, then the validation workflow after rollout.
 
 Plan scores are rounded to bounded whole points before PostgreSQL persistence. Credit debits record cycle start, tier and subscription identity. Paid renewals and signed Stripe events use the same account lock and authoritative period start/end, so repeated events preserve spending in that period. An expired paid period must be reconciled before new plan credits become available; an unavailable provider returns a recoverable request failure. Purchased and earned credits retain their source on refunds. Verify delayed/duplicate renewal, 28-/30-/31-day periods and cancellation with staging billing before enabling sales.
 
@@ -67,6 +67,33 @@ Before launch, test anon and authenticated Data API SELECT/INSERT/UPDATE/DELETE 
 Seeds include synthetic crowdfunding campaigns. They must remain labeled synthetic rather than being presented as historical research.
 
 `npm run data:refresh` is a separate direct-public-data command: it writes the local 48-observation snapshot and provenance, without loading credentials, using a model or accessing PostgreSQL. `npm run db:seed:research` explicitly copies a reviewed, unexpired snapshot into the configured database after migration `0003`. The public bundle is also available without this seed. Keep `RESEARCH_STORE_ENABLED=true`; disabling it disables both bundled and durable research retrieval. Read [DATA_SOURCES.md](DATA_SOURCES.md) for country/indicator coverage and licensing limitations.
+
+## Recovering “Workspace unavailable” after a release
+
+If account loading succeeds but `/api/ideas` fails, check database readiness rather than changing the Supabase keys or disabling RLS. The idea list selects the release's idea columns, including `public_research_focus`; an older database without migration `0012` fails that query. Missing feedback, planning-request, entitlement and dispatch migrations also break the corresponding tools even when `/api/health` is green.
+
+Run the read-only check against the intended database:
+
+```powershell
+npm run db:verify
+```
+
+For an existing database that already has the owner-console baseline through `0006`, preview the bounded workspace upgrade:
+
+```powershell
+npm run db:migrate:workspace
+```
+
+The default is a disconnected dry run: it shows the target hostname and reviewed SQL files without opening a connection or changing anything. Environment-injected `DATABASE_URL` takes priority over `.env.local`. Confirm the target, take and verify a backup, and test the upgrade in staging. Then the operator can explicitly apply it:
+
+```powershell
+npm run db:migrate:workspace -- --apply --backup-confirmed
+npm run db:verify
+```
+
+The command applies only reviewed deltas `0007`–`0015` in one transaction with an upgrade lock and bounded lock/query timeouts. A failure rolls back the entire batch; it never deletes historical records to satisfy a unique index. Saved briefs, balances, credit history and jobs are retained, and existing private brief content never becomes a public research topic. Migration `0007` updates only the legacy, unedited Free catalog allocation policy; owner-saved plan settings are retained. Subscription-price migration `0016` is deliberately excluded and still requires its separate billing review. This command is not a baseline initializer and does not replace the earlier SQL/access rollout.
+
+After verification, check authenticated idea loading, saving, editing, and opening the planning and feedback tools. The workspace offers a retry after a failed load. Missing tables or columns return a controlled error, separate from expiry, maintenance, or an inactive account. No schema changes run during build, start, or ordinary requests.
 
 ## Private founder interviews and retention
 

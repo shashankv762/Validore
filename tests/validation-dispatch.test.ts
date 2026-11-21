@@ -52,6 +52,21 @@ describe('durable validation dispatch and app capacity', () => {
     const saved = await state.client.query<{ status: string; dispatched_at: Date }>('select status, dispatched_at from validation_jobs where id = $1', [job.id])
     expect(saved.rows[0].status).toBe('pending'); expect(saved.rows[0].dispatched_at).not.toBeNull()
   })
+  it('leaves an admitted job available for recovery if its dispatch lease cannot be written', async () => {
+    const job = await admit()
+    await state.client.exec('alter table validation_jobs rename column dispatch_lease_expires_at to staging_lease')
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      await expect(dispatchValidationJob(job.id)).resolves.toBe(false)
+      expect(state.send).not.toHaveBeenCalled()
+      expect(warning).toHaveBeenCalledWith('[validation/dispatch] Pending job retained for reconciliation', { phase: 'lease', code: '42703' })
+    } finally {
+      warning.mockRestore()
+      await state.client.exec('alter table validation_jobs rename column staging_lease to dispatch_lease_expires_at')
+    }
+    await expect(reconcileValidationDispatches()).resolves.toEqual({ dispatched: 1 })
+    expect(state.send).toHaveBeenCalledOnce()
+  })
   it('does not republish expired or terminal jobs', async () => {
     const job = await admit()
     await state.client.query("update validation_jobs set created_at = now() - interval '61 minutes' where id = $1", [job.id])
