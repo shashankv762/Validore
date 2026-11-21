@@ -1,29 +1,12 @@
-# Publish the ten-user Validore prototype for $0 in hosting fees
+# Deploy Validore on Render
 
-Reviewed 1 November 2026. **Recommended starting point: Render Free + Supabase Free + Upstash Free + Inngest Free, using only available free AI models.** This can cost $0 while you stay within each service's free allowances. The built-in `onrender.com` address and HTTPS avoid buying a domain. Your already-owned domain can be connected later.
+Run the app as a Render Node Web Service. Supabase supplies PostgreSQL and Auth, Upstash supplies Redis, and Inngest runs validation and maintenance. Choose free plans for a pilot if the service limits and cold starts fit your workload. See [Render Free limits](https://render.com/docs/free).
 
-**Current requested domain layout:** the independent [static marketing website](../static%20webpage/README.md) serves `validore.tech`; this SaaS stays on `validore.onrender.com`. Keep Auth callbacks, `NEXT_PUBLIC_APP_URL` and `INNGEST_SERVE_ORIGIN` on the Render host. The static guide also fixes the stale Render build command referencing the deleted `scripts/ci-config.mjs` and `npm run ci`.
+`validore.tech` serves the [independent static marketing website](../static%20webpage/README.md). Keep app, Auth callback and Inngest origins on the Render host.
 
-Render is one option, not the only compatible host. This recommendation fits a small commercial prototype whose users can tolerate cold starts. Render explicitly recommends Free instances for testing, not production applications. A free deployment cannot promise uninterrupted service, immediate first loads, unlimited AI calls or guaranteed ad earnings.
+## 1. Review the deployment configuration
 
-## 1. Choose the host
-
-| Host | Fit for this version | Free commercial prototype? | Decision |
-| --- | --- | --- | --- |
-| Render Free Web Service | Runs the existing Node server, APIs and exports together | Free instance available; standard terms/quotas apply | Simplest starting point for this pilot |
-| Cloudflare Pages static hosting | Cannot execute this full app's authenticated server/database/AI routes as a static export | Static hosting is free, but another backend would still be needed | Not the complete deployment |
-| Cloudflare Workers Free | OpenNext is integrated. This bundle is 20,351.99 KiB uncompressed, within the current 64 MiB limit | Possible candidate, but the checked-in CPU setting targets Paid and Free allows only 10 ms CPU/request | Qualify the real workload first, especially SSR and exports; local smoke does not prove Free-plan CPU compatibility |
-| Cloudflare Workers Paid | Existing Worker adapter, domain and cron configuration remain supported | Paid, starting at US$5/month plus applicable usage | Reasonable later option for a hosted service without Render Free's idle sleep; verify workload limits |
-| Vercel | Next.js is compatible, subject to runtime limits and configuration | Hobby is restricted to personal, non-commercial use | Vercel Pro is an option; Hobby does not fit this commercial request |
-| Netlify Free | Supports Next.js and permits commercial projects | Free allowance is 300 platform credits/month | Requires adapting/testing long AI calls: synchronous functions have a 60-second limit, while this app allows longer work |
-| Google Cloud Run | Can run the existing container with external database and Inngest | Free usage allowance, with a billing account; overages and other cloud services can cost money | Compatible alternative, not a guaranteed zero-bill choice |
-| Oracle Always Free VM | Can run Node or Docker | Eligible Always Free resources are available subject to capacity/account conditions | More server administration; idle reclamation and regional capacity make it less convenient for this pilot |
-
-This is a full Next.js 16 app, not only a frontend. Supabase stores the data; Inngest coordinates validation; Redis handles shared limits. Ten accounts alone do not determine hosting usage: long model calls, retries, exports and concurrent requests matter too.
-
-**Correction to the earlier bundle-size advice:** Cloudflare [removed compressed bundle limits on 4 September 2026](https://developers.cloudflare.com/changelog/post/2026-09-04-increased-worker-size-limit/). Both plans now allow 64 MiB uncompressed. The latest local dry run is 20,351.99 KiB total / 4,986.50 KiB gzip; gzip is informational. Do not pay solely because this app exceeds the old 3 MB compressed threshold. The current `limits.cpu_ms: 300000` setting targets Paid, while Free allows 10 ms CPU per request, 128 MB memory and 50 external subrequests. AI network waiting does not count as CPU. Before choosing Workers Free, prepare a separate configuration without the Paid CPU override and test the complete workload on a Free staging Worker, checking its CPU/error metrics. Local `wrangler dev` does not enforce those hosted limits. Render is recommended here to avoid making unverified CPU promises.
-
-Sources: [Render Free](https://render.com/docs/free), [Vercel Hobby](https://vercel.com/docs/plans/hobby), [Workers limits](https://developers.cloudflare.com/workers/platform/limits/), [Workers pricing](https://developers.cloudflare.com/workers/platform/pricing/), [Netlify Free commercial use](https://www.netlify.com/blog/introducing-netlify-free-plan/), [Netlify pricing](https://www.netlify.com/pricing/), [Netlify function limits](https://docs.netlify.com/build/functions/configuration/), [Cloud Run pricing](https://cloud.google.com/run/pricing), [Oracle Always Free](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm). Check the account dashboard before enabling a paid option; plans can change.
+[render.yaml](../render.yaml) records the service settings and environment fields. Update an existing service in its dashboard or sync its existing Blueprint.
 
 ## 2. Prepare the services
 
@@ -44,7 +27,7 @@ Sources: [Render limits](https://render.com/docs/free), [Render compute specific
 
 ## 3. Prepare and review the repository
 
-1. Keep the code in your Git repository, preferably private during the pilot. Review the existing uncommitted changes together with this release. No commit, push or deployment was performed in this implementation session.
+1. Review the Git revision and confirm its [GitHub checks](https://github.com/shashankv762/Validore/actions) pass before deploying.
 2. Use Node.js 24 and install from the lockfile with `npm ci`.
 3. Use `.env.example` for local configuration and `.env.production.example` as a **blank reference**, never as a filled file to commit. Files containing credentials must remain ignored.
 4. Run the release checks locally:
@@ -53,13 +36,13 @@ Sources: [Render limits](https://render.com/docs/free), [Render compute specific
 npm run verify:release-files
 npm run lint
 npm run typecheck
-npm test
+npm run test:ci
 npm run build:deploy
 npm run smoke:production
 npm audit --omit=dev
 ```
 
-`build:deploy` builds with webpack and copies public/static assets into the standalone output. This avoids the previously observed Windows Turbopack tracing problem and uses the same output that Render will start. Build success does not test live email, provider quotas or authentication callbacks.
+`build:deploy` builds with webpack and copies public/static assets into the standalone output. Render starts the same output. Build success does not test live email, provider quotas or authentication callbacks.
 
 ## 4. Prepare PostgreSQL before deploying the new code
 
@@ -106,7 +89,7 @@ In Render, choose **New → Web Service**, connect the reviewed Git repository a
 | Root directory | Repository root; leave blank when the app is at the root |
 | Region | Near your Supabase region and users; Singapore is a reasonable India-facing choice if your database is nearby |
 | Build command | `npm ci --include=dev --no-fund && npm run build:deploy` |
-| Start command | `npm run start:standalone` |
+| Start command | `node --max-old-space-size=256 .next/standalone/server.js` |
 | Instance | **Free**, not Starter |
 | Health check | `/api/health` |
 | Auto-deploy | Off; publish reviewed releases manually |
@@ -116,12 +99,14 @@ Enter these environment variables in Render. Values in angle brackets below are 
 ```dotenv
 NODE_VERSION=24
 NODE_ENV=production
+BUILD_PROFILE=release
 HOSTNAME=0.0.0.0
 NEXT_TELEMETRY_DISABLED=1
 APP_ENV=production
 NEXT_PUBLIC_APP_URL=https://<your-service>.onrender.com
 NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<public publishable key>
+SUPABASE_SECRET_KEY=<private server key for admin account operations>
 DATABASE_URL=<private pooled PostgreSQL URL>
 DB_MAX_CONNECTIONS=2
 UPSTASH_REDIS_REST_URL=<Redis REST URL>
@@ -151,7 +136,7 @@ Generate separate random server secrets for `ENCRYPTION_KEY` and `CRON_SECRET`. 
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Do not rotate `ENCRYPTION_KEY` on an existing deployment without a plan for saved custom AI keys: changing it makes those encrypted values unreadable. Render supplies `PORT`; do not hardcode port 3100. Leave `INNGEST_DEV` unset in production. A Supabase service-role key is not required for ordinary app routes. Leave Stripe/Razorpay keys empty until accepting payments is deliberately configured and tested.
+Do not rotate `ENCRYPTION_KEY` on an existing deployment without a plan for saved custom AI keys: changing it makes those encrypted values unreadable. Render supplies `PORT`; do not hardcode port 3100. Leave `INNGEST_DEV` unset in production. Use `SUPABASE_SECRET_KEY` only in the Render server environment for admin operations. Leave Stripe/Razorpay keys empty until accepting payments is deliberately configured and tested.
 
 The signup setting keeps protection enabled while allowing ten registrations from a shared network in seven days; its default remains three and maximum is twenty. This is an abuse limit, not a ten-member invitation system. Confirm that the ingress supplies a trustworthy client address; if you add another proxy, review `TRUSTED_PROXY_HOPS` instead of guessing a higher value.
 
@@ -178,7 +163,7 @@ A sleeping Render instance can delay job delivery or cause an initial retry. Inn
 
 ## 8. Enable ads only after approval and testing
 
-The Credits tab now supports **one confirmed rewarded video → 10 earned credits** using AppLixir. It stays in an honest unavailable state until configured. You have not yet obtained an approved ad account, so real ads cannot be promised today.
+The Credits tab now supports **one confirmed rewarded video → 10 earned credits** using AppLixir. It stays in an honest unavailable state until configured.
 
 Follow [rewarded ads, payout and crypto setup](REWARDED_ADS.md). Default caps are five rewards per user/day, fifty for the entire app/day, and a one-minute cooldown. A Free account can fund an extra 50-credit Lite validation with five earned rewards after using its included runs. Premium tools still require their existing entitlements.
 
@@ -209,7 +194,7 @@ If quotas, sleep or memory become a problem, the honest next step is a measured 
 
 | Symptom | Check |
 | --- | --- |
-| `Cannot find module .../scripts/ci-config.mjs` | Replace the whole saved Build Command with the command in section 5, or deploy the restored `ci-config.mjs`, `test-ci.mjs` and updated `package.json` together. Root directory must be the app repository root. |
+| Build calls a missing CI script | Set the Render Build Command to `npm ci --include=dev --no-fund && npm run build:deploy`. Use the repository root. |
 | First request shows a loading page | Expected Render Free wake-up; allow about a minute |
 | Credits/account, idea or planning API fails after release | Verify outstanding migrations through 0015, the PostgreSQL URL and grants; apply 0016 before enabling paid checkouts |
 | Signup says temporarily unavailable | Redis URL/token, trusted client IP and SMTP configuration |

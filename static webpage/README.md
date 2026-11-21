@@ -7,7 +7,7 @@ The website is fully contained in this folder. **Only `public/` is served.** It 
 - GitHub repository: **https://github.com/shashankv762/Validore**
 - Main application setup: [free prototype deployment guide](../docs/FREE_PROTOTYPE_DEPLOYMENT.md)
 
-This implementation is prepared locally. The Render dashboard, GitHub branch, database, Vercel project and DNS still need the publishing steps below. A checked-in configuration does not change an existing remote service on its own.
+Publish this directory independently from the Render app. Configure GitHub, the static host and DNS as described below.
 
 ## 1. Choose the static host
 
@@ -21,52 +21,9 @@ Render Free continues to serve the SaaS. Visiting this page can start its wake-u
 
 Sources, checked 1 November 2026: [Vercel Hobby restrictions](https://vercel.com/docs/plans/hobby), [Vercel static project configuration](https://vercel.com/docs/project-configuration/vercel-json), [Cloudflare Pages limits](https://developers.cloudflare.com/pages/platform/limits/), [Render Free behavior](https://render.com/docs/free).
 
-## 2. Fix the existing Render build first
+## 2. Deploy the Render app
 
-The error `Cannot find module '/opt/render/project/src/scripts/ci-config.mjs'` comes from an outdated build command. Commit `5b4e9fe` removed both `scripts/ci-config.mjs` and the old `ci` package script. The former Render configuration still invoked both. Reinstalling dependencies or deleting only the first invocation will not fix the whole command.
-
-**Compatibility repair:** `scripts/ci-config.mjs`, the `npm run ci` entry point, and `scripts/test-ci.mjs` are now restored. The old saved command can work after a commit containing those files and the updated root `package.json` reaches Render. These are real public-configuration, lint, type and test checks, not empty stubs. Tests run with `NODE_ENV=test` even when the host is configured for production. The shorter command below remains recommended when release checks have already been run locally.
-
-1. Review the complete local release, including the earlier credit/ad changes, and commit/push the intended files to the branch Render deploys. Keep `.env.local`, credentials, `.tmp`, and `reports` out of Git. Do not discard the other uncommitted work.
-2. Open [Render Dashboard](https://dashboard.render.com/), select the **existing `validore` Web Service**, then **Settings → Build & Deploy**. Do not create a second service just to fix this error.
-3. Replace the **entire** Build Command with:
-
-   ```sh
-   npm ci --include=dev --no-fund && npm run build:deploy
-   ```
-
-4. Replace the Start Command with:
-
-   ```sh
-   npm run start:standalone
-   ```
-
-5. Use these settings:
-
-   | Setting | Value |
-   | --- | --- |
-   | Runtime | Node |
-   | Root Directory | Empty / repository root |
-   | Instance Type | Free |
-   | Health Check Path | `/api/health` |
-   | Auto-Deploy | Off until the release has been verified |
-   | `NODE_VERSION` | `24` |
-   | `NODE_ENV` | `production` |
-   | `HOSTNAME` | `0.0.0.0` |
-   | `NEXT_PUBLIC_APP_URL` | `https://validore.onrender.com` |
-   | `INNGEST_SERVE_ORIGIN` | `https://validore.onrender.com` |
-   | `VALIDATION_RUNNER` | `inngest` |
-   | `VALIDATION_GLOBAL_CONCURRENCY` | `1` for the small pilot |
-   | `CREDIT_MAINTENANCE_RUNNER` | `inngest` |
-   | `REWARDED_ADS_ENABLED` | `false` until publisher approval and integration testing |
-
-   Retain the existing working Supabase, PostgreSQL, Redis, AI and Inngest credentials. Render supplies `PORT`. Remove any old start command/redirect that sends the app back to `validore.tech`.
-
-6. **Before deploying the current app revision, apply and verify the required database changes through `drizzle/0004_rewarded_ads.sql`.** The new account queries require `reward_credits` even when ads are off. Follow the backed-up/staging database procedure in the [main guide](../docs/FREE_PROTOTYPE_DEPLOYMENT.md#4-prepare-postgresql-before-deploying-the-new-code); do not rerun seeds as a repair action against existing user data.
-7. Save settings, then use **Manual Deploy → Deploy latest commit**. If an old build artifact is still being reused, choose **Clear build cache & deploy** after correcting the command. With the recommended shorter command, the logs run `build:deploy` and prepare `.next/standalone` directly. If retaining the older command, confirm the deployed commit contains the restored compatibility files first; local changes do not reach Render until committed and pushed.
-8. Open `https://validore.onrender.com/api/health`. Expect JSON with `status: "ok"` and `service: "validore"`. Check sign-in and a real pilot validation as well: liveness alone cannot verify external services.
-
-The root [render.yaml](../render.yaml) records these commands. If the existing service is already Blueprint-managed, review and sync that Blueprint. Otherwise, edit the existing service manually; adding YAML to Git alone cannot change its dashboard settings. The blueprint intentionally attaches no `validore.tech` domain and creates no database.
+Configure the existing Render service with the build and start commands in [render.yaml](../render.yaml). Follow the [Render guide](../docs/FREE_PROTOTYPE_DEPLOYMENT.md) for environment variables, database changes and verification. After deployment, check `/api/health` and test sign-in and validation on Render.
 
 ## 3. Keep sign-in and jobs on the app domain
 
@@ -113,7 +70,7 @@ Vercel documentation: [build settings](https://vercel.com/docs/builds/configure-
 
 ## 5. Free commercial alternative: Cloudflare Pages
 
-This is for **the new static folder only**. It is independent of the repository's full-app Workers migration.
+This deploys the static marketing folder independently from the Render app.
 
 1. In Cloudflare, open **Workers & Pages → Create application → Pages** and connect the same GitHub repository.
 2. Select the intended production branch and set:

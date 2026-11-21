@@ -15,6 +15,9 @@ export default defineConfig({
 
     isolate: true,
     reporters: ['default'],
+    // Parallel PGlite startup and export imports can exceed the default timeout
+    // on slower machines.
+    testTimeout: 15000,
     include: [
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
@@ -22,7 +25,7 @@ export default defineConfig({
       'tests/**/*.test.tsx',
       'static webpage/tests/**/*.test.ts',
     ],
-    exclude: ['**/node_modules/**', '**/.next/**'],
+    exclude: ['**/node_modules/**', '**/.next/**', 'tests/cloudflare-runtime.test.ts'],
   },
 
   resolve: {

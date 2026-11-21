@@ -1,21 +1,21 @@
 # Production setup
 
-For the ten-user prototype, follow [the Render Free guide](FREE_PROTOTYPE_DEPLOYMENT.md). The current domain layout is **static marketing at `https://validore.tech` and the SaaS at `https://validore.onrender.com`**; see [the publishing guide](../static%20webpage/README.md). Keep app/auth/Inngest origins on the SaaS host. [GO_LIVE.md](GO_LIVE.md) describes an alternative full-app Cloudflare Workers deployment. GitHub Actions verifies pushes and pull requests; deployment to the existing Render service remains manual. Public launch requires hosted integration checks.
+For the ten-user prototype, follow [the Render Free guide](FREE_PROTOTYPE_DEPLOYMENT.md). The current domain layout is **static marketing at `https://validore.tech` and the SaaS at `https://validore.onrender.com`**; see [the publishing guide](../static%20webpage/README.md). Keep app/auth/Inngest origins on the SaaS host. GitHub Actions verifies pushes and pull requests; deployment to the existing Render service remains manual. Public launch requires hosted integration checks.
 
 ## Configuration
 
-Use .env.example as the field reference. Keep .env.local ignored and out of source control or a Docker context. The earlier release evidence records private credentials shared during setup; their rotation remains unverified. Rotate any such credentials in their provider dashboards and update dependent services together. A public publishable/anon key is intended for the browser; a service-role/secret key and DB credentials are server-only.
+Use `.env.production.example` as a reference for Render settings. Store private keys and database credentials in Render's environment settings. The Supabase publishable key is the browser-facing credential.
 
 | Setting | Requirement |
 | --- | --- |
 | NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY | Real public project configuration at build time; a legacy public NEXT_PUBLIC_SUPABASE_ANON_KEY is also supported; never use a private key |
 | NEXT_PUBLIC_APP_URL | Exact HTTPS origin in production; rebuild when it changes |
-| DATABASE_URL | Target Supabase transaction-pooler string for Cloudflare Workers; URL-encode reserved password characters; the app sets prepare: false |
-| DB_MAX_CONNECTIONS | Start with 2 on Cloudflare Workers (code default 2); total instances times pool size must fit database capacity |
+| DATABASE_URL | Supabase transaction pooler connection string. URL-encode reserved password characters. The app sets `prepare: false`. |
+| DB_MAX_CONNECTIONS | Start with 2 connections per Render instance. Size the pool to fit the database capacity. |
 | UPSTASH_REDIS_REST_URL / TOKEN | Production abuse controls; unavailable/missing Redis blocks costly calls and signup |
 | AI provider keys | Working `PIXROUTER_API_KEY`; OpenCode/OpenRouter are optional fallbacks after access/quota is restored |
 | Free model policy | `AI_FREE_ONLY=true`, gateway enable/order `pixrouter,opencode,openrouter`, rotation and direct paid priority disabled; use the curated IDs in `.env.example` |
-| `PIXROUTER_REQUESTS_PER_HOUR` | Default 55, below the observed account maximum of 60 per rolling hour; catalog and generation calls share Redis capacity |
+| `PIXROUTER_REQUESTS_PER_HOUR` | The default budget is 55 per hour. Catalog and generation calls share that budget through Redis. |
 | Search keys | Tavily, Serper and SerpAPI are optional sparse-evidence fallbacks after public search; combined defaults are 2/report and 30/day, cached for six hours |
 | ENCRYPTION_KEY | Exactly 64 hex characters, securely generated; required to store/use custom provider keys |
 | VALIDATION_RUNNER | inngest for public operation; local is rejected for production validation |
@@ -42,7 +42,7 @@ Use a separate staging database and take a verified backup before changing an ex
 4. drizzle/0003_founder_interviews_research.sql adds private founder interviews and durable public research, indexes, bounded JSON state, RLS and browser-role revocations. **Apply before serving this application revision.** It does not modify existing customer records.
 5. drizzle/0004_rewarded_ads.sql adds the nonnegative earned balance, reward sessions, replay-protection index and browser-role restrictions. **Required before this release even with ads disabled**, because account queries include the new column. It does not rewrite plan or purchased balances.
 6. drizzle/0005_credit_cycle_start.sql adds explicit cycle start and monthly-pool consumption, preserving existing balances and ledger history. The additive backfill uses the known cycle's recorded monthly debits/refunds and a conservative balance-derived floor; it does not treat purchased/earned spending as monthly spending. Paid starts are reconciled from Stripe's exact period when credit operations next run. Apply before starting the updated application.
-7. drizzle/0006_admin_command_center.sql adds the pinned owner grant, account status, cycle allowance snapshot, configurable plans, private platform settings and an admin audit log. Apply before deploying the command center. Existing Free PDF access is preserved once; repeated application retains saved admin plan choices. See [Admin operations](ADMIN_COMMAND_CENTER.md).
+7. drizzle/0006_admin_command_center.sql adds the pinned owner grant, account status, cycle allowance snapshot, configurable plans, private platform settings and an admin audit log. Apply before deploying the command center. Existing Free PDF access is preserved once; repeated application retains saved admin plan choices.
 8. drizzle/0007_starting_daily_manual_plans.sql adds one-time signup/daily-claim indexes and updates only the legacy, unedited Free allocation policy; existing user balances and ledger entries remain unchanged.
 9. drizzle/0008_customer_feedback.sql adds private feedback records and analyses, ownership indexes, bounded content, RLS and browser-role restrictions.
 10. drizzle/0009_planning_module_requests.sql adds the durable planning request registry and replay/lease constraints.
@@ -84,9 +84,9 @@ The daily maintenance cron prunes public records more than 90 days past expiry a
 
 Configure Site URL to the public origin and allow the app's /auth/callback redirect for confirmation and recovery, plus explicit localhost/staging origins as needed. Use production SMTP/delivery settings and test registration, confirmation, sign-in, expired reset links, reset completion, sign-out, and refresh cookies. The server uses a PKCE callback before the reset page; custom email templates must support that flow.
 
-The Worker replaces incoming forwarding headers using Cloudflare's visitor IP. Optional local Nginx also replaces incoming forwarding headers. With another ingress, verify equivalent trusted client-IP handling before relying on the signup IP quota. `SIGNUP_MAX_PER_IP_WEEK` defaults to three registrations per network in seven days, accepts 1–20, and can be set to ten for the shared-network pilot. Invalid settings fall back to three.
+Verify the client IP supplied by Render before relying on the signup IP quota. Review `TRUSTED_PROXY_HOPS` if you add another proxy. `SIGNUP_MAX_PER_IP_WEEK` defaults to three registrations per network in seven days, accepts 1–20, and can be set to ten for the shared-network pilot. Invalid settings fall back to three.
 
-The app's updated logo is included on sign-in, signup, recovery and workspace screens. Google's external consent screen needs the project owner to upload `public/logo/validore-google-consent.png` in Google Auth Platform's Branding settings. See the exact callback, origin and branding steps in [GO_LIVE.md](GO_LIVE.md#6-finish-authentication-and-payments).
+The app's updated logo is included on sign-in, signup, recovery and workspace screens. Google's external consent screen needs the project owner to upload `public/logo/validore-google-consent.png` in Google Auth Platform's Branding settings. See the [Render sign-in setup](FREE_PROTOTYPE_DEPLOYMENT.md#6-finish-sign-in-and-email) for the OAuth origins and callback.
 
 ## Durable AI jobs
 
@@ -94,15 +94,15 @@ Set VALIDATION_RUNNER=inngest and configure the target Inngest environment to se
 
 Full validation has nine specialists: market, customer, competition, finance, risk, source review, product, growth and synthesis. Lite has market, customer and synthesis. Fourteen tools are assigned by role across the team, including dated market memory and official World Bank indicators. Both workflows use separate durable preparation, research, agent and persistence steps. Inngest checkpointing is disabled so separate steps are not batched into one long invocation. Completed results are reused on replay. Cached preparation contains idea fields and references, never private API keys. Individual interrupted steps can still repeat provider spending; durable steps do not guarantee exactly-once external API calls.
 
-The application retains explicit AI call/step deadlines. Each specialist has a 240-second overall budget, at most six model calls, a 60-second research phase and individual final-report attempts capped at 120 seconds (150 for synthesis). SDK retries are disabled. Wrangler configures a 300,000 ms CPU ceiling on Workers Paid; network waiting is distinct from CPU time. Verify real execution under production CPU, memory and Inngest request limits. Check enqueue, retries, terminal failure refund, duplicate event handling, partial results, and report persistence in staging. Local after() work depends on the process/request lifetime and is only for development. See [Agent architecture](AI_AGENTS.md).
+The application retains explicit AI call/step deadlines. Each specialist has a 240-second overall budget, at most six model calls, a 60-second research phase and individual final-report attempts capped at 120 seconds (150 for synthesis). SDK retries are disabled. Verify real execution under production CPU, memory and Inngest request limits. Check enqueue, retries, terminal failure refund, duplicate event handling, partial results, and report persistence in staging. Local after() work depends on the process/request lifetime and is only for development.
 
-PixRouter's current account capacity supports a controlled pilot. Requests across workers share the Redis budget and fail closed when it cannot be checked. Keyed-search budgets also fail closed. Missing or exhausted providers return a controlled error/partial result through the existing credit/refund lifecycle. Before wider launch, restore working OpenRouter/OpenCode fallback access or arrange enough provider capacity, then measure real concurrent workloads. [AI_MODELS.md](AI_MODELS.md) records tested IDs and account limits.
+Requests across workers share the Redis budget and fail closed when it cannot be checked. Keyed-search budgets also fail closed. Missing or exhausted providers return a controlled error/partial result through the existing credit/refund lifecycle. Before wider launch, restore working OpenRouter/OpenCode fallback access or arrange enough provider capacity, then measure real concurrent workloads.
 
 ## Report documents
 
 Authenticated account owners can export their saved validation, canvas, pricing, crowdfunding and pitch content as paginated PDF and editable DOCX. PDF access follows the configured plan benefit and is enabled for Free accounts by default; DOCX remains available across plans. Export queries enforce ownership and the selected module/version; requests are limited to eight per minute and responses are private/no-store. Oversized documents are bounded and visibly marked when abbreviated.
 
-On Workers, document fonts and the logo are loaded from the ASSETS binding. `next.config.ts` also retains tracing for optional Node/container builds. Retain those assets and `public/fonts/NOTO-LICENSE.txt` in the repository. Word documents use Arial for broad office compatibility. Test both formats on the hosted build; local export checks do not establish Cloudflare Workers asset availability or Microsoft Word behavior.
+Retain the document fonts, their licenses and the logo in `public/`. The standalone build includes these assets. Word documents use Arial for broad office compatibility. Test both formats on the hosted app, including documents with non-Latin text.
 
 The Reports and Research team pages also link to public blank PDF/Word templates. Their source is `src/lib/exports/template.ts`; regenerate both files with `npm run templates:build` when the structure or renderers change, then include `public/templates/` in the release. The [template guide](REPORT_TEMPLATE.md) describes the five-page structure and document review requirements.
 
@@ -118,24 +118,14 @@ Test delayed/duplicate/out-of-order events, successful/failed payments, portal c
 
 Razorpay checkout remains unavailable. Its legacy webhook supports captured credits and activation, but a complete renewal/cancellation/refund lifecycle is not implemented. Keep Razorpay sales disabled until that flow has independent staging verification.
 
-## Cloudflare Workers and optional local containers
-
-The custom Worker in `cloudflare/worker.mjs` serves the frontend/backend and invokes the credit-maintenance route internally with CRON_SECRET on its checked-in daily Cron Trigger. Do not configure a second scheduler on the old host after cutover. Git pushes do not automatically deploy; invoke the reviewed release manually.
-
-For local Docker development with configured external services:
-
-~~~powershell
-docker compose --env-file .env.local up --build --wait
-~~~
-
-Nginx is on http://localhost:8081, with the app bound to loopback port 3000. Choose NEXT_PUBLIC_APP_URL to match the browser origin used for authentication. This local stack provides HTTP only. A public target must supply HTTPS, trusted forwarding headers, runtime secrets, restart/rollout behavior, persistence in external PostgreSQL, and monitoring. The current Render release uses the native Node runtime. Docker runs the isolated PostgreSQL concurrency and migration checks; the optional Nginx application stack is a separate deployment target.
+## Daily maintenance
 
 For Render, `CREDIT_MAINTENANCE_RUNNER=inngest` registers the midnight-UTC Inngest maintenance function; no separate paid Render Cron Job is needed. Other Node hosts can use the same function or a scheduler calling /api/cron/reset-credits with Authorization: Bearer CRON_SECRET. Use only one scheduler. Resets use a lock and due-date check and process at most 500 due accounts per call; schedule additional batches as the user base grows. Abandoned ad sessions are pruned more than seven days after expiry, in batches of 1,000; successful references are retained for accounting.
 
 ## Release evidence
 
-GitHub CI runs strict lint, generated route types/TypeScript, regressions, real PostgreSQL concurrency/migrations, the production dependency audit, `npm run build:deploy`, `npm run smoke:production`, and static marketing JavaScript checks. Deploy its exact passing commit to Render, then verify the hosted revision, registration, queue, report persistence, exports and balances. For the alternative Workers target, also run `npm run build:cloudflare`, `npm run check:cloudflare`, `npm run smoke:cloudflare` and hosted Workers acceptance. Use the selective live provider/workflow commands in [AI_AGENTS.md](AI_AGENTS.md) within the available quota. Billing and rewarded ads require independent configured-provider acceptance before enabling sales or ad delivery.
+GitHub CI runs strict lint, generated route types/TypeScript, regressions, real PostgreSQL concurrency/migrations, the production dependency audit, `npm run build:deploy`, `npm run smoke:production`, and static marketing JavaScript checks. Deploy its exact passing commit to Render, then verify the hosted revision, registration, queue, report persistence, exports and balances. Billing and rewarded ads require independent configured-provider acceptance before enabling sales or ad delivery.
 
 Record backup/restore evidence and monitor failed/stale jobs, provider errors/costs, Redis outages, webhook failures, DB connections, and cron backlog. /api/health is a DB-free liveness endpoint; it does not prove database/queue readiness. Separate uptime from dependency monitoring.
 
-The current release targets the existing Render SaaS service. It does not establish an alternative Cloudflare Workers rollout or publish the separate marketing domain. [Implementation status](IMPLEMENTATION_STATUS.md) records the release checks and provider limits. The default enables PixRouter only; re-enable OpenCode/OpenRouter after their account quota/authentication checks pass. Invalid generated JSON may receive one tool-free correction within the original deadline and model-call limit, with no repeated research or relaxed schema.
+The Render configuration enables PixRouter. Check account quotas and authentication before enabling other gateways.

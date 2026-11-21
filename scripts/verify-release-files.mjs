@@ -19,6 +19,11 @@ const excluded = [
   'src/data/market/bundle.json.previous.json', '.agents/session.json', '.docker-auth.test/config.json',
   'node_modules/example/index.js', '.next/server/app.js', 'coverage/index.html',
   'debug.log', 'tsconfig.tsbuildinfo', '.dev.vars', '.dev.vars.production', '.venv/config.txt',
+  'AGENTS.md', 'CLAUDE.md', 'nested/CLAUDE.md', '.claude/settings.local.json', '.kilo/session.json',
+  'DESIGN.md', 'PROJECT.md', 'TEST_INFRA.md', 'TEST_READY.md', 'docs/SPECIFICATION.md',
+  'docs/ADMIN_COMMAND_CENTER.md', 'docs/AI_AGENTS.md', 'docs/AI_MODELS.md', 'docs/RELEASE_EVIDENCE_2026-11-13.md',
+  '.dockerignore', 'Dockerfile', 'docker-compose.yml', 'infra/nginx/default.conf',
+  'cloudflare/worker.mjs', 'open-next.config.ts', 'wrangler.jsonc', 'scripts/generators/setup_files.py',
 ]
 const included = [
   'package.json', 'package-lock.json', 'next.config.ts', 'tsconfig.json',
@@ -75,12 +80,14 @@ try {
   git(temporary, ['init', '--quiet', '--template='])
   writeFileSync(resolve(temporary, policy), readFileSync(resolve(root, policy)))
   const ignored = new Set(git(temporary, ['check-ignore', '--no-index', '-z', '--stdin'], [...excluded, ...included].join('\0') + '\0', [0, 1]).split('\0').filter(Boolean))
+  const tracked = new Set(git(root, ['ls-files', '-z']).split('\0').filter(Boolean))
   for (const path of excluded) assert(ignored.has(path), policy + ' must exclude ' + path)
   for (const path of included) {
     assert(existsSync(resolve(root, path)), 'Required release input is missing: ' + path)
     assert(!ignored.has(path), policy + ' hides required release input ' + path)
+    assert(tracked.has(path), 'Required release input is not tracked: ' + path)
   }
-  const trackedIgnored = git(root, ['ls-files', '-ci', '--exclude-standard', '-z']).split('\0').filter(path => path && existsSync(resolve(root, path)))
+  const trackedIgnored = git(root, ['ls-files', '-ci', '--exclude-standard', '-z']).split('\0').filter(Boolean)
   assert.equal(trackedIgnored.length, 0, 'Ignored files are still tracked; review them explicitly: ' + trackedIgnored.join(', '))
   console.log(JSON.stringify({ status: 'passed', checks: [{ policy, excluded: excluded.length, included: included.length }],
     trackedIgnoredFiles: trackedIgnored.length, scope: 'Git file boundaries for the Render app and Cloudflare landing page. No deployment or content-based secret scan.' }, null, 2))

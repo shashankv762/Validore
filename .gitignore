@@ -102,7 +102,10 @@ CLAUDE.md
 /PROJECT.md
 /TEST_INFRA.md
 /TEST_READY.md
+/docs/ADMIN_COMMAND_CENTER.md
 /docs/ADMIN_RELEASE_EVIDENCE_*.md
+/docs/AI_AGENTS.md
+/docs/AI_MODELS.md
 /docs/CLASSROOM_DEMO.md
 /docs/CLOUDFLARE_MIGRATION.md
 /docs/GO_LIVE.md
@@ -112,7 +115,11 @@ CLAUDE.md
 /docs/SECURITY_REVIEW_*.md
 /docs/SPECIFICATION.md
 
-# Retired full-app Workers deployment and one-off development helpers.
+# Retired full-app deployment configurations and one-off development helpers.
+/.dockerignore
+/Dockerfile
+/docker-compose.yml
+/infra/nginx/
 /cloudflare/
 /open-next.config.ts
 /wrangler.jsonc
