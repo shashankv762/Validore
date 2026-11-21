@@ -8,6 +8,7 @@ import { ideas, validationReports, pitchDecks } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
 import { z } from 'zod'
+import { savedExportIdea } from '@/lib/exports/idea-context'
 
 const QuerySchema = z.object({
   reportId: z.string().uuid(),
@@ -65,17 +66,17 @@ export async function GET(request: NextRequest) {
     }
 
     const source = report ?? pitchDeckRecord
-    if (!source) {
+    if (!source || source.userId !== dbUser.id) {
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
     const idea = ideaId
       ? await db.query.ideas.findFirst({
-          where: eq(ideas.id, ideaId),
+          where: and(eq(ideas.id, ideaId), eq(ideas.userId, dbUser.id)),
         })
       : null
 
-    const document = buildReportDocument(source, idea ?? null, report ? 'validation' : 'pitch')
+    const document = buildReportDocument(source, savedExportIdea(source, idea ?? null), report ? 'validation' : 'pitch')
     const buffer = await renderReportPdf(document, { whiteLabel: true })
 
     return new NextResponse(new Uint8Array(buffer), {

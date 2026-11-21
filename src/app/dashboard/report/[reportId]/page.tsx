@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, LayoutGrid, AlignLeft, Loader2 } from 'lucide-react';
 import ReportView, { type ReportModel } from '../ReportView';

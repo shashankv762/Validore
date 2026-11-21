@@ -6,8 +6,12 @@ import { workerScope } from './worker-scope'
 export async function readPublicAsset(path: string): Promise<Buffer> {
   if (!path.startsWith('/') || path.includes('..') || path.includes('\\')) throw new Error('Invalid asset path')
   const scope = workerScope()
-  if (!scope) return readFile(join(process.cwd(), 'public', path))
-  const response = await scope.env.ASSETS.fetch(new Request('https://assets.invalid' + path))
-  if (!response.ok) throw new Error('Required public asset is unavailable: ' + path)
-  return Buffer.from(await response.arrayBuffer())
+  if (scope) {
+    const response = await scope.env.ASSETS.fetch(new Request(new URL(path, 'https://assets.invalid')))
+    if (!response.ok) throw new Error('Public asset is unavailable')
+    const bytes = await response.arrayBuffer()
+    if (bytes.byteLength > 15_000_000) throw new Error('Public asset is too large')
+    return Buffer.from(bytes)
+  }
+  return readFile(join(process.cwd(), 'public', path))
 }

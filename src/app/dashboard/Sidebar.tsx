@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Brand } from '@/components/Brand'
 import { CookieSettingsButton } from '@/components/CookieNotice'
 import { useAccount } from '@/components/AccountProvider'
+import { DailyCredits } from '@/components/DailyCredits'
 import { PLAN_CATALOG } from '@/lib/plans'
 import { totalCredits } from '@/lib/credit-allocation'
 import { Plus, Layers, BarChart3, Coins, Presentation, Settings, FileText, Menu, X, Network, ArrowUpRight, ChevronRight, BookOpen, Lock, ShieldCheck, type LucideIcon } from 'lucide-react'
@@ -14,6 +15,7 @@ type NavItem = { href: string; label: string; icon: LucideIcon }
 const RESEARCH: NavItem[] = [
   { href: '/dashboard', label: 'New validation', icon: Plus },
   { href: '/dashboard/reports', label: 'Your reports', icon: FileText },
+  { href: '/dashboard/feedback', label: 'Customer evidence', icon: BookOpen },
   { href: '/dashboard/agents', label: 'Research team', icon: Network },
 ]
 const BUILD: NavItem[] = [
@@ -66,6 +68,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
           <div><span>{account?.unlimited ? 'Owner' : data?.plan?.name ?? (account ? PLAN_CATALOG[account.tier].name : 'Your')} plan</span><Coins size={15} aria-hidden="true" /></div>
           <p><strong>{account?.unlimited ? 'Unlimited' : balance === null ? '—' : balance.toLocaleString()}</strong> {account?.unlimited ? 'research allowance' : 'credits available'}</p>
           <Link href="/dashboard/credits" onClick={() => setOpen(false)}>Manage credits<ArrowUpRight size={14} aria-hidden="true" /></Link>
+          <DailyCredits compact />
         </div>
         <nav aria-label="Account" className="workspace-nav-group workspace-account-nav">{ACCOUNT.map(navLink)}</nav>
         {account?.isAdmin && <nav aria-label="Administration" className="workspace-nav-group"><Link href="/admin" className="workspace-nav-link"><ShieldCheck size={18} aria-hidden="true" /><span>Command center</span></Link></nav>}
@@ -77,6 +80,7 @@ export default function Sidebar({ children }: { children: React.ReactNode }) {
         <div className="workspace-breadcrumb"><span>Workspace</span><ChevronRight size={13} aria-hidden="true" /><strong>{pathname.startsWith('/dashboard/report/') ? 'Validation report' : current?.label || 'Research'}</strong></div>
         <Link href="/demo" className="workspace-help"><BookOpen size={15} aria-hidden="true" /><span>Sample report</span><ArrowUpRight size={13} aria-hidden="true" /></Link>
       </div>
+      <div className="workspace-daily-mobile"><DailyCredits compact /></div>
       <div className="workspace-content">{children}</div>
       <footer className="workspace-footer"><span>Build on evidence. Test your assumptions.</span><Link href="/legal/terms">Terms</Link><Link href="/legal/privacy">Privacy</Link><CookieSettingsButton /></footer>
     </main>

@@ -36,13 +36,15 @@ try {
     for (const statement of statements) await tx.unsafe(statement.replaceAll('"public".', `"${schemaName}".`))
   })
   for (const filename of ['0000_credit_payment_idempotency.sql', '0001_application_access_and_indexes.sql',
-    '0002_free_model_default.sql', '0003_founder_interviews_research.sql', '0004_rewarded_ads.sql', '0005_credit_cycle_start.sql', '0006_admin_command_center.sql']) {
+    '0002_free_model_default.sql', '0003_founder_interviews_research.sql', '0004_rewarded_ads.sql', '0005_credit_cycle_start.sql', '0006_admin_command_center.sql', '0007_starting_daily_manual_plans.sql', '0008_customer_feedback.sql', '0009_planning_module_requests.sql',
+    '0010_planning_stage_checkpoints.sql', '0011_validation_entitlement_snapshot.sql', '0012_public_research_focus.sql',
+    '0013_planning_context_snapshot.sql', '0014_validation_dispatch_outbox.sql', '0015_ai_execution_leases.sql', '0016_subscription_prices.sql']) {
     const migration = (await readFile(resolve(root, 'drizzle', filename), 'utf8'))
       .replaceAll('public.', `"${schemaName}".`)
     // Each reviewed migration contains its own transaction, except 0000/0002.
     await administrator.unsafe(`SET search_path TO "${schemaName}", public`)
     await administrator.unsafe(migration)
-    if (filename === '0006_admin_command_center.sql') await administrator.unsafe(migration)
+    if (['0006_admin_command_center.sql', '0007_starting_daily_manual_plans.sql', '0008_customer_feedback.sql', '0009_planning_module_requests.sql', '0010_planning_stage_checkpoints.sql', '0011_validation_entitlement_snapshot.sql', '0012_public_research_focus.sql', '0013_planning_context_snapshot.sql', '0014_validation_dispatch_outbox.sql', '0015_ai_execution_leases.sql', '0016_subscription_prices.sql'].includes(filename)) await administrator.unsafe(migration)
   }
   const scoped = new URL(target)
   scoped.searchParams.set('options', `-c search_path=${schemaName}`)

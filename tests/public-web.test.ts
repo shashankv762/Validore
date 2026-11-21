@@ -38,6 +38,26 @@ describe('public research destination checks', () => {
     expect(options.headers).not.toHaveProperty('Cookie')
     expect(options.headers).not.toHaveProperty('Authorization')
   })
+  it('prefers a checked public IPv4 address when DNS lists public IPv6 first, preserving hostname and pinning', async () => {
+    mocks.lookup.mockResolvedValue([{ address: '2001:4860:4860::8888', family: 6 }, { address: '93.184.216.34', family: 4 }])
+    mocks.request.mockImplementation((_url, _options, callback) => Object.assign(new EventEmitter(), { end: () => {
+      callback(Object.assign(Readable.from([Buffer.from('public review feed')]), { statusCode: 200, headers: { 'content-type': 'application/rss+xml' } }))
+    } }))
+    expect((await readPublicWeb('https://example.org/reviews/feed/')).text).toBe('public review feed')
+    expect(mocks.request.mock.calls[0][0].hostname).toBe('example.org')
+    const options = mocks.request.mock.calls[0][1]
+    const callback = vi.fn()
+    options.lookup('example.org', { all: true }, callback)
+    expect(callback).toHaveBeenCalledWith(null, [{ address: '93.184.216.34', family: 4 }])
+    expect(options.signal).toBeInstanceOf(AbortSignal)
+    expect(options.headers).not.toHaveProperty('Cookie')
+    expect(options.headers).not.toHaveProperty('Authorization')
+  })
+  it('still rejects mixed DNS containing private IPv6 despite an available public IPv4 address', async () => {
+    mocks.lookup.mockResolvedValue([{ address: 'fc00::1', family: 6 }, { address: '93.184.216.34', family: 4 }])
+    await expect(readPublicWeb('https://example.org')).rejects.toThrow('Private network')
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
   it('revalidates redirects before making another request', async () => {
     mocks.lookup.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
     mocks.request.mockImplementation((_url, _options, callback) => Object.assign(new EventEmitter(), { end: () => callback(Object.assign(Readable.from([]), { statusCode: 302, headers: { location: 'http://169.254.169.254/latest/meta-data' } })) }))

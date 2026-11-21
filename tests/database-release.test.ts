@@ -38,7 +38,7 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     const id = randomUUID()
     const results = await Promise.all(Array.from({ length: 4 }, () => syncUserToDatabase({ id, email: `${id}@example.com` }, { createNew: true })))
     expect(new Set(results.map(user => user?.id)).size).toBe(1)
-    expect(results.every(user => user?.creditBalance === 100)).toBe(true)
+    expect(results.every(user => user?.creditBalance === 0 && user.purchasedCredits === 200)).toBe(true)
   })
 
   it('never overspends credits or the monthly allowance under concurrent requests', async () => {
@@ -50,14 +50,14 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     expect(saved?.validationsThisMonth).toBe(2)
   })
 
-  it('renews a due allowance without cron and does not overwrite purchased credits', async () => {
+  it('keeps Free carried credits without an automatic monthly refill', async () => {
     const user = await profile()
     await db.update(users).set({ creditBalance: 0, purchasedCredits: 17, creditResetAt: new Date(0) }).where(eq(users.id, user.id))
-    expect(await checkCredits(user.id, 50)).toEqual({ allowed: true, balance: 117 })
-    expect(await deductCredits(user.id, 50, 'TEST')).toBe(true)
+    expect(await checkCredits(user.id, 50)).toEqual({ allowed: false, balance: 17 })
+    expect(await deductCredits(user.id, 50, 'TEST')).toBe(false)
     expect(await topUpMonthlyCredits(user.id)).toBe(false)
     const saved = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-    expect(saved?.creditBalance).toBe(50)
+    expect(saved?.creditBalance).toBe(0)
     expect(saved?.purchasedCredits).toBe(17)
   })
 
@@ -68,7 +68,8 @@ describe.skipIf(!enabled)('Isolated PostgreSQL release checks', () => {
     await deductCredits(user.id, 50, 'VALIDATION', job.id, 2)
     await Promise.all([reapStaleValidationJobs(job.id), failValidationJob(job.id)])
     const saved = await db.query.users.findFirst({ where: eq(users.id, user.id) })
-    expect(saved?.creditBalance).toBe(100)
+    expect(saved?.creditBalance).toBe(0)
+    expect(saved?.purchasedCredits).toBe(200)
     expect(saved?.validationsThisMonth).toBe(0)
     const refunds = await db.select().from(creditLedger).where(and(eq(creditLedger.userId, user.id), eq(creditLedger.transactionType, 'VALIDATION_REFUND')))
     expect(refunds).toHaveLength(1)

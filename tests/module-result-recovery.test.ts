@@ -26,21 +26,29 @@ vi.mock('@/lib/plan-catalog', async original => {
   return { ...catalog, getPlan: async (tier: 'free' | 'premium' | 'max_premium') => ({ ...catalog.resolvePlan(tier),
     maxConcurrentRequests: state.maxConcurrentRequests, maxTokensPerCall: state.maxTokensPerCall }) }
 })
-vi.mock('@/lib/ai/search', () => ({ webSearch: async () => ({ results: [] }) }))
+// Keep the real pure source-deduplication helper used by planning routes. Only
+// public search traffic is replaced; this suite retains its real PGlite locks.
+vi.mock('@/lib/ai/search',async()=>({...await vi.importActual<typeof import('@/lib/ai/search')>('@/lib/ai/search'),webSearch:async()=>({results:[],degraded:true})}))
 vi.mock('@/lib/interview/context', () => ({ loadFounderContext: async () => '' }))
 vi.mock('@/lib/ai/generate', () => ({ generateWithFallback: async (options: unknown) => {
   state.generation(options)
   if (state.revokeDuringGeneration) await db.update(users).set({ accountStatus: 'blocked' }).where(eq(users.id, owner))
   return { data: {
-  customerWtpInsights: 'Unverified', customerValueAnalysis: 'Unverified', competitorPrices: [],
+  customerWtpInsights: 'No observed willingness-to-pay evidence is established in this synthetic scenario.', customerValueAnalysis: 'Test whether founders save time separating evidence from assumptions.', competitorPrices: [],
   vanWestendorpInsights: { tooExpensive: '', expensive: '', bargain: '', tooCheap: '', acceptableRange: '', label: 'ASSUMPTION' },
-  pricingModelRecommendation: 'Test', recommendedPriceToTest: '1000', validationStepsRequired: [], thirtyDayValidationPlan: [], riskRegister: [],
+  pricingModelRecommendation: 'Test the entered recurring price with a narrow pilot.', recommendedPriceToTest: '1000',
+  validationStepsRequired: ['Interview recent problem sufferers before pitching.', 'Measure paid pilot commitments against comparable offers.'],
+  thirtyDayValidationPlan: Array.from({ length: 4 }, (_, index) => ({ week: 'Week ' + (index + 1),
+    activity: 'Recruit the target founders and document the test outcomes and opposing evidence.', owner: 'Founder',
+    kpi: 'Paid pilot commitments / comparable offers', expectedOutput: 'A recorded continue or revise decision based on the pilot.' })),
+  riskRegister: [{ risk: 'No observed paid customer demand is established.', probability: 'high', impact: 'high',
+    mitigation: 'Collect paid pilot commitments before broader development.' }],
   customerWtpScore: 0, customerValueScore: 0, competitivePositionScore: 0, demandPotentialScore: 0, scalabilityScore: 0, pricingSimplicityScore: 0, integrityNote: 'Unverified assumptions',
 } }
 } }))
 
 import { db } from '@/db'
-import { users, ideas, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationReports } from '@/db/schema'
+import { users, ideas, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationReports, planningModuleRequests } from '@/db/schema'
 import { moduleHistory } from '@/lib/module-history'
 import { loadExportDocument } from '@/lib/exports/load-document'
 import { GET as pptx } from '@/app/api/export/pptx/route'
@@ -60,7 +68,7 @@ const request = (path: string) => new NextRequest('http://localhost' + path)
 
 beforeAll(async () => {
   const enums = new Map<string, string[]>()
-  const tables = [users, ideas, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationReports]
+  const tables = [users, ideas, pricingSimulations, crowdfundingAnalyses, pitchDecks, validationReports, planningModuleRequests]
   for (const table of tables) for (const column of Object.values(getTableColumns(table))) {
     if (column.enumValues?.length) enums.set(column.getSQLType(), column.enumValues)
   }
@@ -75,7 +83,7 @@ beforeEach(async () => {
   state.authenticated = true
   state.generation.mockClear(); state.concurrency.mockReset().mockResolvedValue({ allowed: true }); state.debit.mockReset().mockResolvedValue(true)
   state.revokeDuringGeneration = false; state.maxConcurrentRequests = 1; state.maxTokensPerCall = 1000
-  await state.client.exec('TRUNCATE users, ideas, pricing_simulations, crowdfunding_analyses, pitch_decks, validation_reports')
+  await state.client.exec('TRUNCATE users, ideas, pricing_simulations, crowdfunding_analyses, pitch_decks, validation_reports, planning_module_requests')
   await db.insert(users).values([{ id: owner, supabaseId: 'auth-owner', email: 'owner@example.test', tier: 'free', pitchDeckCredits: 0, crowdfundingCredits: 0 }, { id: other, supabaseId: 'auth-other', email: 'other@example.test' }])
   ideaId = randomUUID(); pricingId = randomUUID(); campaignId = randomUUID(); oldDeckId = randomUUID()
   await db.insert(ideas).values({ id: ideaId, userId: owner, name: 'Validore', industry: 'Software', product: 'Planning', coreProblem: 'Uncertainty', targetCustomer: 'Founders', location: 'India', businessModel: 'Subscription', proposedSolution: 'Guided research' })
@@ -109,6 +117,7 @@ describe('saved module recovery and exact exports', () => {
   it('does not debit or persist a late generated module result after account revocation', async () => {
     state.revokeDuringGeneration = true
     expect((await pricingAnalysis(pricingRequest())).status).toBe(403)
+    expect(state.generation).toHaveBeenCalledOnce()
     expect(state.debit).not.toHaveBeenCalled()
     expect(await db.query.pricingSimulations.findMany({ where: eq(pricingSimulations.userId, owner) })).toHaveLength(2)
   })

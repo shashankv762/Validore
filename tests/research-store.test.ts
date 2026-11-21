@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import seed from '@/data/market/seed-sources.json'
 import catalog from '@/data/market/source-catalog.json'
+import trends from '@/data/market/trend-series.json'
 import { preparePublicSource, readStoredMarketIndicator, rememberPublicSources, retrievePublicResearch, seededResearch } from '@/lib/ai/research-store'
 import { retrieveDatasetCatalog } from '@/lib/ai/market-memory'
 import type { SearchResult } from '@/lib/ai/search'
@@ -11,7 +12,9 @@ vi.mock('@/db', () => ({ db: {
   insert: () => ({ values: (value: unknown) => ({ onConflictDoUpdate: (options: unknown) => mocks.insert(value, options) }) }),
   select: () => ({ from: () => ({ where: (condition: unknown) => { mocks.where(condition); return { orderBy: () => ({ limit: mocks.rows }) } } }) }),
 } }))
-const now = Date.parse('2026-11-01T00:00:00Z')
+// The immutable bundle's actual latest retrieval is the test's as-of boundary.
+// A historical Nov 1 clock would incorrectly reject newly fetched observations.
+const now = Math.max(...seed.map(item => Date.parse(item.fetchedAt)), ...catalog.map(item => Date.parse(item.verifiedAt))) + 1000
 const observation = () => structuredClone(seed.find(item => item.country === 'IN' && item.indicator === 'SP.POP.TOTL')!)
 beforeEach(() => {
   vi.resetAllMocks(); vi.useFakeTimers(); vi.setSystemTime(now)
@@ -21,6 +24,20 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 
 describe('collected official observations', () => {
+  it('keeps each dated multi-year series aligned with its latest point and source units', () => {
+    expect(trends).toHaveLength(48)
+    expect(new Set(trends.map(row => row.country + ':' + row.indicator)).size).toBe(48)
+    for (const series of trends) {
+      const latest = seed.find(row => row.country === series.country && row.indicator === series.indicator)!
+      expect(series.unit).toBe(latest.unit)
+      expect(series.fetchedAt).toBe(latest.fetchedAt)
+      expect(series.observations.length).toBeGreaterThan(1)
+      expect(series.observations.at(-1)).toEqual({ year: latest.observationYear, value: latest.value })
+      expect(new Set(series.observations.map(row => row.year)).size).toBe(series.observations.length)
+      expect(series.observations.every((row, index) => Number.isFinite(row.value) && row.year < new Date(now).getUTCFullYear()
+        && (index === 0 || row.year > series.observations[index - 1].year))).toBe(true)
+    }
+  })
   it('has the complete six-geography, eight-indicator matrix and preserves provenance', () => {
     expect(seed).toHaveLength(48)
     expect(new Set(seed.map(item => item.country))).toEqual(new Set(['IN', 'US', 'GB', 'SG', 'BR', 'WLD']))
@@ -30,7 +47,7 @@ describe('collected official observations', () => {
       const safe = preparePublicSource(item, now)
       expect(safe).toMatchObject({ value: item.value, country: item.country, indicator: item.indicator, dataPeriod: String(item.observationYear), fetchedAt: item.fetchedAt, unit: item.unit })
       expect(Date.parse(item.expiresAt)).toBeGreaterThan(now)
-      expect(item.observationYear).toBeLessThan(2026)
+      expect(item.observationYear).toBeLessThan(new Date(now).getUTCFullYear())
       expect(item.content).toContain('not live transaction data')
     }
   })
@@ -43,7 +60,7 @@ describe('collected official observations', () => {
     expect(seededResearch('India and global GDP', 12, now).every(item => item.country === 'IN' || item.country === 'WLD')).toBe(true)
   })
   it('excludes expired/future records rather than silently changing timestamps', () => {
-    expect(seededResearch('India population', 6, Date.parse('2026-12-10'))).toEqual([])
+    expect(seededResearch('India population', 6, Math.max(...seed.map(item => Date.parse(item.expiresAt))) + 1)).toEqual([])
     expect(preparePublicSource({ ...observation(), fetchedAt: new Date(now + 1).toISOString() }, now)).toBeNull()
     expect(preparePublicSource({ ...observation(), expiresAt: new Date(now).toISOString() }, now)).toBeNull()
   })

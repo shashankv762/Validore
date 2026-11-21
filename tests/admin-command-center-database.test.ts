@@ -95,7 +95,7 @@ describe('Private admin data and atomic credit grants', () => {
     await grantAdminCredits(actor, grant())
     await db.update(schema.users).set({ creditResetAt: new Date(0) }).where(eq(schema.users.id, targetId))
     await topUpMonthlyCredits(targetId)
-    expect(await account()).toMatchObject({ creditBalance: 100, purchasedCredits: 200 })
+    expect(await account()).toMatchObject({ creditBalance: 0, purchasedCredits: 200 })
   })
 
   it('rolls back an entire selection when one recipient is absent or deactivated', async () => {
@@ -259,13 +259,14 @@ describe('Audited settings and plan updates', () => {
 
   it('updates the complete plan set atomically and rejects malformed or duplicate tiers', async () => {
     const plans = ['free', 'premium', 'max_premium'].map(tier => toAdminPlan(resolvePlan(tier as 'free' | 'premium' | 'max_premium')))
-    plans[1] = { ...plans[1], monthlyPriceUsd: 39, monthlyCredits: 2000, benefits: ['Custom plan benefit'], canPricingSimulator: false }
-    const input = { plans, reason: 'Update plan benefits and pricing', requestId: randomUUID() }
+    plans[1] = { ...plans[1], monthlyCredits: 2000, benefits: ['Custom plan benefit'], canPricingSimulator: false }
+    const input = { plans, reason: 'Update plan benefits and included credits', requestId: randomUUID() }
     const result = await updateAdminPlans(actor, input)
     expect(result.plans[1]).toMatchObject(plans[1])
     await updateAdminPlans(actor, input)
     expect(await db.select().from(schema.adminAuditLog)).toHaveLength(1)
     await expect(updateAdminPlans(actor, { ...input, requestId: randomUUID(), plans: [plans[0], plans[0], plans[2]] })).rejects.toThrow()
+    await expect(updateAdminPlans(actor, { ...input, requestId: randomUUID(), plans: [plans[0], { ...plans[1], monthlyPriceUsd: 39 }, plans[2]] })).rejects.toThrow('prices are fixed')
     await expect(updateAdminPlans(actor, { ...input, requestId: randomUUID(), plans: [{ ...plans[0], monthlyPriceUsd: 2 }, plans[1], plans[2]] })).rejects.toThrow('free')
     expect(await db.select().from(schema.adminAuditLog).where(and(eq(schema.adminAuditLog.action, 'plans.update')))).toHaveLength(1)
   })

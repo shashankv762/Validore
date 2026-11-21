@@ -20,6 +20,7 @@ export function EvidenceReviewPanel({ value }: { value: unknown }) {
       return <article key={index} className="min-w-0 rounded-lg border border-[#E5E7EB] p-4">
         <span className="text-xs font-medium text-[#88620F]">{assessment}</span><h3 className="mt-2 text-sm font-medium text-[#141923]">{String(check.claim ?? '')}</h3>
         <p className="mt-2 text-sm leading-relaxed text-[#667085]">{String(check.rationale ?? '')}</p>
+        {typeof check.evidenceExcerpt === 'string' && check.evidenceExcerpt.trim().length >= 20 && <blockquote className="mt-3 border-l-2 border-[#E0A526] pl-3 text-xs leading-relaxed text-[#53616A]">“{check.evidenceExcerpt}”</blockquote>}
         {url && <a href={url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-[#88620F] underline underline-offset-4">Read original source<ExternalLink size={12} aria-hidden="true" /></a>}
       </article>
     })}</div>

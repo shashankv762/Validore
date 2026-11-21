@@ -21,6 +21,7 @@ vi.mock('@/lib/admin-actions', () => ({
   changeAdminAccountStatus: vi.fn(async () => { state.calls.push('status'); return { user: {} } }),
 }))
 vi.mock('@/lib/admin-user-deletion', () => ({ deleteAdminUser: vi.fn(async () => { state.calls.push('delete'); return { deleted: true } }) }))
+vi.mock('@/lib/admin-user-plans', () => ({ assignAdminPlan: vi.fn(async () => { state.calls.push('assignment'); return { recipients: 1 } }) }))
 vi.mock('@/lib/admin-settings', () => ({
   readAdminSettings: vi.fn(async () => { state.calls.push('settings'); return { settings: {} } }),
   updateAdminSettings: vi.fn(async () => { state.calls.push('settings-update'); return { settings: {} } }),
@@ -31,6 +32,7 @@ import { GET as overview } from '@/app/api/admin/overview/route'
 import { GET as users } from '@/app/api/admin/users/route'
 import { GET as detail, PATCH as status, DELETE as remove } from '@/app/api/admin/users/[id]/route'
 import { POST as credits } from '@/app/api/admin/credits/route'
+import { POST as assignment } from '@/app/api/admin/assign-plan/route'
 import { GET as audit } from '@/app/api/admin/audit/route'
 import { GET as settings, PATCH as saveSettings } from '@/app/api/admin/settings/route'
 import { GET as plans, PUT as savePlans } from '@/app/api/admin/plans/route'
@@ -45,6 +47,7 @@ const endpoints: { path: string; method: string; handler: Handler }[] = [
   { path: 'users/' + '22222222-2222-4222-8222-222222222222', method: 'PATCH', handler: status },
   { path: 'users/' + '22222222-2222-4222-8222-222222222222', method: 'DELETE', handler: remove },
   { path: 'credits', method: 'POST', handler: credits }, { path: 'audit', method: 'GET', handler: audit },
+  { path: 'assign-plan', method: 'POST', handler: assignment },
   { path: 'settings', method: 'GET', handler: settings }, { path: 'settings', method: 'PATCH', handler: saveSettings },
   { path: 'plans', method: 'GET', handler: plans }, { path: 'plans', method: 'PUT', handler: savePlans },
 ]

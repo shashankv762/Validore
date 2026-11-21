@@ -1,0 +1,137 @@
+{
+  "version": "2.0.0",
+  "generatedAt": "2026-11-16T13:42:00.665Z",
+  "notice": "Public blank workbooks and explicitly fictional examples. No customer reports or provider calls.",
+  "artifacts": [
+    {
+      "filename": "validore-report-template.pdf",
+      "format": "pdf",
+      "bytes": 46436,
+      "sha256": "dd03bc9ab6133e61e4535875def52b4c405b0d4d70eb093d73a412f1cf412372",
+      "title": "Validore | Founder decision workbook",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-report-template.docx",
+      "format": "docx",
+      "bytes": 31178,
+      "sha256": "75da24c1b5b70f54d5d286b8b5457d109f9a2bf53504d8a2afd6adba8683d251",
+      "title": "Validore | Founder decision workbook",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-decision-brief-template.pdf",
+      "format": "pdf",
+      "bytes": 37670,
+      "sha256": "84870cdd8826914f1f7ed13b7d561c479155d48e71357d3d01439b1b9618fbb3",
+      "title": "Validore | Decision brief",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-decision-brief-template.docx",
+      "format": "docx",
+      "bytes": 28838,
+      "sha256": "170c997267d59b2e2b58ae837374a965a8fd9121b30d99ffa676010c37769e61",
+      "title": "Validore | Decision brief",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-lean-canvas-template.pdf",
+      "format": "pdf",
+      "bytes": 38718,
+      "sha256": "cdcf967e727ff7c5b4b24498c355253b7c33092faba6d6a2654815b0d478a06a",
+      "title": "Validore | Lean Canvas",
+      "paper": "a4",
+      "orientation": "landscape",
+      "example": false
+    },
+    {
+      "filename": "validore-lean-canvas-template.docx",
+      "format": "docx",
+      "bytes": 28922,
+      "sha256": "7b160e7060f68001dde747dc8c906d974ea156656a0bc29417a40f5423512bd7",
+      "title": "Validore | Lean Canvas",
+      "paper": "a4",
+      "orientation": "landscape",
+      "example": false
+    },
+    {
+      "filename": "validore-lean-canvas-a3-template.pdf",
+      "format": "pdf",
+      "bytes": 38628,
+      "sha256": "e3dd50fe17a4c8de07c52059044d06e89b98d2019adfbd55a9f5ed9ced6ce6eb",
+      "title": "Validore | Lean Canvas",
+      "paper": "a3",
+      "orientation": "landscape",
+      "example": false
+    },
+    {
+      "filename": "validore-canvas-evidence-workbook.pdf",
+      "format": "pdf",
+      "bytes": 41356,
+      "sha256": "d196e6abdcecb02f5c093d39e3200cbb26419c89b79b594d25da23fb242126cf",
+      "title": "Validore | Canvas evidence and experiment workbook",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-canvas-evidence-workbook.docx",
+      "format": "docx",
+      "bytes": 29422,
+      "sha256": "68dbed423cd278e0672264b7e3b3a76e08a13122987c3497e595b6e5f69d0568",
+      "title": "Validore | Canvas evidence and experiment workbook",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": false
+    },
+    {
+      "filename": "validore-report-example.pdf",
+      "format": "pdf",
+      "bytes": 41938,
+      "sha256": "491418deef8287dd62e0d86bda48209f545f9fadd47b59d287bf0248b4b4b511",
+      "title": "Validore | Fictional worked report",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": true
+    },
+    {
+      "filename": "validore-report-example.docx",
+      "format": "docx",
+      "bytes": 30057,
+      "sha256": "9db4b8eec56f0e2a2317652a650ada9154917e3ac22e87e5df5766f8e23f05b5",
+      "title": "Validore | Fictional worked report",
+      "paper": "a4",
+      "orientation": "portrait",
+      "example": true
+    },
+    {
+      "filename": "validore-lean-canvas-example.pdf",
+      "format": "pdf",
+      "bytes": 40661,
+      "sha256": "f7918f7ece2141394ea8084a5d80d2f8439eeea3b6e99101661e0d18a1ad7b90",
+      "title": "Validore | Lean Canvas",
+      "paper": "a4",
+      "orientation": "landscape",
+      "example": true
+    },
+    {
+      "filename": "validore-lean-canvas-example.docx",
+      "format": "docx",
+      "bytes": 29157,
+      "sha256": "8414dd9be69b8c6859d7c39cb7c3f5fdb3bea144cb3ce009dc8636c5b45c7aa3",
+      "title": "Validore | Lean Canvas",
+      "paper": "a4",
+      "orientation": "landscape",
+      "example": true
+    }
+  ]
+}

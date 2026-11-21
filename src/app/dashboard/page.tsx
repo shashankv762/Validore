@@ -25,16 +25,17 @@ const FIELDS: { key: keyof IdeaDraft; label: string; hint: string; placeholder: 
   { key: 'location', label: 'Launch market', hint: 'Where will you reach your first customers?', placeholder: 'e.g. India, United States, Global', max: 200 },
   { key: 'businessModel', label: 'Business model', hint: 'Describe how your startup will earn revenue.', placeholder: 'e.g. B2B subscriptions at $99 per month', max: 2000 },
   { key: 'coreProblem', label: 'Core problem', hint: 'What is difficult, expensive or frustrating for your customer today?', placeholder: 'Our customers struggle with…', multiline: true, max: 4000 },
+  { key: 'publicResearchFocus', label: 'Public research focus (optional)', hint: 'Enter a short customer job or current alternative. What you type here can enter public searches. Leave blank for general market research. No links, contacts or secrets.', placeholder: 'e.g. Appointment reminders for small clinics using spreadsheets', max: 280 },
   { key: 'proposedSolution', label: 'Proposed solution', hint: 'How will your approach solve that problem?', placeholder: 'We will help them by…', multiline: true, max: 4000 },
 ]
 const GROUPS: { title: string; description: string; fields: (keyof IdeaDraft)[] }[] = [
   { title: 'The basics', description: 'Start with a name, a market, and where you want to launch.', fields: ['name', 'industry', 'location'] },
-  { title: 'Your customer', description: 'The best research starts with a specific person and a real problem.', fields: ['targetCustomer', 'coreProblem'] },
+  { title: 'Your customer', description: 'The best research starts with a specific person and a real problem.', fields: ['targetCustomer', 'coreProblem', 'publicResearchFocus'] },
   { title: 'Your solution', description: 'Describe what you will build and how the business could work.', fields: ['product', 'proposedSolution', 'businessModel'] },
   { title: 'Founder clarity', description: 'Go a little deeper with questions tailored to your answers, or continue straight to your review.', fields: [] },
   { title: 'Review & start', description: 'Give the research team a clear brief. You can edit any detail below.', fields: [] },
 ]
-const EMPTY: IdeaDraft = { name: '', industry: '', product: '', targetCustomer: '', location: '', businessModel: '', coreProblem: '', proposedSolution: '' }
+const EMPTY: IdeaDraft = { name: '', industry: '', product: '', targetCustomer: '', location: '', businessModel: '', coreProblem: '', proposedSolution: '', publicResearchFocus: '' }
 const errorText = (data: { error?: unknown }, fallback: string) => typeof data.error === 'string' ? data.error : fallback
 const delay = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
   if (signal.aborted) { reject(signal.reason); return }
@@ -111,7 +112,10 @@ export default function IdeaWizard() {
     touched.current = true
     setError(''); setErrorField(''); setStep(0)
     if (!idea) { saved.current = null; setSavedIdeaId(null); setDraft(EMPTY); return }
-    const brief = Object.fromEntries(FIELDS.map(field => [field.key, typeof idea[field.key] === 'string' ? idea[field.key].slice(0, field.max) : ''])) as IdeaDraft
+    const brief = Object.fromEntries(FIELDS.map(field => {
+      const value = idea[field.key]
+      return [field.key, typeof value === 'string' ? value.slice(0, field.max) : '']
+    })) as IdeaDraft
     const parsed = IdeaInputSchema.safeParse(brief)
     saved.current = { id: idea.id, fingerprint: parsed.success ? JSON.stringify(parsed.data) : '' }
     setSavedIdeaId(idea.id); setDraft(brief)
@@ -130,8 +134,9 @@ export default function IdeaWizard() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok || !data.idea?.id) throw new Error(errorText(data, 'Your idea could not be saved. Please try again.'))
       saved.current = { id: data.idea.id, fingerprint }
+      setDraft(parsed.data)
       setSavedIdeaId(data.idea.id)
-      if (account) { try { sessionStorage.setItem('validore:brief:' + account.id, JSON.stringify({ draft, step, ideaId: data.idea.id })) } catch {} }
+      if (account) { try { sessionStorage.setItem('validore:brief:' + account.id, JSON.stringify({ draft: parsed.data, step, ideaId: data.idea.id })) } catch {} }
     }
     return saved.current.id
   }
@@ -245,17 +250,17 @@ export default function IdeaWizard() {
           <div className="brief-panel-heading"><span>Step {step + 1} of 5</span><h2>{group.title}</h2><p>{group.description}</p></div>
           {step < 3 ? <div className="brief-fields">{fields.map(field => <div className="brief-field" key={field.key}>
             <label htmlFor={field.key}>{field.label}</label>
-            {field.multiline ? <textarea id={field.key} name={field.key} rows={4} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+            {field.multiline ? <textarea id={field.key} name={field.key} rows={4} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key] ?? ''}
               onChange={event => { touched.current = true; setDraft(value => ({ ...value, [field.key]: event.target.value })); setError(''); setErrorField('') }}
               aria-invalid={errorField === field.key} aria-describedby={field.key + '-hint' + (errorField === field.key ? ' wizard-error' : '')} /> :
-              <input id={field.key} name={field.key} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key]}
+              <input id={field.key} name={field.key} maxLength={field.max} placeholder={field.placeholder} value={draft[field.key] ?? ''}
                 onChange={event => { touched.current = true; setDraft(value => ({ ...value, [field.key]: event.target.value })); setError(''); setErrorField('') }}
                 aria-invalid={errorField === field.key} aria-describedby={field.key + '-hint' + (errorField === field.key ? ' wizard-error' : '')} />}
-            <div className="brief-field-help"><p id={field.key + '-hint'}>{field.hint}</p>{field.multiline && <span>{draft[field.key].length.toLocaleString()} / {field.max.toLocaleString()}</span>}</div>
+            <div className="brief-field-help"><p id={field.key + '-hint'}>{field.hint}</p>{field.multiline && <span>{(draft[field.key] ?? '').length.toLocaleString()} / {field.max.toLocaleString()}</span>}</div>
           </div>)}</div> : step === 3 ? savedIdeaId && <FounderInterview key={savedIdeaId + JSON.stringify(draft)} ideaId={savedIdeaId} onBusyChange={setInterviewBusy} /> : <div>
             <dl className="brief-review">{FIELDS.map(item => <div key={item.key}>
               <div><dt>{item.label}</dt><button type="button" onClick={() => { setStep(GROUPS.findIndex(group => group.fields.includes(item.key))); setError('') }} aria-label={'Edit ' + item.label.toLowerCase()}>Edit</button></div>
-              <dd>{draft[item.key]}</dd>
+              <dd>{draft[item.key] || (item.key === 'publicResearchFocus' ? 'General market research; no public focus supplied.' : '')}</dd>
             </div>)}</dl>
             <div className="brief-cost"><div><strong>{account?.unlimited || account?.tier !== 'free' ? 'Full validation' : 'Lite validation'}</strong><span>{account ? `${account.unlimited || account.tier !== 'free' ? FULL_AGENT_COUNT : LITE_AGENT_COUNT} specialists · ${account.unlimited || accountData?.plan?.canExportPdf !== false ? 'PDF and Word' : 'Word'} included` : 'Loading plan details…'}</span></div><strong>{account?.unlimited ? 'Owner allowance' : account ? cost + ' credits' : '?'}</strong></div>
             {account && !account.unlimited && cost > totalCredits(account) && <p className="brief-balance-warning">You have {totalCredits(account)} credits. <Link href="/dashboard/credits">View your credit options</Link> before starting.</p>}

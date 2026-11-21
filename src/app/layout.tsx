@@ -5,6 +5,7 @@ import { siteOrigin, siteDescription } from '@/lib/site'
 import './globals.css'
 import { CookieNotice } from '@/components/CookieNotice'
 import { PlatformNotice } from '@/components/PlatformNotice'
+import { CurrencyProvider } from '@/components/CurrencyProvider'
 
 const geistSans = localFont({ src: '../../public/fonts/geist-latin.woff2', variable: '--font-geist-sans', display: 'swap', weight: '100 900' })
 const geistMono = localFont({ src: '../../public/fonts/geist-mono-latin.woff2', variable: '--font-geist-mono', display: 'swap', weight: '100 900' })
@@ -23,10 +24,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <PlatformNotice />
-        {children}
-        <CookieNotice />
-        <Toaster richColors position="top-right" />
+        <CurrencyProvider>
+          <PlatformNotice />
+          {children}
+          <CookieNotice />
+          <Toaster richColors position="top-right" />
+        </CurrencyProvider>
       </body>
     </html>
   )

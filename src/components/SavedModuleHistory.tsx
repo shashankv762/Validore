@@ -49,7 +49,7 @@ export function useSavedModuleHistory(module: 'pricing' | 'crowdfunding' | 'pitc
     opening: Boolean(ownerId && selected && !currentDetail),
     error: currentDetail?.error || current?.error || null,
     retry: () => { setAttempt(value => value + 1); setDetailAttempt(value => value + 1) }, setPage,
-    open: (id: string) => router.replace(pathname + '?saved=' + encodeURIComponent(id), { scroll: false }),
+    open: (id: string) => { if (id === selected) setDetailAttempt(value => value + 1); else router.replace(pathname + '?saved=' + encodeURIComponent(id), { scroll: false }) },
     clear: () => router.replace(pathname, { scroll: false }),
     refresh: () => setAttempt(value => value + 1),
   }
@@ -64,7 +64,7 @@ export function SavedModuleHistory({ history, disabled = false }: { history: Ret
       {history.records.map(entry => <li key={entry.id}><button type="button" disabled={disabled} onClick={() => history.open(entry.id)} className="w-full min-h-11 py-3 flex flex-wrap items-center justify-between gap-2 text-left text-sm">
         <span>{entry.name || 'Startup idea'}</span><span className="text-xs text-slate-600">{entry.createdAt && Number.isFinite(Date.parse(entry.createdAt)) ? new Date(entry.createdAt).toLocaleDateString() : 'Date unavailable'} · {entry.score ?? '—'}/100</span>
       </button></li>)}
-    </ul> : <p className="text-sm text-slate-600">Your completed results will appear here.</p>}
+    </ul> : !history.error && <p className="text-sm text-slate-600">Your completed results will appear here.</p>}
     {(history.page > 1 || history.hasMore) && <div className="mt-3 flex justify-between text-xs">
       <button type="button" disabled={disabled || history.loading || history.page <= 1} onClick={() => history.setPage(history.page - 1)} className="underline disabled:opacity-40">Newer results</button>
       <button type="button" disabled={disabled || history.loading || !history.hasMore} onClick={() => history.setPage(history.page + 1)} className="underline disabled:opacity-40">Older results</button>

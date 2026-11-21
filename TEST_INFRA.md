@@ -118,9 +118,9 @@ Exercises end-to-end user journeys from the perspective of external actors:
 1. **Scenario 1: Bootstrapped Founder on Free Tier**:
    - Registration -> Free idea creation -> Lite validation run -> Report inspection -> Upgrade barrier on export -> Credit pack purchase -> Pitch deck generation.
 2. **Scenario 2: Pro Tier Founder Scaling Up**:
-   - Serial entrepreneur on Pro tier ($29/mo) -> Multiple idea validations within 15/month limit -> AI Lean Canvas generation -> Pricing simulator with 5x5 sensitivity matrix -> CSV data export -> White-label upgrade prompt.
+   - Serial entrepreneur on Premium (₹799 or US$8/month) -> Multiple idea validations within 15/month limit -> AI Lean Canvas generation -> Pricing simulator with 5x5 sensitivity matrix -> CSV data export -> White-label upgrade prompt.
 3. **Scenario 3: Max Premium Enterprise Founder Full-Lifecycle Generation**:
-   - Enterprise user on Max tier ($79/mo) -> Full validation -> Crowdfunding predictor benchmarked against synthetic campaigns -> 12-slide Pitch Deck -> White-label PDF export -> Portfolio site ZIP export -> PPTX export.
+   - Enterprise user on Max Premium (₹1,999 or US$20/month) -> Full validation -> Crowdfunding predictor benchmarked against synthetic campaigns -> 12-slide Pitch Deck -> White-label PDF export -> Portfolio site ZIP export -> PPTX export.
 4. **Scenario 4: Payment Provider Downtime & Error Recovery**:
    - Unconfigured Stripe/Razorpay keys or network timeout -> Graceful 400/503 response with actionable JSON error -> Server remains healthy -> Success once gateway recovers.
 

@@ -46,16 +46,15 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 
-# Local environment files; track only the sanitized example.
+# Local environment files
 .env*
 !.env.example
 !.env.production.example
 
-# Cloudflare generated output and local runtime credentials
+# Local credentials and retired build output must not enter source control.
+/.dev.vars*
 /.open-next/
 /.wrangler/
-/.dev.vars*
-cloudflare-env.d.ts
 
 # typescript
 *.tsbuildinfo
@@ -70,11 +69,8 @@ next-env.d.ts
 /.docker-auth.*/
 *.tmp
 
-# Docker artifacts
-docker-compose.override.yml
-
-# Firebase
-firebase-debug.log
+# Local backups and temporary packaging output
+/src/data/market/bundle.json.previous.json
 
 # Python scripts output
 *.pyc

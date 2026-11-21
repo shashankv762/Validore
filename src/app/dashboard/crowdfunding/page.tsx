@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { PlanningDraftNotice, usePlanningDraft } from '@/components/planning/PlanningDraft'
 import { totalCredits } from '@/lib/credit-allocation'
 import { toast } from 'sonner'
 import {
@@ -15,10 +16,18 @@ import { CrowdfundingReport } from './CrowdfundingReport'
 import { useWorkspaceResources, WorkspaceResourceStatus } from '@/components/WorkspaceResources'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
-import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { PLAN_CATALOG } from '@/lib/plans'
+import { CurrencyDisclosure, useCurrency } from '@/components/CurrencyProvider'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
 import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
 import { getCampaignClassificationBand } from '@/lib/scoring'
+import { CrowdfundingInputSchema, campaignChartScenarios, type CrowdfundingInputs } from '@/lib/planning/economics'
+import { CampaignEconomics } from './CampaignEconomics'
+import { SourceReportSelector } from '@/components/planning/SourceReportSelector'
+import { SourceReportSummary } from '@/components/planning/SourceReportSummary'
+import { PlanningEvidence } from '@/components/planning/PlanningEvidence'
+import { usePlanningRunIdentity } from '@/components/planning/usePlanningRunIdentity'
+import { PlanningArtifactSelector } from '@/components/planning/PlanningArtifactSelector'
 
 interface RewardTier {
   tier: string
@@ -98,11 +107,19 @@ type AnalysisResult = {
   result: {
     computedMetrics: {
       requiredBackers: number
-      requiredVisitors: number
-      marketingCostPerBacker: number
+      requiredVisitors: number | null
+      marketingCostPerBacker: number | null
+      goalNetSurplus?: number
+      conversionRatePercent?: number
     }
+    inputs?: CrowdfundingInputs
+    researchSources?: Array<{ title: string; url: string; fetchedAt: string; retrievalKind: string }>
+    evidenceGaps?: string[]
+    warnings?: string[]
+    sourceReport?: unknown
     ai?: AiCampaignData
     aiAnalysis?: AiCampaignData
+    scenarios?: AiCampaignData['scenarios']
     benchmark: { avgFundingPct: string | null; totalCount: number; dataLabel: string }
   }
 }
@@ -117,27 +134,10 @@ function bandColor(band: string): string {
   return '#ef4444'
 }
 
-export default function CrowdfundingPage() {
-  const resources = useWorkspaceResources()
-  const { ideas, user } = resources
-  const tier = user?.tier ?? 'free'
-  const included = Boolean(user?.unlimited || (resources.plan?.canCrowdfunding ?? tier === 'max_premium'))
-  const hasAccess = included || (user?.crowdfundingCredits ?? 0) > 0
-  const usesPack = !included && (user?.crowdfundingCredits ?? 0) > 0
-  const balance = user ? totalCredits(user) : 0
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<AnalysisResult | null>(null)
-  const [interactiveFunding, setInteractiveFunding] = useState(100)
-
-  // FIX-10: 5-slider independent funding simulator state
-  const [simPledge, setSimPledge] = useState(50)
-  const [simVisitors, setSimVisitors] = useState(5000)
-  const [simConversion, setSimConversion] = useState(3)
-  const [simAdBudget, setSimAdBudget] = useState(2000)
-  const [simGoal, setSimGoal] = useState(25000)
-
-  const [form, setForm] = useState({
+const INITIAL_CAMPAIGN_FORM = {
     ideaId: '',
+    sourceReportId: '',
+    sourceCanvasId: '', sourcePricingId: '',
     fundingGoal: 50000,
     projectDescription: '',
     category: 'Technology',
@@ -152,10 +152,33 @@ export default function CrowdfundingPage() {
     highestReward: 500,
     hasVideo: true,
     marketingBudget: 2000,
+    currency: 'USD' as CrowdfundingInputs['currency'],
+    expectedVisitors: 0, conversionRatePercent: 3.5,
+    platformFeePercent: 5, processingFeePercent: 4, processingFeePerBacker: 0,
+    rewardCostPerBacker: 0, shippingCostPerBacker: 0, productionFixedCost: 0,
+    contingencyPercent: 10, allOrNothing: true,
+  }
+
+export default function CrowdfundingPage() {
+  const { formatUsd, formatPlanPrice } = useCurrency()
+  const resources = useWorkspaceResources()
+  const { ideas, user } = resources
+  const runIdentity = usePlanningRunIdentity('crowdfunding', user?.id)
+  const tier = user?.tier ?? 'free'
+  const included = Boolean(user?.unlimited || (resources.plan?.canCrowdfunding ?? tier === 'max_premium'))
+  const hasAccess = included || (user?.crowdfundingCredits ?? 0) > 0
+  const usesPack = !included && (user?.crowdfundingCredits ?? 0) > 0
+  const balance = user ? totalCredits(user) : 0
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<AnalysisResult | null>(null)
+  const [form, setForm] = useState(INITIAL_CAMPAIGN_FORM)
+  const [runError, setRunError] = useState<string | null>(null)
+  const draft = usePlanningDraft({ module: 'crowdfunding', ownerId: user?.id, ideaId: form.ideaId, ideas, value: form,
+    onRestore: (value, ideaId) => setForm({ ...INITIAL_CAMPAIGN_FORM, ...value, ideaId }),
   })
   const history = useSavedModuleHistory('crowdfunding', record => {
     const classification = getCampaignClassificationBand(record.performanceScore)
-    setForm(current => ({ ...current, ...(record.reportData?.inputs ?? {}), ideaId: record.ideaId }))
+    setForm({ ...INITIAL_CAMPAIGN_FORM, ...(record.reportData?.inputs ?? {}),sourceReportId:record.reportData?.inputs?.sourceReportId ?? '', ideaId: record.ideaId })
     setResult({ analysisId: record.id, performanceScore: record.performanceScore, classificationBand: classification.label, band: classification.band, disclaimer: record.reportData?.disclaimer ?? classification.disclaimer, recommendation: record.recommendation, result: record.reportData })
   })
 
@@ -166,23 +189,30 @@ export default function CrowdfundingPage() {
       return
     }
     if (form.projectDescription.trim().length < 20) { toast.error('Describe your campaign in at least 20 characters.'); return }
+    const validated = CrowdfundingInputSchema.safeParse({ ...form,sourceReportId:form.sourceReportId || undefined,sourceCanvasId:form.sourceCanvasId || undefined,sourcePricingId:form.sourcePricingId || undefined, projectDescription: form.projectDescription.trim() })
+    if (!validated.success) { toast.error(validated.error.issues[0]?.message ?? 'Please check campaign economics.'); return }
     setLoading(true)
+    setRunError(null)
     try {
+      const requestKey = await runIdentity.keyFor(validated.data)
       const res = await fetch('/api/crowdfunding', {
         method: 'POST',
         signal: AbortSignal.timeout(280_000),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, projectDescription: form.projectDescription.trim() }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey },
+        body: JSON.stringify(validated.data),
       })
       const data = await res.json()
       if (res.ok) {
+        runIdentity.confirmed(requestKey)
         setResult(data)
         history.open(data.analysisId); history.refresh()
         toast.success('Crowdfunding analysis completed!')
       } else {
-        toast.error(data.error ?? 'Analysis failed')
+        if (data.code === 'planning_inputs_changed') runIdentity.confirmed(requestKey)
+        setRunError(data.error ?? 'Analysis failed. Retry with the same inputs.'); toast.error(data.error ?? 'Analysis failed')
       }
     } catch {
+      setRunError('The connection was interrupted. Check saved results, then retry the same inputs to recover safely.')
       toast.error('Network error. Failed to run crowdfunding analysis.')
     } finally {
       notifyAccountUpdated()
@@ -199,16 +229,16 @@ export default function CrowdfundingPage() {
     return (
       <div className="max-w-2xl mx-auto mt-20">
         <SavedModuleHistory history={history} />
-        <div className="card-angular p-10 text-center">
+        <div className="card-angular p-5 sm:p-10 text-center">
           <span className="text-4xl block mb-4">🔒</span>
-          <h2 className="text-xl font-light text-[#141923] mb-2">Crowdfunding Performance Predictor</h2>
+          <h2 className="text-xl font-light text-[#141923] mb-2">Crowdfunding Launch Planner</h2>
           <p className="text-sm text-[#364152] opacity-60 mb-8">
-            10-category campaign scoring, benchmark comparisons (SYNTHETIC DATA), and a 30-day pre-launch plan.
+            Campaign economics, launch readiness, sourced research and a 30-day pre-launch plan.
           </p>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="card-angular p-5">
               <p className="text-lg font-light text-[#89620B] mb-1">
-              {formatUsd(resources.plans?.max_premium.monthlyPriceUsd ?? PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span>
+              {formatPlanPrice(resources.plans?.max_premium ?? PLAN_CATALOG.max_premium)}<span className="text-sm opacity-60">/mo</span>
               </p>
               <p className="text-sm font-medium text-[#141923] mb-3">Max Premium</p>
               <p className="text-xs text-[#364152] opacity-60 mb-4">Campaign research with plan credits, PDF and Word downloads</p>
@@ -240,6 +270,7 @@ export default function CrowdfundingPage() {
               You&apos;re on Premium. Buy a Crowdfunding Pack or upgrade to Max Premium above.
             </p>
           )}
+          <CurrencyDisclosure prices="both" />
         </div>
       </div>
     )
@@ -251,17 +282,13 @@ export default function CrowdfundingPage() {
     const rawAi = (result.result as Record<string, unknown>).ai ?? (result.result as Record<string, unknown>).aiAnalysis ?? {}
     const ai = rawAi as AiCampaignData
 
-    const scenarios = ai.scenarios ?? {
-      conservative: { fundingPercent: 50, backers: 200, amountRaised: form.fundingGoal * 0.5 },
-      base: { fundingPercent: 100, backers: 400, amountRaised: form.fundingGoal },
-      optimistic: { fundingPercent: 180, backers: 720, amountRaised: form.fundingGoal * 1.8 },
-    }
+    const scenarios = campaignChartScenarios(result.result.inputs, result.result.scenarios)
 
-    const chartData = [
+    const chartData = scenarios ? [
       { name: 'Conservative', amount: scenarios.conservative?.amountRaised ?? 0, goal: form.fundingGoal },
       { name: 'Base', amount: scenarios.base?.amountRaised ?? 0, goal: form.fundingGoal },
       { name: 'Optimistic', amount: scenarios.optimistic?.amountRaised ?? 0, goal: form.fundingGoal },
-    ]
+    ] : []
 
     // 0B-5: 10 Category Scores
     const categoryScores = [
@@ -310,9 +337,9 @@ export default function CrowdfundingPage() {
         <SavedModuleHistory history={history} />
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-light text-[#141923]">Campaign Performance Predictor</h1>
+            <h1 className="text-2xl font-light text-[#141923]">Campaign Launch Plan</h1>
             <p className="text-xs text-amber-600 mt-1">
-              All projections labeled ASSUMPTION. Category benchmarks labeled SYNTHETIC DATA.
+              Projections use your stated assumptions. A readiness score does not predict the probability of funding.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -352,81 +379,25 @@ export default function CrowdfundingPage() {
                 ASSUMPTION
               </span>
             </h3>
-            <div tabIndex={0} aria-label="Data Chart" role="img" className="w-full">
+            {scenarios ? <div tabIndex={0} aria-label={'Saved campaign funding scenarios: ' + chartData.map(row => row.name + ' ' + new Intl.NumberFormat('en-IN', { style: 'currency', currency: form.currency, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(row.amount)).join('; ')} role="img" className="w-full">
               <ResponsiveContainer width="100%" height={170}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `$${(Number(v) / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: unknown) => [`$${Number(v).toLocaleString()}`, '']} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${form.currency} ${(Number(v) / 1000).toFixed(0)}k`} />
+                  <Tooltip formatter={(v: unknown) => [new Intl.NumberFormat('en-IN', { style: 'currency', currency: form.currency, maximumFractionDigits: 0 }).format(Number(v)), '']} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   <Bar dataKey="goal" fill="#E5E7EB" name="Goal" />
                   <Bar dataKey="amount" fill="#E0A526" name="Projected (ASSUMPTION)" />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            </div> : <p className="text-sm leading-relaxed text-[#657081]">No campaign visitor/conversion scenarios were saved. Run the analysis with explicit visitor and conversion inputs to calculate them.</p>}
           </div>
         </div>
 
-        {/* FIX-10: 5-Slider Interactive Funding Simulator */}
-        <div className="card-angular p-6 bg-[#FFFFFF]">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold">Interactive Funding Simulator</h3>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200">PROJECTION</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            {[
-              { label: 'Average Pledge ($)', value: simPledge, set: setSimPledge, min: 5, max: 500, step: 5, display: `$${simPledge}` },
-              { label: 'Target Visitors', value: simVisitors, set: setSimVisitors, min: 100, max: 100000, step: 100, display: simVisitors.toLocaleString() },
-              { label: 'Page Conversion %', value: simConversion, set: setSimConversion, min: 0.1, max: 20, step: 0.1, display: `${simConversion}%` },
-              { label: 'Ad Budget ($)', value: simAdBudget, set: setSimAdBudget, min: 0, max: 50000, step: 500, display: `$${simAdBudget.toLocaleString()}` },
-              { label: 'Funding Goal ($)', value: simGoal, set: setSimGoal, min: 1000, max: 1000000, step: 1000, display: `$${simGoal.toLocaleString()}` },
-            ].map((s, index) => (
-              <div key={s.label}>
-                <label htmlFor={'funding-simulation-' + index} className="text-xs font-medium text-stone-600 mb-1 flex justify-between">
-                  <span>{s.label}</span>
-                  <span className="text-[#89620B] font-semibold">{s.display}</span>
-                </label>
-                <input
-                  id={'funding-simulation-' + index}
-                  type="range"
-                  aria-valuetext={s.display}
-                  min={s.min} max={s.max} step={s.step}
-                  value={s.value}
-                  onChange={e => s.set(Number(e.target.value))}
-                  className="w-full h-8 accent-[#E0A526]"
-                />
-              </div>
-            ))}
-          </div>
-          {(() => {
-            const simBackers = Math.round(simVisitors * (simConversion / 100))
-            const simRevenue = simBackers * simPledge
-            const simSurplus = simRevenue - simGoal
-            const simCostPerBacker = simBackers > 0 ? simAdBudget / simBackers : 0
-            const simROAS = simAdBudget > 0 ? simRevenue / simAdBudget : 0
-            const simFundingPct = simGoal > 0 ? (simRevenue / simGoal) * 100 : 0
-            return (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {[
-                  { label: 'Estimated Backers', value: simBackers.toLocaleString(), color: 'text-[#89620B]' },
-                  { label: 'Projected Revenue', value: `$${simRevenue.toLocaleString()}`, color: 'text-[#89620B]' },
-                  { label: 'Surplus / Shortfall', value: `${simSurplus >= 0 ? '+' : ''}$${simSurplus.toLocaleString()}`, color: simSurplus >= 0 ? 'text-green-600' : 'text-red-500' },
-                  { label: 'Cost Per Backer', value: `$${simCostPerBacker.toFixed(2)}`, color: 'text-[#89620B]' },
-                  { label: 'ROAS', value: `${simROAS.toFixed(2)}x`, color: 'text-[#89620B]' },
-                  { label: 'Funding % of Goal', value: `${simFundingPct.toFixed(1)}%`, color: simFundingPct >= 100 ? 'text-green-600' : 'text-[#89620B]' },
-                ].map(m => (
-                  <div key={m.label} className="p-4 bg-white border border-[#E5E7EB] text-center">
-                    <div className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-stone-100 text-stone-600 border border-stone-200 mb-2 inline-block">PROJECTION</div>
-                    <div className={`text-xl font-light mb-1 ${m.color}`}>{m.value}</div>
-                    <div className="text-xs font-medium text-[#141923]">{m.label}</div>
-                  </div>
-                ))}
-              </div>
-            )
-          })()}
-        </div>
-
+        <SourceReportSummary value={result.result.sourceReport} />
+        <CampaignEconomics key={result.analysisId} inputs={{ ...form, ...result.result.inputs }} saved={result.result} />
+        <PlanningEvidence sources={result.result.researchSources} gaps={result.result.evidenceGaps} warnings={result.result.warnings} />
 
         {/* 0B-6: 4 Metrics row including Marketing Cost Per Backer */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -439,21 +410,21 @@ export default function CrowdfundingPage() {
             },
             {
               label: 'Required Visitors',
-              value: (result.result.computedMetrics?.requiredVisitors ?? 0).toLocaleString(),
-              note: 'At 3.5% conversion (ASSUMPTION)',
+              value: result.result.computedMetrics?.requiredVisitors == null ? 'Unavailable' : result.result.computedMetrics.requiredVisitors.toLocaleString(),
+              note: `At ${result.result.computedMetrics?.conversionRatePercent ?? 3.5}% conversion (assumption)`,
               badge: 'ASSUMPTION',
             },
             {
               label: 'Marketing Cost / Backer',
-              value: `$${marketingCostPerBacker.toFixed(2)}`,
+              value: `${form.currency} ${marketingCostPerBacker.toFixed(2)}`,
               note: '= Budget ÷ Req. Backers',
               badge: 'ASSUMPTION',
             },
             {
-              label: 'Category Benchmark',
-              value: `${Number(result.result.benchmark?.avgFundingPct ?? 0).toFixed(1)}% avg`,
-              note: `SYNTHETIC DATA (n=${result.result.benchmark?.totalCount ?? 0})`,
-              badge: 'SYNTHETIC DATA',
+              label: 'Goal covers delivery',
+              value: result.result.computedMetrics?.goalNetSurplus == null ? 'Not assessed' : result.result.computedMetrics.goalNetSurplus >= 0 ? 'Costs covered' : 'Shortfall',
+              note: 'Entered fees, fulfillment, marketing and reserve',
+              badge: 'ASSUMPTION',
             },
           ].map(m => (
             <div key={m.label} className="card-angular p-4 bg-[#FFFFFF] border border-[#E5E7EB]">
@@ -494,7 +465,7 @@ export default function CrowdfundingPage() {
                 ASSUMPTION
               </span>
             </div>
-            <div className="text-2xl font-light text-[#89620B] mb-1">${(ai.firstDayTarget || 0).toLocaleString()}</div>
+            <div className="text-2xl font-light text-[#89620B] mb-1">{ai.firstDayTarget == null ? 'Not set' : form.currency + ' ' + ai.firstDayTarget.toLocaleString()}</div>
           </div>
 
           <div className="card-angular p-4 bg-white border border-[#E5E7EB]">
@@ -507,7 +478,7 @@ export default function CrowdfundingPage() {
                 ASSUMPTION
               </span>
             </div>
-            <div className="text-2xl font-light text-[#89620B] mb-1">${(ai.firstWeekTarget || 0).toLocaleString()}</div>
+            <div className="text-2xl font-light text-[#89620B] mb-1">{ai.firstWeekTarget == null ? 'Not set' : form.currency + ' ' + ai.firstWeekTarget.toLocaleString()}</div>
           </div>
         </div>
 
@@ -674,7 +645,7 @@ export default function CrowdfundingPage() {
           />
         )}
 
-        <CrowdfundingReport data={ai} />
+        <details className="border-t border-[#E5E7EB] pt-4"><summary className="min-h-11 cursor-pointer text-sm font-medium">Read the full campaign research</summary><CrowdfundingReport data={ai} currency={form.currency} /></details>
       </div>
     )
   }
@@ -682,21 +653,22 @@ export default function CrowdfundingPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-light text-[#141923] mb-1">Crowdfunding Performance Predictor</h1>
+        <h1 className="text-2xl font-light text-[#141923] mb-1">Crowdfunding Launch Planner</h1>
         <p className="text-sm text-[#364152] opacity-60">
-          10-category scoring against SYNTHETIC DATA benchmarks. All projections labeled ASSUMPTION.
+          Plan the goal, rewards, delivery costs and demand tests before launch. All forecasts are assumptions.
         </p>
       </div>
 
       <SavedModuleHistory history={history} disabled={loading} />
-      <form onSubmit={handleSubmit} className="card-angular p-5 sm:p-8 space-y-4">
-        <fieldset disabled={loading} className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+      <PlanningDraftNotice draft={draft} disabled={loading || history.opening} />
+        <form onChangeCapture={draft.markEdited} onSubmit={handleSubmit} className="card-angular p-5 sm:p-8 space-y-4">
+        <fieldset disabled={loading || history.opening} className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
           {/* Idea */}
           <div className="sm:col-span-2">
 <label htmlFor="crowdfunding-select-idea" className="block text-xs font-medium text-[#89620B]  mb-1">Select Idea *</label>
             <select id="crowdfunding-select-idea"
               value={form.ideaId}
-              onChange={e => setF('ideaId', e.target.value)}
+              onChange={e => setForm({ ...INITIAL_CAMPAIGN_FORM, ideaId: e.target.value })}
               required
               className="w-full px-3 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:border-[#E0A526] focus:outline-none"
             >
@@ -705,14 +677,34 @@ export default function CrowdfundingPage() {
             </select>
           </div>
 
+          <div className="sm:col-span-2"><SourceReportSelector ideaId={form.ideaId} value={form.sourceReportId} onChange={id=>setF('sourceReportId',id)} disabled={loading} /></div>
+          <div className="sm:col-span-2"><PlanningArtifactSelector ideaId={form.ideaId} module="lean-canvas" value={form.sourceCanvasId} onChange={sourceCanvasId=>setF('sourceCanvasId',sourceCanvasId)} disabled={loading} /></div>
+          <div className="sm:col-span-2"><PlanningArtifactSelector ideaId={form.ideaId} module="pricing" value={form.sourcePricingId} onChange={sourcePricingId=>setF('sourcePricingId',sourcePricingId)} disabled={loading} /></div>
           <div className="sm:col-span-2">
             <label htmlFor="campaign-description" className="block text-xs font-medium text-[#89620B] mb-1">Campaign description *</label>
             <textarea id="campaign-description" value={form.projectDescription} onChange={event => setF('projectDescription', event.target.value)} required minLength={20} maxLength={8000} rows={4} aria-describedby="campaign-description-hint" className="w-full p-3 border border-[#E5E7EB] rounded text-sm" placeholder="Describe the product, the problem it solves, and what this campaign will fund." />
             <p id="campaign-description-hint" className="mt-1 text-xs text-slate-600">At least 20 characters. Explain what backers will receive and what you will deliver.</p>
           </div>
+          <div>
+            <label htmlFor="campaign-currency" className="block text-xs font-medium text-[#89620B] mb-1">Campaign currency</label>
+            <select id="campaign-currency" value={form.currency} onChange={event => setF('currency', event.target.value as CrowdfundingInputs['currency'])} className="w-full rounded border border-[#E5E7EB] bg-white px-3 py-2 text-sm">
+              {['USD', 'INR', 'GBP', 'EUR', 'CAD', 'AUD'].map(code => <option key={code}>{code}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-[#657081]">Amounts keep their entered value when currency changes.</p>
+          </div>
+          <div>
+            <label htmlFor="campaign-visitors" className="block text-xs font-medium text-[#89620B] mb-1">Expected campaign visitors</label>
+            <input id="campaign-visitors" type="number" min={0} max={10000000} step={1} value={form.expectedVisitors} onChange={event => setF('expectedVisitors', Number(event.target.value))} className="w-full rounded border border-[#E5E7EB] bg-white px-3 py-2 text-sm" aria-describedby="campaign-visitors-hint" />
+            <p id="campaign-visitors-hint" className="mt-1 text-xs text-[#657081]">Use unique visits from your launch plan. Lists may overlap and do not equal visitors; zero means unknown.</p>
+          </div>
+          <div>
+            <label htmlFor="campaign-conversion" className="block text-xs font-medium text-[#89620B] mb-1">Visitor-to-backer conversion (%)</label>
+            <input id="campaign-conversion" type="number" min={0} max={100} step={0.1} value={form.conversionRatePercent} onChange={event => setF('conversionRatePercent', Number(event.target.value))} className="w-full rounded border border-[#E5E7EB] bg-white px-3 py-2 text-sm" />
+            <p className="mt-1 text-xs text-[#657081]">3.5% is a starting hypothesis; replace it with a test result.</p>
+          </div>
           {/* Funding Goal */}
           <div>
-<label htmlFor="crowdfunding-funding-goal" className="block text-xs font-medium text-[#89620B]  mb-1">Funding Goal ($) *</label>
+<label htmlFor="crowdfunding-funding-goal" className="block text-xs font-medium text-[#89620B]  mb-1">Funding Goal ({form.currency}) *</label>
             <input id="crowdfunding-funding-goal"
               type="number" value={form.fundingGoal} min={100} required
               onChange={e => setF('fundingGoal', Number(e.target.value))}
@@ -786,7 +778,7 @@ export default function CrowdfundingPage() {
 
           {/* Avg reward */}
           <div>
-<label htmlFor="crowdfunding-avg-reward-amount" className="block text-xs font-medium text-[#89620B]  mb-1">Avg Reward Amount ($)</label>
+<label htmlFor="crowdfunding-avg-reward-amount" className="block text-xs font-medium text-[#89620B]  mb-1">Avg Reward Amount ({form.currency})</label>
             <input id="crowdfunding-avg-reward-amount"
               type="number" value={form.averageReward} min={1}
               onChange={e => setF('averageReward', Number(e.target.value))}
@@ -796,7 +788,7 @@ export default function CrowdfundingPage() {
 
           {/* Marketing budget */}
           <div>
-<label htmlFor="crowdfunding-marketing-budget" className="block text-xs font-medium text-[#89620B]  mb-1">Marketing Budget ($)</label>
+<label htmlFor="crowdfunding-marketing-budget" className="block text-xs font-medium text-[#89620B]  mb-1">Marketing Budget ({form.currency})</label>
             <input id="crowdfunding-marketing-budget"
               type="number" value={form.marketingBudget} min={0}
               onChange={e => setF('marketingBudget', Number(e.target.value))}
@@ -804,6 +796,23 @@ export default function CrowdfundingPage() {
             />
           </div>
 
+          <details className="sm:col-span-2 border-t border-[#E5E7EB] pt-4" open>
+            <summary className="cursor-pointer text-sm font-medium text-[#141923]">Reward and delivery economics</summary>
+            <p className="mt-2 text-xs leading-relaxed text-[#657081]">Fees are editable assumptions. Confirm the platform's country eligibility and local processing fees. Zero costs remain unknown; reaching the goal may still leave a delivery shortfall.</p>
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {([
+                ['lowestReward', `Lowest reward (${form.currency})`, 1, 1000000000], ['highestReward', `Highest reward (${form.currency})`, 1, 1000000000],
+                ['rewardTiers', 'Number of reward tiers', 1, 20], ['platformFeePercent', 'Platform fee (%)', 0.1, 30],
+                ['processingFeePercent', 'Processing fee (%)', 0.1, 30], ['processingFeePerBacker', `Fixed fee per backer (${form.currency})`, 0.01, 1000000000],
+                ['rewardCostPerBacker', `Reward cost per backer (${form.currency})`, 0.01, 1000000000], ['shippingCostPerBacker', `Shipping per backer (${form.currency})`, 0.01, 1000000000],
+                ['productionFixedCost', `Fixed production and setup (${form.currency})`, 1, 1000000000], ['contingencyPercent', 'Contingency reserve (%)', 1, 100],
+              ] as const).map(([key, label, step, max]) => <div key={key}>
+                <label htmlFor={'campaign-economics-' + key} className="mb-1 block text-xs font-medium text-[#89620B]">{label}</label>
+                <input id={'campaign-economics-' + key} type="number" min={['lowestReward', 'highestReward', 'rewardTiers'].includes(key) ? 1 : 0} max={max} step={step} value={form[key]} onChange={event => setF(key, Number(event.target.value))} className="w-full rounded border border-[#E5E7EB] bg-white px-3 py-2 text-sm" />
+              </div>)}
+            </div>
+            <label className="mt-4 flex items-center gap-3 text-sm text-[#364152]"><input type="checkbox" checked={form.allOrNothing} onChange={event => setF('allOrNothing', event.target.checked)} className="accent-[#E0A526]" />Collect pledges only when the funding goal is reached</label>
+          </details>
           {/* Has video */}
           <div className="sm:col-span-2 flex items-center gap-3">
             <input
@@ -823,6 +832,8 @@ export default function CrowdfundingPage() {
         >
           {loading ? 'Analysing campaign…' : `Analyze campaign · ${user?.unlimited ? 'owner allowance' : usesPack ? '1 campaign pack' : CREDIT_COSTS.CROWDFUNDING + ' credits'}`}
         </button>
+        {runError && <p role="alert" className="text-sm leading-relaxed text-[#991B1B]">{runError} Your inputs remain here.</p>}
+        {loading && <p role="status" className="text-sm leading-relaxed text-[#657081]">Researching the campaign and reviewing its economics. This can take several minutes. Keep this page open until the result is saved.</p>}
         <p className="text-xs leading-relaxed text-slate-500">{user?.unlimited ? 'Included with your unlimited owner allowance.' : usesPack ? 'Uses one of your purchased campaign runs.' : `${balance.toLocaleString()} credits available. Charged only when the analysis is saved.`} {!user?.unlimited && !usesPack && balance < CREDIT_COSTS.CROWDFUNDING && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
       </form>
     </div>

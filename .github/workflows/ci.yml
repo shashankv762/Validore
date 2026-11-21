@@ -30,7 +30,7 @@ jobs:
       - run: npm ci --include=dev --no-fund
       - run: npm run verify:release-files
       - run: npm run ci
-      - name: Check the independent marketing JavaScript
+      - name: Check the Cloudflare landing page
         run: npm --prefix 'static webpage' run check
 
   postgres:

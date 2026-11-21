@@ -12,6 +12,14 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllEnvs(); vi.useRealTimers() })
 
 describe('shared provider request budgets', () => {
+  it('shares a configured new-provider allowance across model/protocol attempts on the same account', async () => {
+    vi.stubEnv('QRONOS_REQUESTS_PER_HOUR', '1')
+    const { reserveGatewayRequest } = await import('@/lib/ai/provider-budget')
+    const qronos = { id: 'qronos', fingerprint: 'synthetic-qronos-account' }
+    expect(await reserveGatewayRequest(qronos)).toBe(true)
+    expect(await reserveGatewayRequest(qronos)).toBe(false)
+    expect(await reserveGatewayRequest({ ...qronos, fingerprint: 'different-qronos-account' })).toBe(true)
+  })
   it('caps concurrent requests across roles and model aliases using the same account', async () => {
     const { reserveGatewayRequest } = await import('@/lib/ai/provider-budget')
     const results = await Promise.all(Array.from({ length: 60 }, () => reserveGatewayRequest(candidate)))

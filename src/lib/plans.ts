@@ -1,14 +1,28 @@
 import { CREDIT_COSTS, TIER_MONTHLY_CREDITS } from './credit-costs'
 
 export type PlanTier = keyof typeof TIER_MONTHLY_CREDITS
+export type PaidPlanTier = Exclude<PlanTier, 'free'>
+export type SubscriptionCurrency = 'USD' | 'INR'
+export type MonthlyPlanPrice = { monthlyPriceUsd: number; monthlyPriceInr: number }
+export type SubscriptionAvailability = { premium: boolean; maxPremium: boolean; premiumInr?: boolean; maxPremiumInr?: boolean }
 
 export const PLAN_CATALOG = {
-  free: { name: 'Free', monthlyPriceUsd: 0, monthlyCredits: TIER_MONTHLY_CREDITS.free, validationLimit: 2, activeIdeaLimit: 1 },
-  premium: { name: 'Premium', monthlyPriceUsd: 29, monthlyCredits: TIER_MONTHLY_CREDITS.premium, validationLimit: 15, activeIdeaLimit: 10 },
-  max_premium: { name: 'Max Premium', monthlyPriceUsd: 79, monthlyCredits: TIER_MONTHLY_CREDITS.max_premium, validationLimit: 50, activeIdeaLimit: 100 },
+  free: { name: 'Free', monthlyPriceUsd: 0, monthlyPriceInr: 0, monthlyCredits: TIER_MONTHLY_CREDITS.free, validationLimit: 2, activeIdeaLimit: 1 },
+  premium: { name: 'Premium', monthlyPriceUsd: 8, monthlyPriceInr: 799, monthlyCredits: TIER_MONTHLY_CREDITS.premium, validationLimit: 15, activeIdeaLimit: 10 },
+  max_premium: { name: 'Max Premium', monthlyPriceUsd: 20, monthlyPriceInr: 1999, monthlyCredits: TIER_MONTHLY_CREDITS.max_premium, validationLimit: 50, activeIdeaLimit: 100 },
 } as const
 
+export function subscriptionCurrency(displayCurrency: string): SubscriptionCurrency {
+  return displayCurrency === 'INR' ? 'INR' : 'USD'
+}
+
+export function subscriptionAvailable(billing: SubscriptionAvailability, tier: PaidPlanTier, currency: SubscriptionCurrency) {
+  if (currency === 'INR') return Boolean(tier === 'premium' ? billing.premiumInr : billing.maxPremiumInr)
+  return tier === 'premium' ? billing.premium : billing.maxPremium
+}
+
 export const CREDIT_ACTIONS = [
+  { key: 'CUSTOMER_EVIDENCE', name: 'Customer evidence analysis', cost: CREDIT_COSTS.CUSTOMER_EVIDENCE, access: 'All plans' },
   { key: 'LITE_VALIDATION', name: 'Lite validation', cost: CREDIT_COSTS.LITE_VALIDATION, access: 'Free plan' },
   { key: 'DEEP_VALIDATION', name: 'Full validation', cost: CREDIT_COSTS.DEEP_VALIDATION, access: 'Premium and Max Premium' },
   { key: 'LEAN_CANVAS', name: 'AI Lean Canvas', cost: CREDIT_COSTS.LEAN_CANVAS, access: 'Premium and Max Premium' },

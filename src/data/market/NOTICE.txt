@@ -1,0 +1,20 @@
+Public market-data attribution and reuse
+
+Numerical observations are from World Bank World Development Indicators (WDI).
+Attribute each observation to World Bank WDI, its indicator code, observation
+year, exact units, underlying source organization and actual retrieval date.
+Source identities, query URLs and retrieval/revision dates are preserved in the
+bundled records and indicator metadata. Do not replace those dates with the
+bundle creation date.
+
+World Bank summary terms: https://data.worldbank.org/summary-terms-of-use
+Dataset-specific and third-party restrictions may apply. The repository's
+software license does not grant rights to upstream data. Consult each source's
+terms before redistributing it; a publicly accessible URL is not a reuse license.
+Licensing for a discovery-directory entry remains unknown unless its retrieved
+metadata establishes otherwise.
+
+Retrieval expiry is an application freshness rule, not the observation year or
+a determination that an annual statistic has become false. Display the actual
+observation year and units. Macroeconomic observations are context, not proof of
+customer demand, category revenue or a startup's addressable market.

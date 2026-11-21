@@ -10,6 +10,8 @@ import { stripeBillingClient } from './billing'
 export async function reconcileStripeCredits(tx: CreditTransaction, user: typeof users.$inferSelect, subscription: Stripe.Subscription, now = new Date()) {
   const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id
   if (customerId !== user.stripeCustomerId) throw new Error('Subscription owner mismatch')
+  // A late/replayed provider event cannot replace an explicit owner entitlement.
+  if (user.subscriptionStatus === 'manual') return user
   const active = subscription.status === 'active' || subscription.status === 'trialing'
   if (user.subscriptionId && user.subscriptionId !== subscription.id) {
     if (!active) return user
@@ -26,7 +28,11 @@ export async function reconcileStripeCredits(tx: CreditTransaction, user: typeof
   const tier = mappedTier ?? 'free'
   if (tier !== 'free' && (!periodStart || !periodEnd || periodStart >= periodEnd)) throw new Error('Subscription period unavailable')
   if (tier !== 'free' && periodStart! > now) throw new Error('Subscription period has not started')
-  if (tier !== 'free' && user.subscriptionId === subscription.id && user.creditCycleStartedAt && periodStart! < user.creditCycleStartedAt) return user
+  const matchesProviderPeriod = user.subscriptionId === subscription.id && Boolean(periodEnd && periodEnd > now &&
+      user.currentPeriodEnd?.getTime() === periodEnd.getTime())
+  if (tier !== 'free' && user.subscriptionId === subscription.id && user.creditCycleStartedAt &&
+      periodStart! < user.creditCycleStartedAt &&
+      !(['past_due', 'unpaid'].includes(user.subscriptionStatus ?? '') && matchesProviderPeriod)) return user
 
   const sameSubscription = user.subscriptionId === subscription.id
   // Existing deployments recorded the exact provider end but omitted its start.
@@ -36,9 +42,13 @@ export async function reconcileStripeCredits(tx: CreditTransaction, user: typeof
     : user.creditResetAt?.getTime() === periodEnd?.getTime())
   const newCycle = tier !== 'free' && periodStart! <= now && periodEnd! > now && !sameCycle
   const previousAllowance = creditCycleAllowance(user)
+  const paymentRecoveryPending = tier === 'free' && user.tier !== 'free' &&
+    ['past_due', 'unpaid'].includes(subscription.status) && matchesProviderPeriod
   const allowance = newCycle || user.tier !== tier ? catalog[tier].monthlyCredits : previousAllowance
-  const consumedMonthly = newCycle ? 0 : Math.max(user.monthlyCreditsUsedThisCycle ?? 0,
-    previousAllowance - user.creditBalance, 0)
+  const recoveringPayment = active && sameSubscription && ['past_due', 'unpaid'].includes(user.subscriptionStatus ?? '') && matchesProviderPeriod
+  const consumedMonthly = newCycle ? 0 : recoveringPayment
+    ? Math.max(0, user.monthlyCreditsUsedThisCycle ?? 0)
+    : Math.max(user.monthlyCreditsUsedThisCycle ?? 0, previousAllowance - user.creditBalance, 0)
   const downgraded = tier === 'free' && user.tier !== 'free'
   const values = {
     tier, subscriptionId: subscription.id, subscriptionStatus: subscription.status,
@@ -49,7 +59,8 @@ export async function reconcileStripeCredits(tx: CreditTransaction, user: typeof
     ...(newCycle ? { creditsUsedThisCycle: 0 } : {}),
     // Expired provider state cannot fund monthly spending ahead of payment.
     ...(tier !== 'free' && periodEnd! <= now ? { creditBalance: 0 } : {}),
-    ...(downgraded ? { creditBalance: Math.min(user.creditBalance, catalog.free.monthlyCredits), creditCycleAllowance: catalog.free.monthlyCredits,
+    ...(downgraded && paymentRecoveryPending ? { creditBalance: 0 } : {}),
+    ...(downgraded && !paymentRecoveryPending ? { creditBalance: Math.min(user.creditBalance, catalog.free.monthlyCredits), creditCycleAllowance: catalog.free.monthlyCredits,
       creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: Math.max(0, catalog.free.monthlyCredits - Math.min(user.creditBalance, catalog.free.monthlyCredits)),
       creditCycleStartedAt: now, creditResetAt: new Date(now.getTime() + 30 * 86_400_000) } : {}),
   }

@@ -70,6 +70,24 @@ const fill = async (element: HTMLInputElement | HTMLTextAreaElement, value: stri
 const submit = async (form: HTMLFormElement) => { await act(async () => { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) }); await settle() }
 
 describe('mounted owner command center', () => {
+  it('assigns a plan to selected accounts only after review and preserves the request on retry', async () => {
+    await render(); await click(button('Accounts'))
+    await click(container.querySelector('[aria-label="Select all eligible accounts on this page"]') as HTMLElement)
+    await click(button('Review assignment'))
+    const review = container.querySelector('dialog[aria-label="Review plan assignment"]')!
+    expect(review.textContent).toContain('Assign Premium')
+    expect(review.textContent).toContain('continues until you change it')
+    expect(review.textContent).toContain('reset does not end access')
+    expect(review.textContent).toContain('no checkout or payment subscription')
+    expect(writes).toHaveLength(0)
+    expect(button('Save changes', review).disabled).toBe(true)
+    await fill(review.querySelector('textarea')!, 'Founder pilot plan access')
+    failWrite = true; await submit(review.querySelector('form')!)
+    expect(writes[0]).toMatchObject({ method: 'POST', body: { userIds: [account.id, second.id], tier: 'premium', reason: 'Founder pilot plan access' } })
+    failWrite = false; await submit(review.querySelector('form')!)
+    expect(writes[1].body.requestId).toBe(writes[0].body.requestId)
+    expect(container.querySelector('dialog[aria-label="Review plan assignment"]')).toBeNull()
+  })
   it('offers direct sign-out through the existing native POST endpoint', async () => {
     await render()
     const signout = container.querySelector('#admin-navigation form[action="/api/auth/signout"]')!

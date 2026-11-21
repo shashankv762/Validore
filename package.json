@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3100",
-    "build": "next build",
-    "start": "next start",
+    "build": "npm run build:deploy",
+    "start": "npm run start:standalone",
     "lint": "eslint --max-warnings 0",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
@@ -15,6 +15,7 @@
     "ci": "npm run lint && npm run typecheck && npm run test:ci",
     "verify:agents": "vitest run tests/agent-pipeline.test.ts tests/ai-generation.test.ts tests/agent-tools.test.ts tests/search-policy.test.ts tests/search-budget.test.ts tests/source-cache.test.ts tests/provider-budget.test.ts tests/open-data.test.ts tests/research-store.test.ts tests/founder-interview-api.test.ts tests/lite-workflow.test.ts tests/validation-lifecycle.test.ts tests/usage-api.test.ts src/lib/validation",
     "verify:release-files": "node scripts/verify-release-files.mjs",
+    "pricing:refresh-exchange-rates": "node scripts/refresh-exchange-rates.mjs",
     "verify:ai": "node scripts/verify-ai-providers.mjs",
     "verify:validation": "tsx scripts/verify-validation.ts",
     "templates:build": "node scripts/build-report-templates.mjs",
@@ -25,13 +26,7 @@
     "db:seed:research": "tsx scripts/seed-research.ts",
     "smoke:production": "node scripts/smoke-production.mjs",
     "build:deploy": "node scripts/build-deploy.mjs",
-    "start:standalone": "node .next/standalone/server.js",
-    "build:cloudflare": "opennextjs-cloudflare build",
-    "preview:cloudflare": "opennextjs-cloudflare preview",
-    "deploy:cloudflare": "npm run build:cloudflare && opennextjs-cloudflare deploy",
-    "check:cloudflare": "wrangler deploy --dry-run --outdir .open-next/deploy-check",
-    "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "smoke:cloudflare": "node scripts/smoke-cloudflare.mjs"
+    "start:standalone": "node .next/standalone/server.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.68",
@@ -40,15 +35,11 @@
     "@mozilla/readability": "^0.6.0",
     "@next/env": "^16.4.3",
     "@pdf-lib/fontkit": "1.1.1",
-    "@stripe/stripe-js": "^9.17.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.39.0",
     "ai": "^7.0.122",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.4.0",
     "disposable-email-domains": "^1.0.62",
     "docx": "^9.15.0",
     "dotenv": "^18.0.4",
@@ -58,38 +49,32 @@
     "jszip": "^3.10.2",
     "linkedom": "^0.18.14",
     "lucide-react": "^1.48.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "pdf-lib": "1.17.1",
     "postgres": "^3.4.9",
     "pptxgenjs": "^4.0.1",
-    "razorpay": "^2.9.8",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "recharts": "^3.10.1",
     "sharp": "^0.35.5",
     "sonner": "^2.0.8",
     "stripe": "^22.6.2",
-    "tailwind-merge": "^3.7.0",
-    "uuid": "^14.0.2",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.14",
-    "@opennextjs/cloudflare": "1.20.15",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
-    "eslint-config-next": "16.4.3",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5",
     "vite": "^8.3.1",
-    "vitest": "^5.0.2",
-    "wrangler": "4.156.0"
+    "vitest": "^5.0.2"
   },
   "overrides": {
     "rimraf": {
@@ -100,12 +85,6 @@
     },
     "pptxgenjs": {
       "image-size": "^2.0.4"
-    },
-    "@opennextjs/cloudflare": {
-      "glob": "^14.0.3"
-    },
-    "@node-minify/core": {
-      "glob": "^14.0.3"
     }
   },
   "engines": {

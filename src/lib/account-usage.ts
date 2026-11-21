@@ -30,7 +30,7 @@ export function actionAllowance(user: Balance, action: keyof typeof CREDIT_COSTS
   if (user.unlimited) return { runs: 0, unit: 'credits', permitted: true, unlimited: true }
   if (action === 'CROWDFUNDING' && !(plan?.canCrowdfunding ?? user.tier === 'max_premium')) return { runs: Math.max(0, user.crowdfundingCredits), unit: 'module credit', permitted: user.crowdfundingCredits > 0 }
   if (action === 'PITCH_DECK' && !(plan?.canPitchDeck ?? user.tier === 'max_premium')) return { runs: Math.max(0, user.pitchDeckCredits), unit: 'module credit', permitted: user.pitchDeckCredits > 0 }
-  const permitted = action === 'LITE_VALIDATION' ? user.tier === 'free' : action === 'PRICING' ? plan?.canPricingSimulator ?? user.tier !== 'free' : action === 'LEAN_CANVAS' ? plan?.canAiLeanCanvas ?? user.tier !== 'free' : action === 'CROWDFUNDING' || action === 'PITCH_DECK' ? true : user.tier !== 'free'
+  const permitted = action === 'CUSTOMER_EVIDENCE' ? true : action === 'LITE_VALIDATION' ? user.tier === 'free' : action === 'PRICING' ? plan?.canPricingSimulator ?? user.tier !== 'free' : action === 'LEAN_CANVAS' ? plan?.canAiLeanCanvas ?? user.tier !== 'free' : action === 'CROWDFUNDING' || action === 'PITCH_DECK' ? true : user.tier !== 'free'
   let runs = permitted ? Math.floor(creditOverview(user).total / CREDIT_COSTS[action]) : 0
   if (permitted && (action === 'LITE_VALIDATION' || action === 'DEEP_VALIDATION')) runs = affordableValidations(user, CREDIT_COSTS[action], validationLimit)
   return { runs, unit: 'credits', permitted }

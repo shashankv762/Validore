@@ -1,7 +1,4 @@
-# Current SaaS configuration. The independent marketing site is in "static webpage".
-# Existing services: update Build & Deploy in the dashboard, or sync the existing
-# Blueprint. Adding this file alone does NOT change a manually managed service.
-# Retain the existing service, database and secret environment values.
+# The separate Cloudflare landing page serves validore.tech.
 services:
   - type: web
     name: validore
@@ -76,5 +73,3 @@ services:
         sync: false
       - key: PIXROUTER_API_KEY
         sync: false
-# Set the chosen AI provider keys and any other required secrets in Render.
-# Do not attach validore.tech here: that domain serves the static marketing site.

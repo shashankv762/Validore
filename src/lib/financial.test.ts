@@ -10,7 +10,10 @@ describe('Financial Formulas', () => {
             breakEvenCustomers: 40, breakEvenRevenue: 2000, cac: 100, ltv: 500, ltvCacRatio: 5, cacPaybackMonths: 4 });
         const projection = f.buildFinancialProjection(assumptions);
         expect(projection).toHaveLength(12);
-        expect(projection[0]).toMatchObject({ customers: 100, revenue: 5000, costs: 4500, profitLoss: 500, label: 'PROJECTION' });
+        expect(projection[0]).toMatchObject({ customers: 100, newCustomers: 100, acquisitionCost: 10000,
+            revenue: 5000, costs: 13500, profitLoss: -8500, currency: 'USD', label: 'PROJECTION' });
+        expect(projection[1]).toMatchObject({ customers: 95, newCustomers: 0, churnedCustomers: 5,
+            revenue: 4750, costs: 3375, profitLoss: 1375 });
     });
 
     it('serializes undefined economics as explicit nulls with an explanation', () => {
@@ -19,6 +22,79 @@ describe('Financial Formulas', () => {
         expect(metrics.notes).toContain('positive contribution margin');
         expect(metrics.notes).toContain('acquisition cost is zero');
         expect(JSON.parse(JSON.stringify(metrics))).toEqual(metrics);
+    });
+
+    it('uses only explicit gross acquisition growth and applies churn to the opening cohort', () => {
+        const projection = f.buildFinancialProjection({ ...assumptions, estimatedMonthlyGrowthRate: 0.1, currency: 'INR' });
+        expect(projection[1]).toMatchObject({ openingCustomers: 100, newCustomers: 10, churnedCustomers: 5,
+            customers: 105, acquisitionCost: 1000, revenue: 5250, costs: 4625, profitLoss: 625, currency: 'INR' });
+        expect(projection[2]).toMatchObject({ openingCustomers: 105, newCustomers: 11, churnedCustomers: 5, customers: 111 });
+        for (const row of projection) {
+            expect(row.customers).toBe(row.openingCustomers - row.churnedCustomers + row.newCustomers);
+            expect(row.acquisitionCost).toBe(row.newCustomers * assumptions.estimatedCACMonthly);
+            expect(row.costs).toBe(row.fixedCosts + row.variableCosts + row.acquisitionCost);
+            expect(row.profitLoss).toBe(row.revenue - row.costs);
+        }
+    });
+
+    it('does not invent a customer lifetime when churn is zero', () => {
+        const metrics = f.computeUnitEconomics({ ...assumptions, estimatedChurnRate: 0 });
+        expect(metrics).toMatchObject({ ltv: null, ltvCacRatio: null, expectedCustomerLifetimeMonths: null });
+        expect(metrics.notes).toContain('does not establish a finite customer lifetime');
+        expect(metrics.notes).not.toContain('24-month');
+        const projection = f.buildFinancialProjection({ ...assumptions, estimatedChurnRate: 0 });
+        expect(projection.every(row => row.customers === 100)).toBe(true);
+        expect(projection.slice(1).every(row => row.newCustomers === 0 && row.acquisitionCost === 0)).toBe(true);
+    });
+
+    it('retains fixed costs after full churn and cannot grow a zero starting cohort from a percentage alone', () => {
+        const projection = f.buildFinancialProjection({ ...assumptions, estimatedChurnRate: 1 });
+        expect(projection[1]).toMatchObject({ customers: 0, churnedCustomers: 100, revenue: 0, costs: 1000, profitLoss: -1000 });
+        expect(projection.slice(1).every(row => row.customers === 0)).toBe(true);
+        expect(f.buildFinancialProjection({ ...assumptions, estimatedMonthlyCustomers: 0, estimatedMonthlyGrowthRate: 0.5 })
+            .every(row => row.customers === 0 && row.acquisitionCost === 0)).toBe(true);
+    });
+
+    it('carries fractional churn and acquisition so small-cohort rates are not silently ignored', () => {
+        const shrinking = f.buildFinancialProjection({ ...assumptions, estimatedMonthlyCustomers: 3, estimatedChurnRate: 0.05 });
+        expect(shrinking[11].customers).toBeLessThan(3);
+        const acquiring = f.buildFinancialProjection({ ...assumptions, estimatedMonthlyCustomers: 3, estimatedMonthlyGrowthRate: 0.05, estimatedChurnRate: 0 });
+        expect(acquiring[11].customers).toBeGreaterThan(3);
+        expect(acquiring.slice(1).reduce((total, row) => total + row.newCustomers, 0)).toBe(acquiring[11].customers - 3);
+    });
+
+    it('keeps declared currency and cents consistent across revenue, component costs and profit', () => {
+        const projection = f.buildFinancialProjection({ ...assumptions, currency: 'INR', estimatedSellingPrice: 9.99,
+            estimatedVariableCost: 3.33, estimatedFixedCostMonthly: 0.15, estimatedCACMonthly: 4.57,
+            estimatedMonthlyCustomers: 3, estimatedChurnRate: 0 });
+        expect(projection[0]).toMatchObject({ currency: 'INR', revenue: 29.97, variableCosts: 9.99,
+            acquisitionCost: 13.71, fixedCosts: 0.15, costs: 23.85, profitLoss: 6.12 });
+        expect(projection[1]).toMatchObject({ revenue: 29.97, acquisitionCost: 0, costs: 10.14, profitLoss: 19.83 });
+    });
+
+    it('uses the same whole-customer threshold for break-even revenue and reports undefined zero-price percentages', () => {
+        expect(f.computeUnitEconomics({ ...assumptions, estimatedFixedCostMonthly: 1001 }))
+            .toMatchObject({ breakEvenCustomers: 41, breakEvenRevenue: 2050 });
+        expect(f.computeUnitEconomics({ ...assumptions, estimatedSellingPrice: 0 }))
+            .toMatchObject({ contributionMarginPercent: null, grossMarginPercent: null, breakEvenCustomers: null });
+    });
+
+    it('calculates cash runway after setup and distinguishes exhausted cash from a non-burning scenario', () => {
+        expect(f.calculateCashRunway({ cash: 100000, oneTimeCosts: 10000, monthlyRevenue: 5000, monthlyCosts: 20000, currency: 'INR' }))
+            .toMatchObject({ cashAfterSetup: 90000, monthlyBurn: 15000, runwayMonths: 6, currency: 'INR' });
+        expect(f.calculateCashRunway({ cash: 0, oneTimeCosts: 0, monthlyRevenue: 100, monthlyCosts: 50 }))
+            .toMatchObject({ cashAfterSetup: 0, monthlyBurn: -50, runwayMonths: null });
+        expect(f.calculateCashRunway({ cash: 50, oneTimeCosts: 100, monthlyRevenue: 100, monthlyCosts: 50 }))
+            .toMatchObject({ cashAfterSetup: -50, runwayMonths: 0 });
+        expect(f.calculateCashRunway({ cash: 0, oneTimeCosts: 0, monthlyRevenue: 0, monthlyCosts: 1 }).runwayMonths).toBe(0);
+    });
+
+    it('rejects nonfinite, negative and impossible rate inputs instead of fabricating financial rows', () => {
+        expect(() => f.buildFinancialProjection({ ...assumptions, estimatedCACMonthly: Infinity })).toThrow('finite');
+        expect(() => f.buildFinancialProjection({ ...assumptions, estimatedChurnRate: 1.1 })).toThrow('churn');
+        expect(() => f.buildFinancialProjection({ ...assumptions, estimatedMonthlyGrowthRate: -0.1 })).toThrow('nonnegative');
+        expect(() => f.computeUnitEconomics({ ...assumptions, currency: 'rupees' })).toThrow('currency');
+        expect(() => f.calculateCashRunway({ cash: -1, oneTimeCosts: 0, monthlyRevenue: 0, monthlyCosts: 10 })).toThrow('nonnegative');
     });
 
     it('calculates Break-Even Units', () => {

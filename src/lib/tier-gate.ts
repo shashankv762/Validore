@@ -4,6 +4,7 @@ import { eq, and, gt, sql } from 'drizzle-orm'
 import { canFundExtraLite } from './credit-allocation'
 import { isActiveAccount, isOwnerAccount } from './admin-access'
 import { getPlan } from './plan-catalog'
+import { resetValidationWindow } from './credits'
 
 export type Feature =
   | 'canExportPdf' | 'canExportCsv' | 'canExportPptx'
@@ -55,18 +56,12 @@ export async function canUserAccessWithCredits(
 export async function checkValidationLimit(supabaseId: string): Promise<{ allowed: boolean; remaining: number }> {
   const result = await getUserWithTierConfig(supabaseId)
   if (!result?.config) return { allowed: false, remaining: 0 }
-  const config = result.config
   return db.transaction(async tx => {
-    const [user] = await tx.select().from(users).where(eq(users.id, result.user.id)).for('update')
-    if (!user || !isActiveAccount(user)) return { allowed: false, remaining: 0 }
-    if (isOwnerAccount(user)) return { allowed: true, remaining: Number.MAX_SAFE_INTEGER }
-    const now = new Date()
-    if (!user.validationResetAt || now >= user.validationResetAt) {
-      await tx.update(users).set({ validationsThisMonth: 0,
-        validationResetAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)),
-      }).where(eq(users.id, user.id))
-      return { allowed: config.monthlyValidationLimit > 0 || canFundExtraLite(user), remaining: config.monthlyValidationLimit }
-    }
+    const [locked] = await tx.select().from(users).where(eq(users.id, result.user.id)).for('update')
+    if (!locked || !isActiveAccount(locked)) return { allowed: false, remaining: 0 }
+    if (isOwnerAccount(locked)) return { allowed: true, remaining: Number.MAX_SAFE_INTEGER }
+    const user = await resetValidationWindow(tx, locked)
+    const config = await getPlan(user.tier, tx)
     const remaining = Math.max(0, config.monthlyValidationLimit - user.validationsThisMonth)
     return { allowed: remaining > 0 || canFundExtraLite(user), remaining }
   })

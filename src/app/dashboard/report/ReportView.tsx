@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useSyncExternalStore, useState } from 'react'
+import { useSyncExternalStore, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts'
@@ -33,13 +33,16 @@ import { RiskRegisterTable, RiskItem } from '@/components/ui/RiskRegisterTable'
 import { ActionPlanTable, ActionPlanRow } from '@/components/ui/ActionPlanTable'
 import { AgentActivity } from '@/components/AgentActivity'
 import { EvidenceReviewPanel } from '@/components/EvidenceReviewPanel'
+import { CustomerSignalsPanel } from '@/components/CustomerSignalsPanel'
+import { ScoreCoveragePanel } from '@/components/ScoreCoveragePanel'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { ScatterPlot2x2 } from '@/components/ui/ScatterPlot2x2'
-import { ScorecardGrid } from '@/components/ui/ScorecardGrid'
 import { STARTUP_WEIGHTS } from '@/lib/scoring'
+import { isIncompleteResearch } from '@/lib/exports/completeness'
 
 interface CompetitorItem {
   name?: string
+  sourceUrl?: string
   strength?: string
   strengths?: string[]
   weakness?: string
@@ -102,6 +105,7 @@ interface EvidenceCitation {
   publication?: string
   year?: string
   link?: string
+  evidenceExcerpt?: string
   geography?: string
   fetchedAt?: string
   strength?: string
@@ -157,6 +161,84 @@ const stringList = (value: unknown): string[] => Array.isArray(value) ? value.fi
 const safeCitationLink = (value?: string) => {
   try { const url = new URL(value || ''); return ['http:', 'https:'].includes(url.protocol) ? url.href : undefined } catch { return undefined }
 }
+const recordObject = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
+const reportNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('en-US', { maximumFractionDigits: 2 }) : 'Not established'
+const reportMoney = (value: unknown, currency: unknown) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)) return 'Not established'
+  try { return new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', { style: 'currency', currency, maximumFractionDigits: 2 }).format(value) }
+  catch { return 'Not established' }
+}
+const programWeeks = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 4 && value <= 12 ? value : null
+
+function PlanningBasisPanel({ value }: { value: unknown }) {
+  const basis = recordObject(value)
+  if (!Object.keys(basis).length) return null
+  const offer = recordObject(basis.offer)
+  const weeks = programWeeks(basis.programWeeks)
+  const utility = typeof basis.utilityWeeks === 'number' && Number.isSafeInteger(basis.utilityWeeks) && basis.utilityWeeks >= 0 && basis.utilityWeeks <= 6 &&
+    (weeks === null || basis.utilityWeeks <= weeks) ? basis.utilityWeeks : null
+  const amount = typeof offer.amount === 'number' && offer.amount >= 0 ? reportMoney(offer.amount, offer.currency) : 'Not established'
+  const price = amount === 'Not established' || !['month', 'one_time'].includes(String(offer.period)) ? 'Price not established'
+    : offer.period === 'month' ? `${amount} / month` : `${amount} · one-time purchase`
+  const text = (value: unknown) => typeof value === 'string' && value.trim() ? value : 'Not established'
+  const cohort = typeof basis.cohortSize === 'number' && Number.isSafeInteger(basis.cohortSize) && basis.cohortSize >= 0 ? basis.cohortSize.toLocaleString() : 'Not established'
+  return <section className="card-angular mb-8 bg-white p-6 sm:p-8" aria-labelledby="planning-basis-heading">
+    <h2 id="planning-basis-heading" className="text-lg font-medium text-[#141923]">Customer and offer to test</h2>
+    <p className="mt-2 max-w-3xl text-sm leading-7 text-[#536172]">This is a proposed research program. Its participants and targets are not observed sales.</p>
+    <dl className="mt-5 grid grid-cols-1 gap-x-8 gap-y-5 text-sm leading-relaxed sm:grid-cols-2 lg:grid-cols-3">
+      {[
+        ['Target customer', text(basis.targetCustomer)], ['Participant unit', text(basis.participantUnit)],
+        ['Proposed offer', price], ['Research participants', cohort],
+        ['Full program', weeks === null ? 'Horizon not established' : `${weeks} weeks`],
+        ['Usefulness test', utility === null ? 'Duration not established' : `${utility} ${utility === 1 ? 'week' : 'weeks'} inside the full program`],
+      ].map(([label, result]) => <div key={label}><dt className="font-medium text-[#141923]">{label}</dt><dd className="mt-1 text-[#536172]">{result}</dd></div>)}
+    </dl>
+    <div className="mt-5 space-y-3 border-t border-[#E5E7EB] pt-5 text-sm leading-7 text-[#536172]">
+      {typeof basis.cohortDefinition === 'string' && basis.cohortDefinition.trim() && <p><span className="font-medium text-[#141923]">Who qualifies: </span>{basis.cohortDefinition}</p>}
+      {offer.basis === 'named_variant' && typeof offer.variantRationale === 'string' && offer.variantRationale.trim() && <p><span className="font-medium text-[#141923]">Why test this offer: </span>{offer.variantRationale}</p>}
+      {typeof basis.financeRelationship === 'string' && basis.financeRelationship.trim() && <p>{basis.financeRelationship}</p>}
+    </div>
+  </section>
+}
+
+function FinancialReviewPanel({ value }: { value: unknown }) {
+  const review = recordObject(value)
+  if (review.status === 'unavailable') return typeof review.limitation === 'string' ? <p className="mt-5 text-sm leading-7 text-[#536172]">{review.limitation}</p> : null
+  if (review.status !== 'available') return null
+  const base = recordObject(review.base)
+  const comparison = recordObject(review.offerComparison)
+  const comparable = comparison.status === 'comparable' && comparison.currency === base.currency && typeof comparison.offeredPrice === 'number' &&
+    Number.isFinite(comparison.offeredPrice) && comparison.offeredPrice >= 0 && reportMoney(comparison.offeredPrice, comparison.currency) !== 'Not established'
+  const comparisonNote = (comparable || comparison.status === 'not_comparable') && typeof comparison.note === 'string' && comparison.note.trim() ? comparison.note : comparable
+    ? 'Only the offer price changes; all other operating assumptions remain the same. Research participants are not counted as paying customers.'
+    : 'The proposed offer does not have a matching monthly price and currency. Measure purchase frequency and matching costs before comparing it with the finance scenario.'
+  const scenarios: Record<string, unknown>[] = [{ ...base, scenario: 'Base assumptions' },
+    ...(comparable ? [{ ...comparison, scenario: `Proposed monthly offer: ${reportMoney(comparison.offeredPrice, comparison.currency)} / month` }] : []),
+    ...(Array.isArray(review.sensitivity) ? review.sensitivity.map(recordObject) : [])]
+  return <section className="mt-6 border-t border-[#E5E7EB] pt-6" aria-labelledby="financial-review-heading">
+    <h3 id="financial-review-heading" className="text-base font-medium text-[#141923]">Financial assumptions and sensitivity</h3>
+    {typeof review.basis === 'string' && <p className="mt-2 max-w-3xl text-sm leading-7 text-[#536172]">{review.basis}</p>}
+    {Object.keys(comparison).length > 0 && <div className="mt-4 max-w-3xl text-sm leading-7 text-[#536172]">
+      <p className="font-medium text-[#141923]">{comparable ? 'Compare the proposed offer with the base assumptions' : 'Offer comparison is not available'}</p>
+      <p className="mt-1">{comparisonNote}</p>
+    </div>}
+    <ol className="mt-4 divide-y divide-[#E5E7EB]">{scenarios.map((scenario, index) => {
+      const months = Array.isArray(scenario.months) ? scenario.months.map(recordObject) : []
+      const metrics = [
+        ['12-month operating result', reportMoney(scenario.cumulativeOperatingResult, scenario.currency)],
+        ['Largest cumulative operating deficit', reportMoney(scenario.largestCumulativeDeficit, scenario.currency)],
+        ['Month 1 customers', reportNumber(months.find(month => month.month === 1)?.customers)],
+        ['Month 12 customers', reportNumber(months.find(month => month.month === 12)?.customers)],
+        ['Break-even customers', reportNumber(scenario.breakEvenCustomers)],
+        ['Contribution per customer', reportMoney(scenario.contributionMargin, scenario.currency)],
+      ]
+      return <li key={index} className="py-4"><h4 className="text-sm font-medium text-[#141923]">{typeof scenario.scenario === 'string' ? scenario.scenario : 'Saved scenario'}</h4>
+        <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-3 text-xs leading-relaxed sm:grid-cols-2 lg:grid-cols-3">{metrics.map(([label, result]) => <div key={label}><dt className="text-[#536172]">{label}</dt><dd className="mt-1 tabular-nums text-[#141923]">{result}</dd></div>)}</dl>
+      </li>
+    })}</ol>
+    {typeof review.limitation === 'string' && <p className="mt-3 max-w-3xl text-sm leading-7 text-[#536172]">{review.limitation}</p>}
+  </section>
+}
 
 export default function ReportView({ report, isSharePage = false, hideDownloads = false }: { report: ReportModel | null, isSharePage?: boolean, hideDownloads?: boolean }) {
   const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false)
@@ -177,9 +259,14 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
   const decisionReasons = (Array.isArray(report?.decisionReasons) ? report.decisionReasons.filter(item => typeof item === 'string') : []) as string[]
   const competitors = Array.isArray(reportData.competitors) ? reportData.competitors.filter(item => item && typeof item === 'object').map(item => ({
     ...item, strength: item.strength || stringList(item.strengths).join(', '), weakness: item.weakness || stringList(item.weaknesses).join(', '),
+    sourceUrl: typeof item.sourceUrl === 'string' && /^https?:\/\//i.test(item.sourceUrl) ? item.sourceUrl : undefined,
   })) : []
   const rawFinancials = Array.isArray(reportData.financialProjection) ? reportData.financialProjection : reportData.financials
   const financials = Array.isArray(rawFinancials) ? rawFinancials.filter(item => item && Number.isFinite(item.revenue) && Number.isFinite(item.costs)) : []
+  const financialAssumptions = reportData.unitEconomicsAssumptions && typeof reportData.unitEconomicsAssumptions === 'object' ? reportData.unitEconomicsAssumptions as Record<string, unknown> : {}
+  const financialCurrency = typeof financialAssumptions.currency === 'string' && /^[A-Z]{3}$/.test(financialAssumptions.currency) ? financialAssumptions.currency : 'USD'
+  const formatFinancial = (value: number, compact = false) => new Intl.NumberFormat(financialCurrency === 'INR' ? 'en-IN' : 'en-US',
+    { style: 'currency', currency: financialCurrency, maximumFractionDigits: compact ? 1 : 2, ...(compact ? { notation: 'compact' as const } : {}) }).format(value)
 
   const getScoreColor = (score: number | null) => {
     if (score === null) return '#364152'
@@ -257,6 +344,11 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
             owner: typed.owner as string | undefined,
             kpi: typed.kpi as string | undefined,
             expectedOutput: (typed.expectedOutput || undefined) as string | undefined,
+            hypothesis: typeof typed.hypothesis === 'string' ? typed.hypothesis : undefined,
+            participantUnit: typeof typed.participantUnit === 'string' ? typed.participantUnit : undefined,
+            denominator: typeof typed.denominator === 'string' ? typed.denominator : undefined,
+            passCriterion: typeof typed.passCriterion === 'string' ? typed.passCriterion : undefined,
+            decisionOnFailure: typeof typed.decisionOnFailure === 'string' ? typed.decisionOnFailure : undefined,
           }
         }
         return { step: idx + 1, action: 'Action not provided' }
@@ -344,7 +436,16 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
         </div>
       )}
 
-      {agentTrail && Object.values(agentTrail.agents || {}).some(status => status === 'failed') && <div role="status" className="card-angular mb-6 p-5 text-sm text-[#141923]">This analysis is partial. Some specialist sections could not complete; review the agent status and treat the overall score with caution.</div>}
+      {isIncompleteResearch(report) && <div role="status" className="mb-6 border-y border-[#E5E7EB] py-5 text-sm leading-7 text-[#141923]">This analysis is partial. Some research remains incomplete; review the missing evidence and treat the overall score with caution.</div>}
+      <section className="mb-8 border-y border-[#E5E7EB] py-6" aria-labelledby="decision-first-heading">
+        <h2 id="decision-first-heading" className="text-xl font-medium text-[#141923]">Recommendation and next test</h2>
+        <p className="mt-2 text-sm font-medium text-[#141923]">{decision}</p>
+        {nextStepRec && <p className="mt-3 text-base font-medium text-[#141923]">{getNextStepConfig(nextStepRec).label}</p>}
+        {nextStepRationale && <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[#364152]">{nextStepRationale}</p>}
+        {!!decisionReasons.length && <ul className="mt-4 max-w-3xl list-disc space-y-2 pl-5 text-sm leading-relaxed text-[#364152]">{decisionReasons.slice(0, 4).map((reason, index) => <li key={index}>{reason}</li>)}</ul>}
+        {Array.isArray(reportData.evidenceGaps) && !!reportData.evidenceGaps.length && <div className="mt-4 text-sm leading-relaxed text-[#364152]"><h3 className="font-medium text-[#141923]">Evidence to resolve</h3><ul className="mt-2 list-disc space-y-2 pl-5">{reportData.evidenceGaps.slice(0, 5).map((gap: unknown, index: number) => typeof gap === 'string' ? <li key={index}>{gap}</li> : null)}</ul></div>}
+      </section>
+      <ScoreCoveragePanel value={reportData.scoreCoverage} />
 
       {/* Main Validation Score & Sub-scores */}
       <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
@@ -497,13 +598,15 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {personas.map((persona, pIdx) => {
-              const sens = (persona.priceSensitivity || 'medium').toLowerCase()
+              const reportedSensitivity = typeof persona.priceSensitivity === 'string' ? persona.priceSensitivity.trim().toLowerCase() : ''
+              const sens = ['low', 'medium', 'high'].includes(reportedSensitivity) ? reportedSensitivity : 'unknown'
+              const sensitivityLabel = sens === 'unknown' ? 'Not measured' : sens[0].toUpperCase() + sens.slice(1)
               const sensClass =
                 sens === 'low'
                   ? 'bg-emerald-100 text-emerald-800'
                   : sens === 'high'
                   ? 'bg-rose-100 text-rose-800'
-                  : 'bg-amber-100 text-amber-800'
+                  : sens === 'medium' ? 'bg-amber-100 text-amber-800' : 'bg-[#F7F8FA] text-[#536172]'
 
               return (
                 <div key={pIdx} className="p-5 bg-white border border-[#E5E7EB] rounded shadow-xs flex flex-col justify-between">
@@ -515,8 +618,8 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
                           {[persona.occupation, persona.ageRange, persona.location].filter(Boolean).join(' • ')}
                         </p>
                       </div>
-                      <span className={`text-[10px]  font-bold px-2 py-0.5 rounded ${sensClass}`}>
-                        {persona.priceSensitivity || 'Med'} WTP
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded text-center leading-snug ${sensClass}`}>
+                        {`Price sensitivity: ${sensitivityLabel}`}
                       </span>
                     </div>
 
@@ -597,10 +700,11 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
               <th className="px-4 py-3">Strength</th>
               <th className="px-4 py-3">Weakness</th>
               <th className="px-4 py-3 rounded-tr">Threat Level</th>
+              <th className="px-4 py-3">Evidence</th>
             </tr>
           </thead>
           <tbody>
-            {competitors.length === 0 && <tr><td colSpan={4} className="px-4 py-6 text-[#364152]/75">Competitor data is unavailable for this report.</td></tr>}
+            {competitors.length === 0 && <tr><td colSpan={5} className="px-4 py-6 text-[#364152]/75">No competitor could be confirmed from a retrieved page.</td></tr>}
             {competitors.map((comp: CompetitorItem, i: number) => (
               <tr key={i} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F7F8FA]/50 transition-colors">
                 <td className="px-4 py-4 font-medium text-[#141923]">{comp.name || 'Unknown'}</td>
@@ -611,6 +715,7 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
                     {comp.threatLevel || 'Unassessed'}
                   </span>
                 </td>
+                <td className="px-4 py-4">{comp.sourceUrl ? <a href={comp.sourceUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline underline-offset-4">Source <ExternalLink size={13} aria-hidden="true" /></a> : 'Unavailable'}</td>
               </tr>
             ))}
           </tbody>
@@ -631,11 +736,11 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
               <LineChart data={financials} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
                 <XAxis dataKey="month" stroke="#364152" opacity={0.6} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis stroke="#364152" opacity={0.6} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => `$${value/1000}k`} />
+                <YAxis stroke="#364152" opacity={0.6} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(value) => formatFinancial(Number(value), true)} />
                 <Tooltip 
                   contentStyle={{ background: '#141923', color: '#F7F8FA', border: 'none', borderRadius: '4px', fontSize: '12px' }}
                   itemStyle={{ color: '#F7F8FA' }}
-                  formatter={(value) => [`$${Number(value).toLocaleString()}`, undefined]}
+                  formatter={(value) => [formatFinancial(Number(value)), undefined]}
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '12px' }} />
                 <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#22c55e" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6 }} />
@@ -646,6 +751,7 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
             <div className="w-full h-full bg-[#F7F8FA] animate-pulse rounded" />
           )}
         </div>
+        <FinancialReviewPanel value={reportData.financialReview} />
       </div>
       )}
 
@@ -881,12 +987,15 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
         </div>
       )}
 
-      {/* 0A-7: 30-Day Action Plan */}
+      <PlanningBasisPanel value={reportData.planningBasis} />
+
+      {/* Proposed experiment plan uses the saved horizon, when available. */}
       {actionPlan.length > 0 && (
         <div className="mb-8">
           <ActionPlanTable
             plan={actionPlan}
-            title="30-Day Validation & Execution Plan"
+            title={programWeeks(recordObject(reportData.planningBasis).programWeeks) === null ? 'Experiment plan'
+              : `${programWeeks(recordObject(reportData.planningBasis).programWeeks)}-week experiment plan`}
             badge="PROPOSED_STRATEGY"
             showExpectedOutput={true}
           />
@@ -949,6 +1058,7 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
                         </span>
                       </div>
                     </div>
+                    {item.evidenceExcerpt && <blockquote className="mt-3 border-l-2 border-[#E0A526] pl-3 text-[11px] leading-relaxed text-[#53616A]">“{item.evidenceExcerpt}”</blockquote>}
                     <div className="flex flex-wrap items-center gap-3 text-stone-500 text-[11px]">
                       {item.source && <span>Source: <strong className="text-stone-700">{item.source}</strong></span>}
                       {item.publication && <span>Pub: {item.publication}</span>}
@@ -992,6 +1102,7 @@ export default function ReportView({ report, isSharePage = false, hideDownloads 
 
       {/* 2. Founder Assumptions Table */}
       <EvidenceReviewPanel value={reportData.evidenceReview} />
+      <CustomerSignalsPanel value={reportData.customerSignals} ideaId={report?.ideaId} />
       {Array.isArray((reportData as any)?.founderAssumptions) && (reportData as any).founderAssumptions.length > 0 && (
         <div className="card-angular p-8 bg-[#FFFFFF] mb-8 shadow-sm overflow-x-auto">
           <div className="flex items-center justify-between mb-4">

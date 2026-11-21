@@ -10,6 +10,13 @@ const storage = () => {
   return { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) } }
 }
 describe('restorable founder briefs', () => {
+  it('restores an explicit public topic within its own limit without auto-copying private fields', () => {
+    const memory = storage()
+    persistBrief(memory, owner, owner, { draft: { ...draft, publicResearchFocus: 'x'.repeat(400) }, step: 1 })
+    expect(restoreBrief(memory, owner)?.draft.publicResearchFocus).toHaveLength(280)
+    persistBrief(memory, owner, owner, { draft, step: 1 })
+    expect(restoreBrief(memory, owner)?.draft).not.toHaveProperty('publicResearchFocus')
+  })
   it('preserves a saved brief while cached account hydration is still pending', () => {
     const memory = storage()
     persistBrief(memory, owner, owner, { draft, step: 3, ideaId })

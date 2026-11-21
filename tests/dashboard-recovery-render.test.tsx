@@ -43,6 +43,19 @@ const render = async (page: typeof IdeaWizard | typeof PitchDeckPage | typeof Cr
 const settle = async () => { await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)) }) }
 
 describe('dashboard recovery with real mounted React effects', () => {
+  it.each([undefined, 'Clinic appointment reminders using spreadsheets'])('shows a separate optional public-search topic with clear disclosure and restores only an explicit value', async publicResearchFocus => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(url === '/api/me' ? account : { ideas: [{ id: ideaId, ...draft, publicResearchFocus }] }))))
+    const savedDraft = { ...draft, ...(publicResearchFocus ? { publicResearchFocus } : {}) }
+    sessionStorage.setItem('validore:brief:' + owner, JSON.stringify({ draft: savedDraft, step: 1, ideaId }))
+    await render(IdeaWizard); await settle()
+    const input = container.querySelector('#publicResearchFocus') as HTMLInputElement
+    expect(input).not.toBeNull()
+    expect(input.value).toBe(publicResearchFocus ?? '')
+    expect(container.querySelector('label[for="publicResearchFocus"]')?.textContent).toContain('(optional)')
+    expect(input.getAttribute('aria-describedby')).toContain('publicResearchFocus-hint')
+    expect(container.querySelector('#publicResearchFocus-hint')?.textContent).toContain('can enter public searches')
+    expect(input.value).not.toBe(draft.coreProblem)
+  })
   it('hydrates the saved draft after the initial account request fails and a later refresh succeeds', async () => {
     let available = false
     vi.stubGlobal('fetch', vi.fn(async (url: string) => url === '/api/me'

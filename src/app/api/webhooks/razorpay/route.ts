@@ -5,7 +5,7 @@ import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { PaymentMetadataSchema, fulfillCreditPurchase } from '@/lib/credit-fulfillment'
-import { getPlan } from '@/lib/plan-catalog'
+import { reconcileRazorpayCredits } from '@/lib/razorpay-subscription-credits'
 
 const EventSchema = z.object({
   event: z.string(),
@@ -15,7 +15,8 @@ const EventSchema = z.object({
       notes: z.record(z.string(), z.unknown()).optional(),
     }) }).optional(),
     subscription: z.object({ entity: z.object({
-      id: z.string(), plan_id: z.string(), status: z.string(), current_end: z.number().optional(),
+      id: z.string(), plan_id: z.string(), status: z.string(),
+      current_start: z.number().int().positive().nullish(), current_end: z.number().int().positive().nullish(),
       notes: z.record(z.string(), z.unknown()).optional(),
     }) }).optional(),
   }),
@@ -47,17 +48,10 @@ export async function POST(req: Request) {
       if (subscription.plan_id === process.env.RAZORPAY_PREMIUM_PLAN_ID) tier = 'premium'
       if (subscription.plan_id === process.env.RAZORPAY_MAX_PREMIUM_PLAN_ID) tier = 'max_premium'
       if (subscription.status !== 'active' || tier === 'free') return NextResponse.json({ received: true })
-      const periodEnd = subscription.current_end ? new Date(subscription.current_end * 1000) : null
       await db.transaction(async (tx) => {
         const [user] = await tx.select().from(users).where(eq(users.id, userId)).for('update')
         if (!user) throw new Error('Subscription recipient not found')
-        const newCycle = user.subscriptionId !== subscription.id || user.tier !== tier || (periodEnd && (!user.creditResetAt || periodEnd > user.creditResetAt))
-        const allowance = (await getPlan(tier, tx)).monthlyCredits
-        await tx.update(users).set({ tier, subscriptionId: subscription.id, subscriptionStatus: subscription.status, currentPeriodEnd: periodEnd,
-          ...(newCycle ? { creditBalance: allowance, creditCycleAllowance: allowance, creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
-            creditCycleStartedAt: new Date(),
-            creditResetAt: periodEnd ?? new Date(Date.now() + 30 * 86400000) } : {}),
-        }).where(eq(users.id, userId))
+        await reconcileRazorpayCredits(tx, user, subscription, tier)
       })
     }
   } catch (error) {

@@ -1,7 +1,5 @@
 'use client'
 
-import React from 'react'
-
 export interface RiskItem {
   risk: string
   probability?: 'low' | 'medium' | 'high' | string

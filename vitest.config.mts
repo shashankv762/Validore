@@ -13,14 +13,8 @@ export default defineConfig({
     environment: 'node',
     globals: true,
 
-    // Isolate each test file in its own module context.
-    // Prevents shared state leakage between test files.
     isolate: true,
-
     reporters: ['default'],
-
-    // Explicit include pattern — avoids picking up stress-db-idempotency.ts
-    // which is a utility script, not a test suite.
     include: [
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
@@ -28,13 +22,7 @@ export default defineConfig({
       'tests/**/*.test.tsx',
       'static webpage/tests/**/*.test.ts',
     ],
-
-    // Exclude DB idempotency script (it's a manual runner, not a test file).
-    exclude: [
-      '**/node_modules/**',
-      '**/stress-db-idempotency.ts',
-      '**/.next/**',
-    ],
+    exclude: ['**/node_modules/**', '**/.next/**'],
   },
 
   resolve: {

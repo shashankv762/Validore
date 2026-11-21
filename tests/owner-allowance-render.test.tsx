@@ -3,8 +3,10 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { parseHTML } from 'linkedom'
 
+const fixture=vi.hoisted(()=>({user:{id:'owner',tier:'free',isAdmin:true,unlimited:true,creditBalance:0,purchasedCredits:0,rewardCredits:0,crowdfundingCredits:0,pitchDeckCredits:0}}))
+vi.mock('@/components/AccountProvider',()=>({useAccount:()=>({data:{user:fixture.user,billing:{credits:false,premium:false,maxPremium:false},ai:{freeOnly:true,researchTools:false}},loading:false,error:null,updatedAt:0,refresh:vi.fn()}),notifyAccountUpdated:vi.fn()}))
 vi.mock('@/components/WorkspaceResources', () => ({
-  useWorkspaceResources: () => ({ user: { id: 'owner', tier: 'free', isAdmin: true, unlimited: true, creditBalance: 0, purchasedCredits: 0, rewardCredits: 0, crowdfundingCredits: 0, pitchDeckCredits: 0 }, ideas: [{ id: 'idea', name: 'Owner idea' }], loading: false, error: null }),
+  useWorkspaceResources: () => ({ user:fixture.user, ideas: [{ id: 'idea', name: 'Owner idea' }], loading: false, error: null }),
   WorkspaceResourceStatus: () => null,
 }))
 vi.mock('@/components/SavedModuleHistory', () => ({ useSavedModuleHistory: () => ({ records: [], open: vi.fn(), refresh: vi.fn() }), SavedModuleHistory: () => null }))

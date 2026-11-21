@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { SearchResult } from './search'
-import catalog from '@/data/market/source-catalog.json'
+import { bundledCatalog as catalog } from './bundled-market'
+import historicalVerification from '@/data/market/historical-claim-verification.json'
 
 type MarketMemory = {
   id: string
@@ -18,6 +19,9 @@ type MarketMemory = {
 }
 
 const VERIFIED_AT = '2026-10-31T00:00:00.000Z'
+const verificationFor = (entry: MarketMemory) => historicalVerification.find(value => value.id === entry.id && value.url === entry.url && value.supported &&
+  value.supportingQuotes.length > 0 && value.supportingQuotes.every(quote => value.context.includes(quote)))
+const retrievedAt = (entry: MarketMemory) => entry.kind === 'historical' ? verificationFor(entry)?.fetchedAt : VERIFIED_AT
 // This Node-only library contains public research, never founder briefs or
 // generated reports. Observation periods survive every reuse of a source.
 const MEMORY: readonly MarketMemory[] = [
@@ -72,7 +76,7 @@ const MEMORY: readonly MarketMemory[] = [
   },
 ]
 
-export const MARKET_MEMORY_VERSION = createHash('sha256').update(JSON.stringify([MEMORY, catalog])).digest('hex').slice(0, 12)
+export const MARKET_MEMORY_VERSION = createHash('sha256').update(JSON.stringify([MEMORY, catalog, historicalVerification])).digest('hex').slice(0, 12)
 
 export function retrieveDatasetCatalog(query: string, now = Date.now()): SearchResult[] {
   const text = normalized(query)
@@ -100,14 +104,14 @@ export function retrieveMarketMemory(query: string, options: { maxResults?: numb
   const now = options.now ?? Date.now()
   const count = Math.max(0, Math.min(6, Math.floor(options.maxResults ?? 4)))
   const remembered: SearchResult[] = MEMORY.map(entry => ({ entry, score: entry.topics.reduce((sum, topic) => sum + (matches(text, topic) ? topic.split(' ').length : 0), 0) }))
-    .filter(({ entry, score }) => score > 0 && now >= Date.parse(VERIFIED_AT) && now < Date.parse(VERIFIED_AT) + entry.refreshDays * 86_400_000 &&
+    .filter(({ entry, score }) => score > 0 && now >= Date.parse(retrievedAt(entry) ?? '') && now < Date.parse(retrievedAt(entry) ?? '') + entry.refreshDays * 86_400_000 &&
       (!options.currentOnly || entry.kind !== 'historical') && (!entry.regionTerms || entry.regionTerms.some(term => matches(text, term))))
     .sort((a, b) => b.score - a.score || a.entry.id.localeCompare(b.entry.id)).slice(0, count)
     .map(({ entry }) => ({
-      title: entry.title, url: entry.url, source: new URL(entry.url).hostname, fetchedAt: VERIFIED_AT,
+      title: entry.title, url: entry.url, source: new URL(entry.url).hostname, fetchedAt: retrievedAt(entry)!,
       content: `${entry.kind === 'historical' ? 'HISTORICAL OBSERVATION' : 'DATASET REFERENCE'}. ${entry.summary} Geography: ${entry.geography}. Data period: ${entry.period}. Limitation: ${entry.limitation}`,
       retrievalKind: 'memory', publishedAt: entry.publishedAt, dataPeriod: entry.period,
-      expiresAt: new Date(Date.parse(VERIFIED_AT) + entry.refreshDays * 86_400_000).toISOString(),
+      expiresAt: new Date(Date.parse(retrievedAt(entry)!) + entry.refreshDays * 86_400_000).toISOString(),
     }))
   return [...remembered, ...retrieveDatasetCatalog(query, now)].filter((source, index, all) => all.findIndex(item => item.url === source.url) === index).slice(0, count)
 }

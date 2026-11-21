@@ -7,6 +7,8 @@ import { users, validationReports, ideas } from '@/db/schema'
 import { createClient } from '@/lib/supabase/server'
 import { AgentActivity } from '@/components/AgentActivity'
 import { ReportTemplateDownloads } from '@/components/ReportTemplateDownloads'
+import { workspaceModelPolicy } from '@/lib/ai/model-policy'
+import { workspaceModelCopy } from '@/lib/workspace-model-copy'
 
 export const metadata = { title: 'Research team' }
 const specialists = [
@@ -22,6 +24,7 @@ const specialists = [
 ]
 
 export default async function AgentsPage() {
+  const modelCopy = workspaceModelCopy(workspaceModelPolicy())
   const { data: { user } } = await (await createClient()).auth.getUser()
   if (!user) redirect('/auth/signin')
   const owner = await db.query.users.findFirst({ where: eq(users.supabaseId, user.id) })
@@ -36,7 +39,8 @@ export default async function AgentsPage() {
       <div><Calculator size={20} aria-hidden="true" /><strong>Analyze and plan</strong><p>Economics, risk, product, growth and source review</p></div><ArrowRight size={18} aria-hidden="true" />
       <div><FileCheck2 size={20} aria-hidden="true" /><strong>Review</strong><p>Reconcile findings and audit citation links</p></div>
     </div>
-    <p className="team-plan-note">Lite reports use three specialists. Full reports use all nine, with fourteen research and planning tools across the team. Specialists reuse dated market knowledge, official datasets and earlier findings before requesting more research.</p>
+    <p className="team-plan-note">Lite reports use three specialists. Full reports use all nine, with sixteen research and planning tools across the team. Specialists carry their reasoning and source dates into the next review, use your recorded customer evidence, and check assumptions before recommending the next experiment.</p>
+    {modelCopy.fundingNote && <p className="team-plan-note">Configured provider models are selected for each research task. {modelCopy.fundingNote}</p>}
     <section className="team-specialists" aria-label="Research specialists">{specialists.map(({ name, icon: Icon, scope, work, tools }) => <article key={name}>
       <div className="team-specialist-top"><span><Icon size={21} aria-hidden="true" /></span><small>{scope}</small></div><h2>{name}</h2><p>{work}</p><div className="team-specialist-tools"><BookOpen size={13} aria-hidden="true" />{tools}</div>
     </article>)}</section>

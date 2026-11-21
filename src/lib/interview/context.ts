@@ -4,6 +4,7 @@ import { founderInterviews, ideas } from '@/db/schema'
 import { ideaFingerprint } from './engine'
 import { INTERVIEW_NOTE, InterviewStateSchema, type InterviewState } from './schema'
 import { LEGAL } from '@/lib/legal'
+import { loadCustomerFeedbackContext } from '@/lib/customer-feedback/context'
 
 export function compactFounderContext(state: InterviewState, noticeVersion: string): string {
   // Keep every answer and evidence label, while bounding complete JSON rather
@@ -33,9 +34,12 @@ export async function loadFounderContext(ideaId: string, userId: string): Promis
   // it, so a future caller cannot accidentally cross an account boundary.
   const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, ideaId), eq(ideas.userId, userId)) })
   if (!idea) return ''
+  const feedback = await loadCustomerFeedbackContext(ideaId, userId)
   const stored = await db.query.founderInterviews.findFirst({ where: and(eq(founderInterviews.ideaId, ideaId), eq(founderInterviews.userId, userId)) })
-  if (!stored || stored.ideaFingerprint !== ideaFingerprint(idea) || stored.noticeVersion !== LEGAL.version) return ''
+  if (!stored || stored.ideaFingerprint !== ideaFingerprint(idea) || stored.noticeVersion !== LEGAL.version) return feedback
   const parsed = InterviewStateSchema.safeParse(stored.state)
-  if (!parsed.success || !parsed.data.answers.length) return ''
-  return compactFounderContext(parsed.data, stored.noticeVersion)
+  if (!parsed.success || !parsed.data.answers.length) return feedback
+  const interview = compactFounderContext(parsed.data, stored.noticeVersion)
+  return feedback ? JSON.stringify({ founderInterview: JSON.parse(interview), customerEvidence: JSON.parse(feedback),
+    instruction: 'These are private owner-scoped records. Preserve their evidence labels; do not copy them or derived confidential details into public searches or shared research memory.' }) : interview
 }

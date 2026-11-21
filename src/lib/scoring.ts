@@ -1,6 +1,5 @@
 import { z } from 'zod'
 
-// ============ STARTUP VALIDATION SCORE (100 pts) ============
 export const STARTUP_WEIGHTS = {
   problemValidation: 20,
   customerValidation: 20,
@@ -52,7 +51,6 @@ export const CrowdfundingDecision = z.enum([
 ])
 export type CrowdfundingDecision = z.infer<typeof CrowdfundingDecision>
 
-// ============ BUSINESS MODEL VALIDATION SCORE (100 pts) ============
 export const BM_WEIGHTS = {
   problemEvidence: 15,
   customerEvidence: 15,

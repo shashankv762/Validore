@@ -4,10 +4,10 @@ import { connection } from 'next/server'
 import { ArrowUpRight, Check, ChartNoAxesCombined, Layers, Presentation, Search, ShieldCheck, Target, Plus } from 'lucide-react'
 import { Brand } from '@/components/Brand'
 import { LandingNav } from '@/components/marketing/LandingNav'
+import { LandingPricing } from '@/components/marketing/LandingPricing'
 import { ReportPreview } from '@/components/marketing/ReportPreview'
-import { getPlanCatalog, getPlanBillingAvailability } from '@/lib/plan-catalog'
+import { getPlanCatalog, getPlanBillingAvailability, getPublicPlanCatalog } from '@/lib/plan-catalog'
 import { getPlatformSettings } from '@/lib/platform-settings'
-import { formatUsd } from '@/lib/plans'
 import './landing.css'
 
 export const metadata: Metadata = {
@@ -34,10 +34,11 @@ export default async function LandingPage() {
   const [catalog, settings] = await Promise.all([getPlanCatalog(), getPlatformSettings()])
   const billing = await getPlanBillingAvailability(catalog)
   const signupOpen = settings.signupEnabled && !settings.maintenanceEnabled
+  const publicPlans = getPublicPlanCatalog(catalog)
   const plans = [
-    { ...catalog.free, period: '', description: 'Explore your first idea.', available: signupOpen, href: '/auth/signup', action: 'Start for free' },
-    { ...catalog.premium, period: '/ month', description: 'Go deeper into your business model.', available: signupOpen && billing.premium, href: '/auth/signup?next=/dashboard/settings', action: `Explore ${catalog.premium.name}` },
-    { ...catalog.max_premium, period: '/ month', description: 'Prepare your fundraising story.', available: signupOpen && billing.maxPremium, href: '/auth/signup?next=/dashboard/settings', action: `Explore ${catalog.max_premium.name}` },
+    { ...publicPlans.free, description: 'Explore your first idea.' },
+    { ...publicPlans.premium, description: 'Go deeper into your business model.' },
+    { ...publicPlans.max_premium, description: 'Prepare your fundraising story.' },
   ].filter(plan => plan.advertised)
   const currentQuestions = [{ question: `What do I get with the ${catalog.free.name} plan?`, answer: `${catalog.free.benefits.join('. ')}. No payment card is needed to create an account.` }, ...questions]
   return <div className="landing">
@@ -73,8 +74,7 @@ export default async function LandingPage() {
       </div></section>
       <section className="landing-container evidence-section" aria-labelledby="evidence-title"><div className="evidence-symbol" aria-hidden="true"><ShieldCheck size={36} strokeWidth={1.25} /></div><div><h2 id="evidence-title">Clarity includes knowing<br />what you don&apos;t know.</h2><p>A promising score is a starting point. Validore distinguishes retrieved sources from AI estimates, flags gaps, and gives you assumptions to test with real customers.</p></div><Link href="/demo" className="text-link">See how a report reads<ArrowUpRight size={18} aria-hidden="true" /></Link></section>
       <section id="pricing" className="pricing-section" aria-labelledby="pricing-title"><div className="landing-container">
-        <div className="section-intro"><h2 id="pricing-title">Start with curiosity.<br />Start for free.</h2><p>{billing.premium || billing.maxPremium ? 'Choose the depth that fits your next decision. Manage your plan from your workspace.' : 'Explore Lite validation today. Paid plans are coming soon; start with the free workspace.'}</p></div>
-        <div className="pricing-grid">{plans.map(plan => <article className={'plan-card' + (plan.tier === 'free' ? ' plan-free' : '')} key={plan.tier}><div className="plan-heading"><h3>{plan.name}</h3><span className="plan-status">{plan.available ? (plan.tier === 'free' ? 'Start here' : 'Available') : 'Paused'}</span></div><p className="plan-description">{plan.description}</p><p className="plan-price">{!plan.available && plan.tier !== 'free' && <span className="planned-price">Planned pricing</span>}{formatUsd(plan.monthlyPriceUsd)}<span>{plan.period}</span></p><ul>{plan.benefits.map((feature, index) => <li key={index}><Check size={16} aria-hidden="true" />{feature}</li>)}</ul>{plan.available ? <Link href={plan.href} className={'button ' + (plan.tier === 'free' ? 'button-navy' : 'button-outline')}>{plan.action}<ArrowUpRight size={17} aria-hidden="true" /></Link> : <p className="plan-unavailable">{signupOpen ? 'New purchases are not available yet.' : 'New registrations are currently paused.'}</p>}</article>)}</div>
+        <LandingPricing plans={plans} billing={billing} signupOpen={signupOpen} />
       </div></section>
       <section className="landing-container faq-section" aria-labelledby="faq-title"><div><h2 id="faq-title">A few things<br />you might be wondering.</h2><p>The details, before you get started.</p></div><div className="faq-list">{currentQuestions.map(item => <details className="faq-item" key={item.question}><summary>{item.question}<Plus size={19} aria-hidden="true" /></summary><p>{item.answer}</p></details>)}</div></section>
       <section className="landing-container closing-section" aria-labelledby="closing-title"><Brand light /><h2 id="closing-title">Your next big idea.<br />Your first clear step.</h2><Link href={signupOpen ? '/auth/signup' : '/auth/signin'} className="button button-gold">{signupOpen ? 'Let’s explore your idea' : 'Sign in'}<ArrowUpRight size={18} aria-hidden="true" /></Link></section>

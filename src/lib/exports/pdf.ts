@@ -2,6 +2,9 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib'
 import fontkit from '@pdf-lib/fontkit'
 import { readPublicAsset } from '../public-assets'
 import type { ReportDocument } from './document'
+import { isDesignedReport } from './design'
+import { renderDesignedPdf } from './designed-pdf'
+import { hasDevanagari, loadPdfText } from './pdf-text'
 
 const WIDTH = 595.28, HEIGHT = 841.89, MARGIN = 46, BOTTOM = 62
 const ink = rgb(0.19, 0.22, 0.28), muted = rgb(0.40, 0.44, 0.50)
@@ -9,16 +12,14 @@ const rule = rgb(0.89, 0.90, 0.92), gold = rgb(0.53, 0.38, 0.06)
 
 /** Pure JS rendering: no runtime WASM compilation or filesystem dependency on Workers. */
 export async function renderReportPdf(report: ReportDocument, options: { whiteLabel?: boolean } = {}): Promise<Buffer> {
+  if (isDesignedReport(report)) return renderDesignedPdf(report, options)
   const document = await PDFDocument.create()
   document.registerFontkit(fontkit)
   document.setTitle(report.title + ' — ' + report.subtitle)
   document.setAuthor(options.whiteLabel ? '' : 'Validore')
   document.setSubject('Startup research and decision support')
-  const [regularBytes, boldBytes] = await Promise.all([
-    readPublicAsset('/fonts/NotoSans-Regular.ttf'), readPublicAsset('/fonts/NotoSans-Bold.ttf'),
-  ])
-  const regular = await document.embedFont(regularBytes, { subset: true })
-  const bold = await document.embedFont(boldBytes, { subset: true })
+  const pdfText = await loadPdfText(document, hasDevanagari(JSON.stringify(report)))
+  const { regular, bold } = pdfText
   const logo = options.whiteLabel ? null : await document.embedPng(await readPublicAsset('/logo/validore-report.png'))
   let page: PDFPage, y = 0
   const newPage = () => {
@@ -37,11 +38,13 @@ export async function renderReportPdf(report: ReportDocument, options: { whiteLa
       let line = ''
       for (const token of paragraph.split(/\s+/).filter(Boolean)) {
         const candidate = line ? line + ' ' + token : token
-        if (font.widthOfTextAtSize(candidate, size) <= maxWidth) { line = candidate; continue }
-        if (line) { lines.push(line); line = '' }
-        if (font.widthOfTextAtSize(token, size) <= maxWidth) { line = token; continue }
-        for (const character of token) {
-          if (line && font.widthOfTextAtSize(line + character, size) > maxWidth) { lines.push(line); line = '' }
+        if (pdfText.measure(candidate, size, font) <= maxWidth) { line = candidate; continue }
+        const bulletOnly = line === '•'
+        if (bulletOnly) line += ' '
+        else if (line) { lines.push(line); line = '' }
+        if (!bulletOnly && pdfText.measure(token, size, font) <= maxWidth) { line = token; continue }
+        for (const { segment: character } of new Intl.Segmenter('hi', { granularity: 'grapheme' }).segment(token)) {
+          if (line && pdfText.measure(line + character, size, font) > maxWidth) { lines.push(line); line = '' }
           line += character
         }
       }
@@ -65,7 +68,7 @@ export async function renderReportPdf(report: ReportDocument, options: { whiteLa
         x: MARGIN + indent, y: y - leading, width: width - indent, height: leading + 2,
         color: rgb(0.96, 0.95, 0.92),
       })
-      page.drawText(line, { x: MARGIN + indent + padding, y: y - size, size, font, color: settings.color ?? ink })
+      pdfText.draw(page, line, MARGIN + indent + padding, y - size, size, font, settings.color ?? ink)
       y -= leading
     }
     y -= padding + (settings.gap ?? 5)
@@ -75,7 +78,7 @@ export async function renderReportPdf(report: ReportDocument, options: { whiteLa
   paragraph(report.title, { size: 27, font: bold, gap: 9 })
   paragraph(report.subtitle, { size: 14, color: gold, gap: 6 })
   paragraph(report.date, { size: 9, color: muted, gap: 23 })
-  if (report.partial) paragraph('Partial analysis. Some specialists could not finish. Review the research activity and test the missing assumptions before acting.', { shaded: true, gap: 18 })
+  if (report.partial) paragraph('Partial analysis. Some research remains incomplete. Review the research activity and missing evidence before relying on the score or acting.', { shaded: true, gap: 18 })
 
   for (const section of report.sections) {
     if (section.breakBefore) newPage()

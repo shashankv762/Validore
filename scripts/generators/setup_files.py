@@ -845,7 +845,7 @@ export default function LandingPage() {
             },
             {
               name: 'Premium',
-              price: '$29',
+              price: '₹799 or US$8',
               per: '/mo',
               description: 'The Business Model Suite',
               features: ['10 ideas · 15 validations/mo', '40-section deep report', 'Lean Canvas Automation', 'Smart Pricing Simulator', 'PDF + CSV exports'],
@@ -855,7 +855,7 @@ export default function LandingPage() {
             },
             {
               name: 'Max Premium',
-              price: '$79',
+              price: '₹1,999 or US$20',
               per: '/mo',
               description: 'The Fundraising Suite',
               features: ['50 validations/mo', 'Crowdfunding Predictor', 'Pitch Deck Builder', 'PPTX + White-label PDF', 'Portfolio site export'],

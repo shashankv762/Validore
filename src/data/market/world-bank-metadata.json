@@ -20,8 +20,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/SP.POP.TOTL?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.720Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:45.180Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "NY.GDP.MKTP.CD",
@@ -40,8 +40,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.CD?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.789Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:44.899Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "NY.GDP.PCAP.CD",
@@ -60,8 +60,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.PCAP.CD?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.806Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:44.900Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "IT.NET.USER.ZS",
@@ -80,8 +80,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/IT.NET.USER.ZS?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.877Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:53.870Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "FP.CPI.TOTL.ZG",
@@ -104,8 +104,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/FP.CPI.TOTL.ZG?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.954Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:54.616Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "NY.GDP.MKTP.KD.ZG",
@@ -124,8 +124,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.KD.ZG?format=json",
-    "fetchedAt": "2026-10-31T19:11:25.966Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:58.112Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "SP.URB.TOTL.IN.ZS",
@@ -148,8 +148,8 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/SP.URB.TOTL.IN.ZS?format=json",
-    "fetchedAt": "2026-10-31T19:11:26.072Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:59.118Z",
+    "metadataUpdatedAt": "2026-11-11"
   },
   {
     "id": "SL.UEM.TOTL.ZS",
@@ -172,7 +172,7 @@
       }
     ],
     "metadataUrl": "https://api.worldbank.org/v2/indicator/SL.UEM.TOTL.ZS?format=json",
-    "fetchedAt": "2026-10-31T19:11:26.120Z",
-    "metadataUpdatedAt": "2026-10-08"
+    "fetchedAt": "2026-11-20T03:05:59.296Z",
+    "metadataUpdatedAt": "2026-11-11"
   }
 ]

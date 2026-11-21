@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { NextRequest } from 'next/server'
 import { POST, GET } from '@/app/api/credits/purchase/route'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
+afterEach(() => vi.unstubAllEnvs())
 
 // Mock Supabase server client
 const mockGetUser = vi.fn()
@@ -227,6 +228,7 @@ describe('Credits Purchase API & Business Logic', () => {
 
   describe('Configured Stripe Checkout Session Creation', () => {
     beforeEach(() => {
+      vi.stubEnv('ENABLE_PAID_CHECKOUT', 'true')
       mockGetUser.mockResolvedValue({
         data: { user: { id: 'supa-uuid-1111', email: 'test@example.com' } },
       })

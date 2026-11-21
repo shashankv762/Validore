@@ -44,8 +44,8 @@ describe('public marketing liveness check', () => {
   })
 
   it('accepts explicitly configured HTTPS preview origins but ignores patterns, paths and credentials', async () => {
-    vi.stubEnv('HEALTH_CHECK_ALLOWED_ORIGINS', ' https://validore-preview.vercel.app, https://preview.example/path, *, https://user:pass@preview.example, http://preview.example ')
-    expect((await GET(request('https://validore-preview.vercel.app'))).headers.get('Access-Control-Allow-Origin')).toBe('https://validore-preview.vercel.app')
+    vi.stubEnv('HEALTH_CHECK_ALLOWED_ORIGINS', ' https://validore-preview.example, https://preview.example/path, *, https://user:pass@preview.example, http://preview.example ')
+    expect((await GET(request('https://validore-preview.example'))).headers.get('Access-Control-Allow-Origin')).toBe('https://validore-preview.example')
     expect((await GET(request('https://preview.example'))).headers.has('Access-Control-Allow-Origin')).toBe(false)
     expect((await GET(request('http://preview.example'))).headers.has('Access-Control-Allow-Origin')).toBe(false)
   })

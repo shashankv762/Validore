@@ -39,6 +39,23 @@ describe('research tool execution', () => {
     expect(mocks.search).toHaveBeenCalledWith('market evidence', 5, expect.objectContaining({ budgetId: 'report-budget', allowKeyed: true }))
     expect(kit.sources()).toEqual([source])
   })
+  it('retains newly discovered observations when the initial source register is already full', async () => {
+    const background = Array.from({ length: 80 }, (_, index) => ({ ...source, url: 'https://example.org/background-' + index }))
+    const discovered = { ...source, url: 'https://example.org/new-material-source', content: 'New exact buyer evidence.' }
+    mocks.search.mockResolvedValue({ results: [discovered], degraded: false, evidenceStrength: 'WEAK' })
+    const kit = createAgentToolkit('customer', background)
+    await call(kit, 'search_web', { query: 'specific buyer evidence' })
+    expect(kit.sources()[0]).toEqual(discovered)
+    expect(kit.sources()).toHaveLength(80)
+    expect(background).toHaveLength(80)
+  })
+  it('does not replace a read original page with a later search snippet', async () => {
+    const original = { ...source, retrievalKind: 'page' as const, content: 'An exact original source passage.' }
+    mocks.search.mockResolvedValue({ results: [{ ...source, content: 'A later brief snippet.' }], degraded: false, evidenceStrength: 'WEAK' })
+    const kit = createAgentToolkit('evidence', [original])
+    await call(kit, 'search_web', { query: 'same original evidence' })
+    expect(kit.sources()).toEqual([original])
+  })
   it('refuses arbitrary pages outside the discovered evidence set', async () => {
     const kit = createAgentToolkit('market', [source])
     expect(await call(kit, 'read_page', { url: 'https://unrelated.example.org/private-document' })).toHaveProperty('error')
@@ -54,7 +71,9 @@ describe('research tool execution', () => {
   })
   it('includes free research tools and limits specialists to useful planning tools', () => {
     const reviewer = createAgentToolkit('synthesis').tools
-    expect(Object.keys(reviewer)).toHaveLength(14)
+    expect(Object.keys(reviewer)).toHaveLength(16)
+    expect(reviewer).toHaveProperty('read_market_trend')
+    expect(reviewer).toHaveProperty('analyze_customer_feedback')
     expect(reviewer).toHaveProperty('recall_market_memory')
     expect(reviewer).toHaveProperty('read_market_indicator')
     expect(createAgentToolkit('product').tools).toHaveProperty('rank_priorities')
@@ -74,6 +93,7 @@ describe('research tool execution', () => {
     const kit = createAgentToolkit('finance')
     expect(await call(kit, 'calculate_runway', { cash: 100000, oneTimeCosts: 10000, monthlyRevenue: 5000, monthlyCosts: 20000 })).toMatchObject({ cashAfterSetup: 90000, monthlyBurn: 15000, runwayMonths: 6 })
     expect(await call(kit, 'calculate_runway', { cash: 100000, oneTimeCosts: 0, monthlyRevenue: 30000, monthlyCosts: 20000 })).toMatchObject({ runwayMonths: null })
+    expect(await call(kit, 'calculate_runway', { cash: 0, oneTimeCosts: 0, monthlyRevenue: 100, monthlyCosts: 50, currency: 'INR' })).toMatchObject({ runwayMonths: null, currency: 'INR' })
   })
   it('uses nested customer segments and rejects impossible market scenarios', async () => {
     const kit = createAgentToolkit('market')

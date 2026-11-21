@@ -1,17 +1,26 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { PlanningDraftNotice, usePlanningDraft } from '@/components/planning/PlanningDraft'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import { AlertTriangle, FlaskConical, History, FileText } from 'lucide-react'
 import { ExportToolbar } from '@/components/ui/ExportToolbar'
 import { nextCanvasVersion } from '@/lib/canvas-versions'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
+import { PlanningEvidence } from '@/components/planning/PlanningEvidence'
+import { usePlanningRunIdentity } from '@/components/planning/usePlanningRunIdentity'
+import { hasReportContent, planningSourceLink } from '@/lib/planning/report-content'
+import { SourceReportSelector } from '@/components/planning/SourceReportSelector'
+import { SourceReportSummary } from '@/components/planning/SourceReportSummary'
+import { PlanningArtifactSelector } from '@/components/planning/PlanningArtifactSelector'
 
 type CanvasBlock = {
   content: string
   confidenceScore: number
   label: string
   keyAssumptions: string[]
+  sourceUrls?: string[]
+  evidenceNote?: string
 }
 
 type ValidationExperiment = {
@@ -19,6 +28,10 @@ type ValidationExperiment = {
   experiment: string
   successMetric: string
   timeframe: string
+  recruitedSegment?: string
+  sampleSize?: string
+  failureAction?: string
+  dependencyReview?: { state: string; reason: string; canvasKeys: string[] }
 }
 
 type ConfidenceScores = {
@@ -94,14 +107,27 @@ export default function LeanCanvasPage() {
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const { data: account } = useAccount()
+  const runIdentity = usePlanningRunIdentity('lean-canvas', account?.user.id)
+  const manualRunIdentity = usePlanningRunIdentity('lean-canvas-manual', account?.user.id)
   const isPremium = account?.user.unlimited || (account?.plan?.canAiLeanCanvas ?? (account?.user.tier === 'premium' || account?.user.tier === 'max_premium'))
   const manualAllowed = Boolean(account?.user && (account.user.unlimited || (account.plan?.canLeanCanvas ?? true)))
   const [manualBlocks, setManualBlocks] = useState<Record<string, string>>({})
+  const [editingCanvasId, setEditingCanvasId] = useState<string | null>(null)
+  const [changeReason, setChangeReason] = useState('')
   const [canvasReport, setCanvasReport] = useState<any[] | null>(null)
   const [reportLoading, setReportLoading] = useState(false)
   // FIX-13: Controlled state for the 12-question intake form
   const [intakeAnswers, setIntakeAnswers] = useState<Record<number, string>>({})
+  const [sourceReportId,setSourceReportId] = useState('')
+  const [sourcePricingId,setSourcePricingId] = useState('')
   const [supabase] = useState(createClient)
+  const draft = usePlanningDraft({ module: 'lean-canvas', ownerId: account?.user.id, ideaId: selectedIdeaId, ideas,
+    value: { manualBlocks, editingCanvasId, changeReason, intakeAnswers, sourceReportId, sourcePricingId },
+    onRestore: (value, ideaId) => { setSelectedIdeaId(ideaId); setManualBlocks(value.manualBlocks); setEditingCanvasId(value.editingCanvasId); setChangeReason(value.changeReason); setIntakeAnswers(value.intakeAnswers); setSourceReportId(value.sourceReportId); setSourcePricingId(value.sourcePricingId) },
+  })
+  const [historyError, setHistoryError] = useState<{ ideaId: string; message: string } | null>(null)
+  const currentHistoryError = historyError?.ideaId === selectedIdeaId ? historyError.message : null
+
 
   useEffect(() => {
     let active = true
@@ -129,18 +155,20 @@ export default function LeanCanvasPage() {
       })
       .then(data => {
         if (!controller.signal.aborted) {
+          setHistoryError(error => error?.ideaId === selectedIdeaId ? null : error)
           const history: Canvas[] = Array.isArray(data.canvases) ? data.canvases : []
           setCanvases(history)
           setActiveVersion(Math.max(0, history.length - 1))
+          setSourceReportId(history.at(-1)?.analysisData?.sourceReport?.reportId ?? '')
         }
       })
-      .catch(() => { if (!controller.signal.aborted) toast.error('Canvas history could not be loaded. Select the idea again to retry.') })
+      .catch(() => { if (!controller.signal.aborted) setHistoryError({ ideaId: selectedIdeaId, message: 'Canvas history could not be loaded. Choose another idea and select this idea again to retry.' }) })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
   }, [selectedIdeaId])
 
   async function saveCanvas(manual: boolean) {
-    if (generating || saving || loading) return
+    if (generating || saving || loading || currentHistoryError) return
     if ((manual && !manualAllowed) || (!manual && !isPremium)) { toast.error('This canvas tool is not included in your current plan.'); return }
     if (!selectedIdeaId) { toast.error('Please select an idea first'); return }
     if (nextCanvasVersion(canvases, account?.user.unlimited) === null) { toast.error('This idea has reached the four-canvas version limit.'); return }
@@ -148,20 +176,28 @@ export default function LeanCanvasPage() {
     if (manual) setSaving(true)
     else setGenerating(true)
     try {
+      const payload = manual
+        ? { ideaId: selectedIdeaId, sourceReportId:sourceReportId || null, parentCanvasId: editingCanvasId ?? undefined, changeReason: changeReason || undefined, blocks: Object.fromEntries(BLOCKS.map(({ key }) => [key, manualBlocks[key] ?? ''])) }
+        : { ideaId: selectedIdeaId, intakeAnswers,sourceReportId:sourceReportId || undefined,sourcePricingId:sourcePricingId || undefined,parentCanvasId:canvases[activeVersion]?.id ?? null }
+      const identity = manual ? manualRunIdentity : runIdentity
+      const requestKey = await identity.keyFor(payload)
       const response = await fetch(manual ? '/api/lean-canvas/manual' : '/api/lean-canvas', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(180_000),
-        body: JSON.stringify(manual
-          ? { ideaId: selectedIdeaId, blocks: Object.fromEntries(BLOCKS.map(({ key }) => [key, manualBlocks[key] ?? ''])) }
-          : { ideaId: selectedIdeaId, intakeAnswers }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(requestKey ? { 'Idempotency-Key': requestKey } : {}) }, signal: AbortSignal.timeout(180_000),
+        body: JSON.stringify(payload),
       })
       const data = await response.json().catch(() => null)
+      if (data?.code === 'planning_inputs_changed') identity.confirmed(requestKey)
       if (!response.ok) { toast.error(data?.error ?? 'Canvas could not be saved. Please try again.'); return }
+      identity.confirmed(requestKey)
       setCanvasReport(null)
-      if (manual) setManualBlocks({})
+      if (manual) { setManualBlocks({}); setEditingCanvasId(null); setChangeReason('') }
       // Use the returned saved record if the subsequent history refresh fails.
       if (data?.canvas) {
-        setCanvases(previous => [...previous.filter(canvas => canvas.id !== data.canvas.id), data.canvas])
-        setActiveVersion(canvases.length)
+        const next = [...canvases.filter(canvas => canvas.id !== data.canvas.id), data.canvas]
+          .sort((left, right) => left.version - right.version)
+        setCanvases(next)
+        setActiveVersion(next.findIndex(canvas => canvas.id === data.canvas.id))
+        setSourceReportId(data.canvas.analysisData?.sourceReport?.reportId ?? '')
       }
       toast.success(manual ? 'Manual canvas saved.' : 'Lean Canvas generated.')
       try {
@@ -171,6 +207,7 @@ export default function LeanCanvasPage() {
         if (Array.isArray(history.canvases)) {
           setCanvases(history.canvases)
           setActiveVersion(Math.max(0, history.canvases.length - 1))
+          setSourceReportId(history.canvases.at(-1)?.analysisData?.sourceReport?.reportId ?? '')
         }
       } catch { toast.info('Canvas saved. Refresh the page to reload the full version history.') }
     } catch { toast.error('The request could not complete. Check the version history before trying again.') }
@@ -191,7 +228,7 @@ export default function LeanCanvasPage() {
   const validationExperiments = currentCanvas?.confidenceScores?.validationExperiments ?? []
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6" onChangeCapture={draft.markEdited}>
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-light text-[#141923] mb-1">Lean Canvas</h1>
@@ -210,6 +247,8 @@ export default function LeanCanvasPage() {
         )}
       </div>
 
+      <PlanningDraftNotice draft={draft} disabled={generating || saving || loading} />
+      {currentHistoryError && <p role="alert" className="text-sm text-[#991B1B]">{currentHistoryError} Existing saved work may still be available.</p>}
       <div className="card-angular p-6">
         <label htmlFor="canvas-idea" className="block text-xs font-medium text-[#89620B]  mb-2">Select Idea</label>
         <select
@@ -220,8 +259,10 @@ export default function LeanCanvasPage() {
             setCanvases([]);
             setActiveVersion(0);
             setCanvasReport(null);
-            setManualBlocks({});
+            setManualBlocks({}); setEditingCanvasId(null); setChangeReason('');
             setIntakeAnswers({});
+            setSourceReportId('');
+            setSourcePricingId('');
             setLoading(Boolean(event.target.value));
           }}
           className="w-full px-4 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:outline-none focus:border-[#E0A526] mb-4"
@@ -230,6 +271,9 @@ export default function LeanCanvasPage() {
           {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
         </select>
         
+        <SourceReportSelector ideaId={selectedIdeaId} value={sourceReportId} onChange={setSourceReportId} disabled={generating || saving || loading} />
+        <PlanningArtifactSelector ideaId={selectedIdeaId} module="pricing" value={sourcePricingId} onChange={setSourcePricingId} disabled={generating || saving || loading} />
+        {canvases[activeVersion] && <p className="mt-3 text-xs leading-relaxed text-[#657081]">AI generation will revise selected Canvas version {canvases[activeVersion].version}. Choose a version below to change the parent.</p>}
         {selectedIdeaId && isPremium && (
           <div className="border-t border-[#E5E7EB] pt-4 mt-4">
             <h3 className="text-sm font-semibold mb-1">Deep Intake Form (12 Questions)</h3>
@@ -256,6 +300,7 @@ export default function LeanCanvasPage() {
                   {/* FIX-13: Controlled input — value bound to intakeAnswers[i], onChange updates state */}
                   <input
                     type="text"
+                    disabled={generating || saving || loading}
                     maxLength={4000}
                     aria-label={q}
                     className="w-full px-3 py-1.5 border border-[#E5E7EB] rounded bg-white text-sm focus:border-[#E0A526] focus:outline-none"
@@ -279,8 +324,8 @@ export default function LeanCanvasPage() {
       </div>
 
       {selectedIdeaId && (
-        <details className="card-angular p-6" open={!canvases.length}>
-          <summary className="cursor-pointer font-medium text-[#141923]">Write a manual canvas</summary>
+        <details id="canvas-editor" className="card-angular p-6" open={!canvases.length || Boolean(editingCanvasId)}>
+          <summary className="cursor-pointer font-medium text-[#141923]">{editingCanvasId ? 'Edit a saved canvas' : 'Write a manual canvas'}</summary>
           <p className="mt-3 text-sm text-[#364152]/70">Save your own assumptions as a new version. Manual saves use no AI credits. {account?.user.unlimited ? 'Your owner allowance includes unlimited canvas versions.' : 'Each idea can have four versions.'}</p>
           {!manualAllowed && <p className="mt-3 text-sm text-[#89620B]">Manual canvas editing is not included in your current plan. <a href="/dashboard/settings" className="underline">View available plans</a>.</p>}
           <fieldset disabled={!manualAllowed || generating || saving || loading || nextCanvasVersion(canvases, account?.user.unlimited) === null} className="mt-4">
@@ -297,9 +342,12 @@ export default function LeanCanvasPage() {
                 </div>
               ))}
             </div>
+            <label htmlFor="canvas-change-reason" className="mt-4 mb-2 block text-sm font-medium text-[#141923]">What changed in this version?</label>
+            <input id="canvas-change-reason" value={changeReason} maxLength={2000} onChange={event => setChangeReason(event.target.value)} placeholder="Record the evidence or decision behind your changes" className="w-full rounded border border-[#E5E7EB] bg-white p-3 text-sm" />
+            <p className="mt-2 text-xs text-[#657081]">Edits are saved as a new version. Edited blocks return to assumption status; unchanged blocks keep their previous evidence.</p>
             <button type="button" onClick={() => saveCanvas(true)}
               className="mt-4 px-5 py-2.5 bg-[#141923] text-white text-sm disabled:opacity-50">
-              {saving ? 'Saving…' : 'Save manual version'}
+              {saving ? 'Saving…' : editingCanvasId ? 'Save edited version' : 'Save manual version'}
             </button>
           </fieldset>
           {nextCanvasVersion(canvases, account?.user.unlimited) === null && <p className="mt-3 text-sm text-[#89620B]">All four versions are saved. You can review and export them below.</p>}
@@ -308,11 +356,11 @@ export default function LeanCanvasPage() {
 
       {canvases.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {canvases.map((c, idx) => (
               <button
                 key={c.id}
-                onClick={() => { setActiveVersion(idx); setCanvasReport(null) }}
+                onClick={() => { setActiveVersion(idx);setSourceReportId(canvases[idx]?.analysisData?.sourceReport?.reportId ?? ''); setCanvasReport(null) }}
                 disabled={reportLoading || generating || saving}
                 aria-pressed={activeVersion === idx}
                 className={`px-4 py-2 text-sm font-medium transition-colors cursor-pointer ${
@@ -326,6 +374,11 @@ export default function LeanCanvasPage() {
             ))}
           </div>
 
+          {currentCanvas && <button type="button" disabled={!manualAllowed || generating || saving || nextCanvasVersion(canvases, account?.user.unlimited) === null} className="rounded border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-[#89620B] disabled:opacity-50" onClick={() => {
+            setManualBlocks(Object.fromEntries(BLOCKS.map(({ key }) => [key, (currentCanvas[key as keyof Canvas] as CanvasBlock | null)?.content ?? ''])))
+            setEditingCanvasId(currentCanvas.id); setChangeReason('')
+            window.setTimeout(() => { document.getElementById('canvas-editor')?.scrollIntoView({ block: 'start', behavior: 'auto' }); document.getElementById('manual-problem')?.focus() }, 0)
+          }}>Edit version {currentCanvas.version}</button>}
           {/* 0C-3: Overall Canvas Confidence Score Gauge */}
           {currentCanvas && (
             <div className="card-angular px-4 py-2 bg-[#FFFFFF] border border-[#E5E7EB] flex items-center gap-3">
@@ -391,7 +444,7 @@ export default function LeanCanvasPage() {
 
       {/* 0C-1: Riskiest Assumption Highlight Alert */}
       {riskiestAssumption && (
-        <div className="card-angular p-4 border-l-4 border-amber-500 bg-amber-50/80 shadow-xs flex items-start gap-3">
+        <div className="card-angular p-4 border border-amber-200 bg-amber-50/80 shadow-xs flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
             <div className="flex items-center justify-between gap-2 mb-1">
@@ -438,9 +491,14 @@ export default function LeanCanvasPage() {
         </div>
       )}
 
+      {currentCanvas && <PlanningEvidence sources={currentCanvas.analysisData?.researchSources} gaps={currentCanvas.analysisData?.evidenceGaps} />}
+      <SourceReportSummary value={currentCanvas?.analysisData?.sourceReport} />
+      {currentCanvas?.analysisData?.manualRevision?.sectionsNeedReview && <p className="rounded border border-[#E5E7EB] bg-white p-4 text-sm leading-relaxed text-[#657081]">
+        The experiments and deeper analysis below are retained from the previous hypotheses. Review them against the edited canvas before treating their assessments as current. Past observations remain unchanged.
+      </p>}
       {loading ? (
         <div className="card-angular p-12 text-center">
-          <div className="animate-pulse text-[#89620B]">Loading canvas…</div>
+          <div role="status" className="text-[#89620B]">Loading canvas…</div>
         </div>
       ) : currentCanvas ? (
         <>
@@ -452,7 +510,7 @@ export default function LeanCanvasPage() {
               const color = confidenceColor(score)
               const badge = confidenceBadge(score)
               return (
-                <div key={key} className="card-angular p-5 bg-[#FFFFFF]" style={{ borderLeft: `3px solid ${color}` }}>
+                <div key={key} className="card-angular p-5 bg-[#FFFFFF]" >
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-xs font-semibold text-[#141923] ">{label}</h3>
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: color + '20', color }}>
@@ -461,7 +519,12 @@ export default function LeanCanvasPage() {
                   </div>
                   {block ? (
                     <>
-                      <p className="text-sm text-[#364152] leading-relaxed mb-3">{block.content}</p>
+                      <p className="text-sm text-[#364152] leading-relaxed mb-3 whitespace-pre-wrap">{block.content}</p>
+                      {(block.evidenceNote || block.sourceUrls?.length) && <details className="mb-3 border-t border-[#E5E7EB] pt-2 text-xs">
+                        <summary className="cursor-pointer font-medium text-[#89620B]">Evidence for this block</summary>
+                        {block.evidenceNote && <p className="mt-2 leading-relaxed">{block.evidenceNote}</p>}
+                        <ul className="mt-2 space-y-1">{block.sourceUrls?.map(value => { const link = planningSourceLink(value); return link ? <li key={link.href}><a href={link.href} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-4">{link.hostname}</a></li> : null })}</ul>
+                      </details>}
                       {block.keyAssumptions?.length > 0 && (
                         <div className="mt-2">
                           <p className="text-xs text-[#89620B] font-medium mb-1">Key Assumptions:</p>
@@ -523,7 +586,11 @@ export default function LeanCanvasPage() {
                     {validationExperiments.map((exp, idx) => (
                       <tr key={idx} className="border-b border-[#E5E7EB] last:border-0 hover:bg-[#F7F8FA]/40">
                         <td className="py-3 px-3 font-medium text-[#141923] align-top">{exp.assumption}</td>
-                        <td className="py-3 px-3 text-[#364152] align-top leading-relaxed">{exp.experiment}</td>
+                        <td className="py-3 px-3 text-[#364152] align-top leading-relaxed">{exp.experiment}
+                          {exp.recruitedSegment && <p className="mt-2 text-xs">Recruit: {exp.recruitedSegment}{exp.sampleSize ? ` · ${exp.sampleSize}` : ''}</p>}
+                          {exp.failureAction && <p className="mt-2 text-xs">If the test fails: {exp.failureAction}</p>}
+                          {exp.dependencyReview?.state === 'NEEDS_REVIEW' && <p className="mt-2 text-sm text-[#89620B]">Review after canvas edit: {exp.dependencyReview.reason} Existing results are retained.</p>}
+                        </td>
                         <td className="py-3 px-3 tabular-nums font-medium text-[#89620B] align-top">{exp.successMetric}</td>
                         <td className="py-3 px-3 text-stone-600 align-top whitespace-nowrap">{exp.timeframe}</td>
                       </tr>
@@ -535,7 +602,7 @@ export default function LeanCanvasPage() {
           )}
 
           {/* New Sections for Phase 3 */}
-          {Array.isArray(currentCanvas?.analysisData?.assumptionRegister) && (
+          {Array.isArray(currentCanvas?.analysisData?.assumptionRegister) && currentCanvas.analysisData.assumptionRegister.length > 0 && (
              <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Assumption Register</h3>
                <div className="overflow-x-auto">
@@ -550,29 +617,30 @@ export default function LeanCanvasPage() {
                </div>
              </div>
           )}
-          {Array.isArray(currentCanvas?.analysisData?.buildMeasureLearnCycles) && (
+          {Array.isArray(currentCanvas?.analysisData?.buildMeasureLearnCycles) && currentCanvas.analysisData.buildMeasureLearnCycles.length > 0 && (
             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
-               <h3 className="text-sm font-semibold mb-4">Build-Measure-Learn Cycles</h3>
+               <h3 className="text-sm font-semibold mb-2">Proposed build-measure-learn cycles</h3>
+               <p className="mb-4 text-xs leading-relaxed text-[#657081]">These are experiments to run. Record the observed outcome before treating a learning hypothesis as a result.</p>
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {currentCanvas.analysisData.buildMeasureLearnCycles.map((cycle: any, i: number) => (
                     <div key={i} className="border p-4 rounded">
                       <p><strong>Hypothesis:</strong> {cycle.hypothesis}</p>
                       <p><strong>Build:</strong> {cycle.buildAction}</p>
                       <p><strong>Measure:</strong> {cycle.measureMetric}</p>
-                      <p><strong>Learn:</strong> {cycle.learnInsight}</p>
+                      <p><strong>Learning hypothesis:</strong> {cycle.learnInsight}</p>
                     </div>
                  ))}
                </div>
             </div>
           )}
-          {currentCanvas?.analysisData?.pivotAnalysis && (
+          {hasReportContent(currentCanvas?.analysisData?.pivotAnalysis) && (
             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Pivot Analysis Panel</h3>
                <p><strong>Current Model:</strong> {currentCanvas.analysisData.pivotAnalysis.currentModel}</p>
                <p><strong>Recommendation:</strong> {currentCanvas.analysisData.pivotAnalysis.recommendation}</p>
             </div>
           )}
-          {Array.isArray(currentCanvas?.analysisData?.ifThenRules) && (
+          {Array.isArray(currentCanvas?.analysisData?.ifThenRules) && currentCanvas.analysisData.ifThenRules.length > 0 && (
             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">IF→THEN Rules</h3>
                <div className="grid grid-cols-1 gap-2">
@@ -584,7 +652,7 @@ export default function LeanCanvasPage() {
                </div>
             </div>
           )}
-          {Array.isArray(currentCanvas?.analysisData?.pricingVsVolumeMatrix) && (
+          {Array.isArray(currentCanvas?.analysisData?.pricingVsVolumeMatrix) && currentCanvas.analysisData.pricingVsVolumeMatrix.length > 0 && (
             <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Pricing vs Volume Matrix</h3>
                <table className="w-full text-xs text-left">
@@ -597,7 +665,7 @@ export default function LeanCanvasPage() {
                </table>
             </div>
           )}
-          {currentCanvas?.analysisData?.businessModelCanvas && (
+          {hasReportContent(currentCanvas?.analysisData?.businessModelCanvas) && (
              <div className="card-angular p-6 bg-[#FFFFFF] mt-4">
                <h3 className="text-sm font-semibold mb-4">Business Model Canvas</h3>
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs border p-2 break-words">
@@ -621,7 +689,7 @@ export default function LeanCanvasPage() {
           {/* FIX-06 Sections */}
           {/* 1. Formal Problem Statement */}
           {currentCanvas?.analysisData?.problemStatement && (
-            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm border-l-4 border-amber-500">
+            <div className="card-angular p-6 bg-[#FFFFFF] mt-4 shadow-sm border border-amber-200">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-semibold text-[#141923]">Formal Problem Statement</h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800">ASSUMPTION</span>

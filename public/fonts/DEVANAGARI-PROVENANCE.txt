@@ -1,0 +1,8 @@
+Noto Sans Devanagari Regular and Bold
+
+Copied without modification from the preinstalled Noto font package in the
+existing local verification image validore-export-qa:local on 2026-11-16.
+No download, package installation, or font modification was performed.
+
+Copyright The Noto Project Authors. Licensed under the SIL Open Font License
+Version 1.1; see the adjacent NOTO-LICENSE.txt and OFL.txt.

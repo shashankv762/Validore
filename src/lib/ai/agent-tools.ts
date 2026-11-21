@@ -2,14 +2,19 @@ import { tool, type ToolSet } from 'ai'
 import { z } from 'zod'
 import { Readability } from '@mozilla/readability'
 import { parseHTML } from 'linkedom'
-import { computeUnitEconomics, buildFinancialProjection } from '@/lib/financial'
+import { computeUnitEconomics, buildFinancialProjection, calculateCashRunway } from '@/lib/financial'
 import { deduplicateSources, webSearch, type SearchResult } from './search'
 import { publicWebUrl, readPublicWeb } from './public-web'
 import type { AgentRole } from './gateways'
 import { retrieveMarketMemory, needsCurrentEvidence } from './market-memory'
 import { readMarketIndicator } from './open-data'
+import { readMarketTrend } from './market-trends'
 import { cachedSource, cacheSource } from './source-cache'
 import { rememberPublicSources, retrievePublicResearch } from './research-store'
+import { readPublicReviews } from '@/lib/customer-feedback/public-reviews'
+import { randomUUID } from 'node:crypto'
+import { withResearchHttpBudget, RESEARCH_HTTP_LIMITS, ResearchBudgetExceeded } from './research-http-budget'
+import { evaluateEvidenceCoverage, evidenceContentHash } from './evidence-requirements'
 
 export type AgentToolEvent = {
   agent: AgentRole
@@ -34,14 +39,32 @@ const Assumptions = z.object({
   estimatedCACMonthly: z.number().min(0).max(1e9).describe('Acquisition cost per new customer, in the same currency as selling price.'),
   estimatedMonthlyCustomers: z.number().int().min(0).max(1e9),
   estimatedChurnRate: z.number().min(0).max(1).describe('Monthly customer churn as a decimal.'),
+  estimatedMonthlyGrowthRate: z.number().min(0).max(1).optional().describe('Gross monthly new-customer acquisition as a fraction of the previous active cohort, before churn. Omitted means zero acquisitions.'),
+  currency: z.string().regex(/^[A-Z]{3}$/).optional().describe('One ISO currency code for every monetary input. Legacy omitted currency means USD; no conversion occurs.'),
 })
 
 /** Read-only research and deterministic calculations. Per-call budgets remain
  * shared across model fallbacks; a provider retry cannot reset the tool limits.
  */
 export function createAgentToolkit(agent: AgentRole, initialSources: SearchResult[] = [], budgetId?: string): AgentToolkit {
+  const researchBudgetId = budgetId ?? 'toolkit:' + randomUUID()
   const events: AgentToolEvent[] = []
-  const collected = new Map(deduplicateSources(initialSources).map(source => [source.url, source]))
+  const collected = new Map(deduplicateSources(initialSources.slice(0, 80)).map(source => [source.url, source]))
+  const observedHere = new Set<string>()
+  const remember = (source: SearchResult, directlyRead = false) => {
+    const previous = collected.get(source.url)
+    // A later search snippet cannot erase an original page that was read.
+    // Actual reads refresh the observation even when the new page is shorter.
+    collected.set(source.url, previous && !directlyRead ? deduplicateSources([previous, source])[0] : source)
+    observedHere.add(source.url)
+  }
+  const selectedSources = () => {
+    const sources = [...collected.values()]
+    // Tools can add up to ten sources per execution and execute six times.
+    // Keep those discoveries before background material, so a full initial
+    // register cannot silently discard the very page a specialist just read.
+    return [...sources.filter(source => observedHere.has(source.url)), ...sources.filter(source => !observedHere.has(source.url))].slice(0, 80)
+  }
   const queryCache = new Map<string, Awaited<ReturnType<typeof webSearch>>>()
   const pageCache = new Map<string, SearchResult>()
   const observations: { tool: string; result: unknown }[] = []
@@ -58,7 +81,7 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
     }
     events.push(entry)
     try {
-      const result = await run()
+      const result = await withResearchHttpBudget(researchBudgetId, run)
       if (result && typeof result === 'object' && 'results' in result && Array.isArray(result.results)) {
         entry.resultCount = result.results.length
         if (result.results.length === 0) entry.status = 'unavailable'
@@ -67,21 +90,30 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
       // results separately so report calls and fallbacks can reuse exact math.
       if (!['search_web', 'read_page', 'list_evidence', 'recall_market_memory', 'read_market_indicator'].includes(name)) observations.push({ tool: name, result })
       return result
-    } catch {
-      entry.status = 'unavailable'
-      const result = { error: 'This source or calculation is unavailable. Do not invent its contents; label the gap.' }
+    } catch (error) {
+      entry.status = error instanceof ResearchBudgetExceeded ? 'limited' : 'unavailable'
+      const result = { error: error instanceof ResearchBudgetExceeded ? error.message : 'This source or calculation is unavailable. Do not invent its contents; label the gap.' }
       observations.push({ tool: name, result })
       return result
     } finally { entry.durationMs = Date.now() - started }
   }
 
   const tools: ToolSet = {
+    read_market_trend: tool({
+      description: 'Read a validated multi-year annual World Bank indicator for an explicit country or WLD, preserving actual years, units and revisions. Calculates observed year-over-year amount changes or percentage-point changes in rates. Missing years are never interpolated; annual historical data is not live transaction demand, a category forecast or startup TAM.',
+      inputSchema: z.object({ country: z.string().regex(/^(?:[A-Z]{2}|WLD)$/), indicator: z.enum(['population', 'gdp', 'internet', 'gdpPerCapita', 'inflation', 'gdpGrowth', 'urbanShare', 'unemployment']) }),
+      execute: ({ country, indicator }, { abortSignal }) => execute('read_market_trend', 'Read ' + country + ' ' + indicator + ' historical trend', async () => {
+        const result = await readMarketTrend(country, indicator, abortSignal)
+        remember(result.source, true)
+        return result
+      }),
+    }),
     recall_market_memory: tool({
       description: 'Retrieve compact, dated public market knowledge from server memory with no external search or model call. Include the industry, customer segment and country. Historical statistics are context, never current facts. Refresh material pricing or trend claims from original sources.',
       inputSchema: z.object({ query: z.string().trim().min(3).max(400) }),
       execute: ({ query }) => execute('recall_market_memory', 'Recall relevant market knowledge', async () => {
         const results = deduplicateSources([...await retrievePublicResearch(query), ...retrieveMarketMemory(query)])
-        for (const item of results) if (!collected.has(item.url)) collected.set(item.url, item)
+        for (const item of results) remember(item)
         return { results, needsLiveEvidence: needsCurrentEvidence(query), note: 'Dates and geographic limits are part of each source. A remembered statistic does not validate the startup.' }
       }),
     }),
@@ -90,7 +122,7 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
       inputSchema: z.object({ country: z.string().regex(/^(?:[A-Z]{2}|WLD)$/).describe('ISO two-letter country code, e.g. IN or US; WLD for global aggregate.'), indicator: z.enum(['population', 'gdp', 'internet', 'gdpPerCapita', 'inflation', 'gdpGrowth', 'urbanShare', 'unemployment']) }),
       execute: ({ country, indicator }, { abortSignal }) => execute('read_market_indicator', `${country}: ${indicator}`, async () => {
         const result = await readMarketIndicator(country, indicator, abortSignal)
-        collected.set(result.source.url, result.source)
+        remember(result.source, true)
         return { results: [result.source], cached: result.cached }
       }),
     }),
@@ -101,9 +133,9 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
         const cached = queryCache.get(query.toLowerCase())
         if (cached) return cached
         if (++searches > 3) throw new Error('Search limit reached')
-        const result = await webSearch(query, 5, { signal: abortSignal, allowKeyed: true, budgetId })
+        const result = await webSearch(query, 5, { signal: abortSignal, allowKeyed: true, budgetId: researchBudgetId, existingSources: selectedSources() })
         queryCache.set(query.toLowerCase(), result)
-        for (const item of result.results) collected.set(item.url, item)
+        for (const item of result.results) remember(item)
         return result
       }),
     }),
@@ -116,15 +148,16 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
         if (cached) return cached
         if (!collected.has(target) || ++reads > 2) throw new Error('Page is not in the evidence set or the read budget is exhausted')
         const shared = await cachedSource(target)
-        if (shared) { collected.set(target, shared); pageCache.set(target, shared); return shared }
+        if (shared) { remember(shared, true); pageCache.set(target, shared); return shared }
         const page = await readPublicWeb(target, { signal: abortSignal })
         const { document } = parseHTML(page.text)
         const article = new Readability(document as unknown as Document, { charThreshold: 100, maxElemsToParse: 12000 }).parse()
         const text = (article?.textContent || document.body?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 9000)
         if (text.length < 50) throw new Error('No readable article found')
         const item: SearchResult = { title: (article?.title || document.title || collected.get(target)!.title).slice(0, 250),
-          url: page.url, content: text, source: new URL(page.url).hostname, fetchedAt: new Date().toISOString(), retrievalKind: 'page' }
-        collected.set(item.url, item)
+          url: page.url, content: text, contentHash: evidenceContentHash(text), source: new URL(page.url).hostname, fetchedAt: new Date().toISOString(), retrievalKind: 'page',
+          expiresAt: new Date(Date.now() + (/pric|plan|subscription/i.test(page.url) ? 3600 : 21_600) * 1000).toISOString() }
+        remember(item, true)
         pageCache.set(target, item)
         await cacheSource(item, /pric|plan|subscription/i.test(item.url) ? 3600 : 21_600)
         await rememberPublicSources([item])
@@ -135,16 +168,19 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
       description: 'Read the shared sources already collected by the research team. Only these URLs and successful read_page results can be cited. A retrieved URL establishes provenance, not truth.',
       inputSchema: z.object({}),
       execute: () => execute('list_evidence', 'Review the shared evidence', async () => ({
-        results: Array.from(collected.values()).slice(0, 30).map(item => ({ ...item, content: item.content.slice(0, 1600) })),
+        results: selectedSources().slice(0, 30).map(item => ({ ...item, content: item.content.slice(0, 1600) })),
       })),
     }),
     inspect_evidence: tool({
       description: 'Inspect the shared evidence register for source diversity and retrieval dates. This checks coverage and provenance, not the truth of a claim. Reuse these sources before searching again.',
-      inputSchema: z.object({}),
-      execute: () => execute('inspect_evidence', 'Inspect source coverage and retrieval dates', async () => {
-        const sources = Array.from(collected.values()).slice(0, 40)
+      inputSchema: z.object({ requirements: z.array(z.object({ id: z.string().min(1).max(100), claimType: z.enum(['annual-indicator', 'price', 'demand', 'customer-problem', 'regulation']),
+        subject: z.string().min(1).max(200), geography: z.string().max(100).nullable(), segment: z.string().max(200).nullable(), unit: z.string().max(100).nullable(), denominator: z.string().max(100).nullable(),
+        requestedPeriod: z.string().min(1).max(100), freshnessClass: z.enum(['annual', 'current-price', 'current']), independentSources: z.number().int().min(1).max(3) })).max(20).optional() }),
+      execute: ({ requirements }) => execute('inspect_evidence', 'Inspect source coverage and retrieval dates', async () => {
+        const sources = selectedSources().slice(0, 40)
         return { sourceCount: sources.length, domains: [...new Set(sources.map(source => source.source))],
-          sources: sources.map(({ title, url, fetchedAt }) => ({ title, url, fetchedAt })),
+          sources: sources.map(({ title, url, fetchedAt, dataPeriod, country, unit, expiresAt, retrievalKind }) => ({ title, url, fetchedAt, dataPeriod, country, unit, expiresAt, retrievalKind })),
+          coverage: evaluateEvidenceCoverage(requirements ?? [], sources), sharedHttpLimits: RESEARCH_HTTP_LIMITS,
           note: 'A retrieval date is not the publication date. Domain diversity does not establish independent corroboration.' }
       }),
     }),
@@ -166,7 +202,7 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
   }
   if (['finance', 'risk', 'growth', 'synthesis'].includes(agent)) {
     tools.calculate_financials = tool({
-      description: 'Compute unit economics and a 12-month illustrative projection from explicit assumptions. Acquisition cost is per customer. The projection assumes 10% monthly customer growth; it is not a forecast of actual sales.',
+      description: 'Compute unit economics and a 12-month illustrative scenario from explicit currency, acquisition and churn assumptions. CAC is paid only per new customer. Omitted growth means no new acquisitions after the initial cohort; it does not forecast actual sales.',
       inputSchema: Assumptions,
       execute: values => execute('calculate_financials', 'Check unit economics and a 12-month scenario', async () => ({
         unitEconomics: computeUnitEconomics(values), projection: buildFinancialProjection(values),
@@ -174,7 +210,7 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
       })),
     })
     tools.compare_financial_scenarios = tool({
-      description: 'Compare up to four explicit financial scenarios using the same deterministic unit-economics formulas. Inputs and the fixed 10% monthly customer-growth projection remain assumptions.',
+      description: 'Compare up to four explicit financial scenarios using consistent unit economics, declared currencies, gross acquisition rates and churn. Omitted growth means zero additional acquisitions; each scenario remains an assumption.',
       inputSchema: z.object({ scenarios: z.array(z.object({ name: z.string().min(1).max(80), assumptions: Assumptions })).min(2).max(4) }),
       execute: ({ scenarios }) => execute('compare_financial_scenarios', 'Compare ' + scenarios.length + ' financial scenarios', async () => ({
         scenarios: scenarios.map(({ name, assumptions }) => ({ name, assumptions, unitEconomics: computeUnitEconomics(assumptions), projection: buildFinancialProjection(assumptions) })), label: 'PROJECTION',
@@ -182,13 +218,8 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
     })
     tools.calculate_runway = tool({
       description: 'Calculate cash runway from explicit cash, one-time costs, monthly revenue and monthly costs in one currency. Assumes constant monthly cash flows; it does not predict future sales.',
-      inputSchema: z.object({ cash: z.number().min(0).max(1e12), oneTimeCosts: z.number().min(0).max(1e12), monthlyRevenue: z.number().min(0).max(1e12), monthlyCosts: z.number().min(0).max(1e12) }),
-      execute: values => execute('calculate_runway', 'Calculate cash runway', async () => {
-        const cashAfterSetup = values.cash - values.oneTimeCosts
-        const monthlyBurn = values.monthlyCosts - values.monthlyRevenue
-        return { cashAfterSetup, monthlyBurn, runwayMonths: cashAfterSetup <= 0 ? 0 : monthlyBurn > 0 ? cashAfterSetup / monthlyBurn : null,
-          note: cashAfterSetup < 0 ? 'Starting cash does not cover setup costs.' : monthlyBurn <= 0 ? 'No positive monthly burn under these assumptions; runway is not a finite number.' : 'Runway assumes constant monthly revenue and costs.', label: 'ASSUMPTION' }
-      }),
+      inputSchema: z.object({ cash: z.number().min(0).max(1e12), oneTimeCosts: z.number().min(0).max(1e12), monthlyRevenue: z.number().min(0).max(1e12), monthlyCosts: z.number().min(0).max(1e12), currency: z.string().regex(/^[A-Z]{3}$/).optional() }),
+      execute: values => execute('calculate_runway', 'Calculate cash runway', async () => calculateCashRunway(values)),
     })
   }
   if (['market', 'finance', 'growth', 'synthesis'].includes(agent)) {
@@ -212,6 +243,20 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
     })
   }
   if (['customer', 'growth', 'product', 'evidence', 'synthesis'].includes(agent)) {
+    tools.analyze_customer_feedback = tool({
+      description: 'Read actual public Review records from structured markup on a URL already discovered in the evidence register. Returns source-linked excerpts, dates, ratings and provisional sentiment suggestions. Arbitrary page paragraphs and aggregate stars are not reviews. Counts are unique extracted texts, not unique customers or representative demand. Uses the same two-page read budget; never supply private customer records to this public tool.',
+      inputSchema: z.object({ url: z.string().url().max(2000) }),
+      execute: ({ url }, { abortSignal }) => execute('analyze_customer_feedback', 'Read public customer review evidence', async () => {
+        const target = publicWebUrl(url).href
+        if (!collected.has(target) || ++reads > 2) throw new Error('Page was not discovered or the shared read budget is exhausted')
+        const page = await readPublicReviews(target, { signal: abortSignal, maxReviews: 10 })
+        remember(page.source, true)
+        return { reviews: page.reviews.map(review => ({ ...review, content: review.content.slice(0, 700), excerpted: review.content.length > 700 })),
+          sourceUrl: page.source.url, fetchedAt: page.source.fetchedAt, sampleSize: page.reviews.length,
+          accessibleUniqueTexts: page.availableReviewCount, countIsLowerBound: page.countIsLowerBound ?? page.extractionCapped, limitations: page.limitations,
+          note: 'Suggested sentiment is provisional. Interpret the actual review words and opposing aspects; do not infer willingness to pay or population prevalence.' }
+      }),
+    })
     tools.estimate_sample_size = tool({
       description: 'Estimate a survey sample size for a population proportion with 95% confidence and a chosen absolute margin of error. Assumes random independent sampling; this is not an A/B-test power calculation or a rule for qualitative interviews.',
       inputSchema: z.object({ expectedProportion: z.number().min(0.01).max(0.99), marginOfError: z.number().min(0.005).max(0.2), population: z.number().int().min(2).max(1e9).optional() }),
@@ -235,5 +280,5 @@ export function createAgentToolkit(agent: AgentRole, initialSources: SearchResul
       }),
     })
   }
-  return { tools, events, sources: () => Array.from(collected.values()).slice(0, 40), observations: () => observations.slice(0, 6) }
+  return { tools, events, sources: selectedSources, observations: () => observations.slice(0, 6) }
 }

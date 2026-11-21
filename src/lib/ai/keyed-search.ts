@@ -1,6 +1,7 @@
 import type { SearchResult } from './search'
 import { publicWebUrl } from './public-web'
 import { reserveKeyedSearch } from './search-budget'
+import { reserveResearchHttp, ResearchBudgetExceeded } from './research-http-budget'
 
 const cooldown = new Map<string, number>()
 type Row = { title?: string; url?: string; link?: string; content?: string; snippet?: string }
@@ -31,8 +32,10 @@ export async function keyedSearch(query: string, count: number, budgetId: string
     const key = process.env[provider.toUpperCase() + '_API_KEY']?.trim()
     if (!key || (cooldown.get(provider) ?? 0) > Date.now()) continue
     if (!(await reserveKeyedSearch(budgetId))) break
+    let admission: Awaited<ReturnType<typeof reserveResearchHttp>> = null
+    let bytes = 1_000_000
     try {
-      const timeout = signal ? AbortSignal.any([signal, AbortSignal.timeout(8000)]) : AbortSignal.timeout(8000)
+      signal?.throwIfAborted()
       let url: string
       let init: RequestInit
       if (provider === 'tavily') {
@@ -48,12 +51,15 @@ export async function keyedSearch(query: string, count: number, budgetId: string
         url = target.href
         init = { method: 'GET' }
       }
+      admission = await reserveResearchHttp(url, 1_000_000)
+      const timeout = signal ? AbortSignal.any([signal, AbortSignal.timeout(Math.min(8000, admission?.timeoutMs ?? 8000))]) : AbortSignal.timeout(Math.min(8000, admission?.timeoutMs ?? 8000))
       const response = await fetch(url, { ...init, signal: timeout, redirect: 'error', cache: 'no-store' })
       if (!response.ok) {
         cooldown.set(provider, Date.now() + ([401, 402, 403, 429].includes(response.status) ? 300_000 : 30_000))
         continue
       }
       const data = await readJson(response)
+      bytes = Buffer.byteLength(JSON.stringify(data))
       const rows = (provider === 'tavily' ? data.results : provider === 'serper' ? data.organic : data.organic_results) as Row[] | undefined
       const results: SearchResult[] = []
       for (const row of Array.isArray(rows) ? rows.slice(0, count) : []) {
@@ -64,7 +70,8 @@ export async function keyedSearch(query: string, count: number, budgetId: string
         } catch { /* Malformed search entries are not evidence. */ }
       }
       if (results.length) return { results, provider }
-    } catch { /* Never log request URLs or provider errors containing a key. */ }
+    } catch (error) { if (error instanceof ResearchBudgetExceeded || signal?.aborted) break /* Never log request URLs or provider errors containing a key. */ }
+    finally { await admission?.finish(bytes) }
   }
   return { results: [] }
 }

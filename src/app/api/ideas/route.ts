@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         const active = await tx.select({ id: ideas.id }).from(ideas).where(and(eq(ideas.userId, user.id), eq(ideas.isActive, true), eq(ideas.isReadOnly, false))).limit(Math.max(1, config.maxActiveIdeas))
         if (active.length >= config.maxActiveIdeas) return NextResponse.json({ error: 'Your plan has reached its active idea limit. Upgrade or use an existing idea.' }, { status: 403 })
       }
-      const [idea] = await tx.insert(ideas).values({ userId: user.id, ...parsed.data }).returning()
+      const [idea] = await tx.insert(ideas).values({ userId: user.id, ...parsed.data, publicResearchFocus: parsed.data.publicResearchFocus || null }).returning()
       return NextResponse.json({ idea }, { status: 201 })
     })
   } catch (error) {
@@ -59,13 +59,16 @@ export async function PATCH(request: NextRequest) {
   if (!(await rateLimitCheck(user.id, 'ideas')).success) return NextResponse.json({ error: 'Please wait before saving more changes.' }, { status: 429 })
   const parsed = EditSchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'Please check your idea details.', details: parsed.error.flatten() }, { status: 400 })
-  const { ideaId, ...draft } = parsed.data
+  const { ideaId, publicResearchFocus, ...draft } = parsed.data
   return db.transaction(async (tx) => {
     const [idea] = await tx.select().from(ideas).where(and(eq(ideas.id, ideaId), eq(ideas.userId, user.id))).for('update')
     if (!idea || idea.isReadOnly || !idea.isActive) return NextResponse.json({ error: 'Idea not found or read-only' }, { status: 404 })
     const [running] = await tx.select({ id: validationJobs.id }).from(validationJobs).where(and(eq(validationJobs.ideaId, ideaId), inArray(validationJobs.status, ['pending', 'running']))).limit(1)
     if (running) return NextResponse.json({ error: 'This idea is being analysed. Wait until the analysis completes before editing.' }, { status: 409 })
-    const [updated] = await tx.update(ideas).set({ ...draft, updatedAt: new Date() }).where(eq(ideas.id, ideaId)).returning()
+    // Omitted legacy PATCH bodies preserve the public topic. Only an explicit
+    // empty field clears it; private brief edits never imply public permission.
+    const [updated] = await tx.update(ideas).set({ ...draft,
+      ...(publicResearchFocus === undefined ? {} : { publicResearchFocus: publicResearchFocus || null }), updatedAt: new Date() }).where(eq(ideas.id, ideaId)).returning()
     return NextResponse.json({ idea: updated })
   })
 }

@@ -63,7 +63,7 @@ npm audit --omit=dev
 
 ## 4. Prepare PostgreSQL before deploying the new code
 
-**Apply required migrations through `drizzle/0005_credit_cycle_start.sql`, even with ads disabled.** Account queries include earned credits and explicit cycle accounting. Deploying without those columns will break account loading.
+**Apply outstanding migrations through `drizzle/0015_ai_execution_leases.sql` before serving this revision, even with ads disabled. Apply `0016_subscription_prices.sql` before enabling paid checkouts.** Account, idea, saved planning and validation queries require these schema additions. The Render build and start commands do not apply SQL. The DB-free `/api/health` endpoint proves process liveness only; a passing health check does not prove the database is ready.
 
 For an **existing database**:
 
@@ -76,7 +76,20 @@ For an **existing database**:
    - `drizzle/0003_founder_interviews_research.sql`
    - `drizzle/0004_rewarded_ads.sql`
    - `drizzle/0005_credit_cycle_start.sql`
+   - `drizzle/0006_admin_command_center.sql`
+   - `drizzle/0007_starting_daily_manual_plans.sql`
+   - `drizzle/0008_customer_feedback.sql`
+   - `drizzle/0009_planning_module_requests.sql`
+   - `drizzle/0010_planning_stage_checkpoints.sql`
+   - `drizzle/0011_validation_entitlement_snapshot.sql`
+   - `drizzle/0012_public_research_focus.sql`
+   - `drizzle/0013_planning_context_snapshot.sql`
+   - `drizzle/0014_validation_dispatch_outbox.sql`
+   - `drizzle/0015_ai_execution_leases.sql`
+   - `drizzle/0016_subscription_prices.sql`
 4. Point your local `DATABASE_URL` at the intended database and run `npm run db:verify`. This command reads configuration from `.env.local`; check the target before invoking it.
+
+Migration `0016` intentionally replaces saved Premium and Max Premium monthly prices with 800 and 2,000 USD cents while preserving credits, limits, Stripe price IDs and price history. It does not create provider prices or change existing Stripe subscriptions. Review matching Stripe prices before enabling checkouts. See [the complete ordered delta descriptions](PRODUCTION_SETUP.md#database-rollout), and verify authenticated account/idea loading and validation after deploying the exact passing commit.
 
 For a **new, empty Supabase project**, first review Drizzle's proposed schema and run `npm run db:push`, then `npm run db:seed` for the plans and synthetic reference campaigns. Apply the reviewed SQL deltas above as well, particularly the browser-role revocations. The seed is for setup; do not use it as a repair command for an existing customer database.
 
@@ -154,8 +167,8 @@ Create/deploy the service. If Render assigns a different URL than expected, corr
 
 ## 7. Connect jobs and the free maintenance schedule
 
-1. Open the Inngest environment matching the keys in Render. Sync/connect the app at `https://<your-service>.onrender.com/api/inngest`.
-2. Confirm both `validate-startup` and `daily-credit-maintenance` are registered. The second is included only when `CREDIT_MAINTENANCE_RUNNER=inngest`.
+1. Open the Inngest environment matching the keys in Render. Sync/connect the app at `https://<your-service>.onrender.com/api/inngest`; resync the existing app after deploying this revision.
+2. Confirm all three functions are registered: `validate-startup`, `daily-credit-maintenance` and `reconcile-validation-queue`. Daily maintenance is included only when `CREDIT_MAINTENANCE_RUNNER=inngest`. Queue reconciliation requires `VALIDATION_RUNNER=inngest` and runs every five minutes to reap expired jobs and retry dispatching admitted pending jobs.
 3. Daily maintenance runs at midnight UTC (05:30 in India). It renews due plan balances, recovers stale jobs and prunes expired records. Ad credits carry forward.
 4. Trigger a small real Lite validation from your test account and watch its steps in Inngest. Confirm the job finishes, the report reopens and 50 credits are deducted once. This live step uses your provider quota; do it deliberately after configuration.
 5. Use Inngest's dashboard to run/observe the maintenance function once and confirm success. Do not create a paid Render Cron Job for this free pilot.
@@ -198,11 +211,11 @@ If quotas, sleep or memory become a problem, the honest next step is a measured 
 | --- | --- |
 | `Cannot find module .../scripts/ci-config.mjs` | Replace the whole saved Build Command with the command in section 5, or deploy the restored `ci-config.mjs`, `test-ci.mjs` and updated `package.json` together. Root directory must be the app repository root. |
 | First request shows a loading page | Expected Render Free wake-up; allow about a minute |
-| Credits/account API fails after release | Apply required migrations through 0005; verify PostgreSQL URL and grants |
+| Credits/account, idea or planning API fails after release | Verify outstanding migrations through 0015, the PostgreSQL URL and grants; apply 0016 before enabling paid checkouts |
 | Signup says temporarily unavailable | Redis URL/token, trusted client IP and SMTP configuration |
 | Fourth or later signup from one network is blocked | Use the reviewed pilot setting `SIGNUP_MAX_PER_IP_WEEK=10`; attempts and provider limits still apply |
 | Google says redirect mismatch | Google's URI must be Supabase's `/auth/v1/callback`; Supabase must allow the app callback |
-| Validation remains queued | Production runner, matching Inngest keys, app sync, reachable HTTPS endpoint and free-model quota |
+| Validation remains queued | Production runner, matching Inngest keys, resynced app with `reconcile-validation-queue` registered, reachable HTTPS endpoint and free-model quota; inspect the five-minute recovery run |
 | Maintenance function is missing | Set its runner to `inngest`, deploy, then sync Inngest again |
 | CSS/images fail in standalone mode | Use `build:deploy`, which copies `public` and `.next/static` |
 | Ad button says coming soon | Ads are disabled or configuration is incomplete; approval and real inventory are external requirements |

@@ -18,13 +18,10 @@ const eslintConfig = defineConfig([
     // also handles the Next rule's differing Windows metadata-path detection.
     rules: { "@next/next/no-img-element": "off" }
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     ".open-next/**",
     ".wrangler/**",
-    "cloudflare-env.d.ts",
     "out/**",
     "build/**",
     "next-env.d.ts",

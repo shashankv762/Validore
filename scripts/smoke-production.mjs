@@ -12,7 +12,7 @@ const realpath = promisify(resolveRealpath)
 // Inspect the same public settings used by the local build; host-injected
 // environment variables still take priority over .env.local.
 nextEnv.loadEnvConfig(process.cwd(), false)
-const expectedOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://validore.tech').origin
+const expectedOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://validore.onrender.com').origin
 
 await import('./prepare-standalone.mjs')
 const reservation = createServer()

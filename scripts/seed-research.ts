@@ -1,13 +1,14 @@
 import { config } from 'dotenv'
-import seeds from '../src/data/market/seed-sources.json'
+import { bundledObservations as seeds, MARKET_BUNDLE_VERSION } from '../src/lib/ai/bundled-market'
 
 config({ path: '.env.local', quiet: true })
 
 async function main() {
+  if (!MARKET_BUNDLE_VERSION) throw new Error('Market bundle integrity failed. No research records were written.')
   if (!process.env.DATABASE_URL) throw new Error('Set DATABASE_URL for the reviewed target database before seeding research.')
   if (process.env.RESEARCH_STORE_ENABLED === 'false') throw new Error('Research storage is disabled; no records were written.')
   const { preparePublicSource, rememberPublicSources } = await import('../src/lib/ai/research-store')
-  const valid = seeds.map(source => preparePublicSource(source)).filter(source => source !== null)
+  const valid = seeds.map(source => preparePublicSource({ ...source, dataBundleVersion: MARKET_BUNDLE_VERSION })).filter(source => source !== null)
   if (valid.length !== seeds.length) throw new Error('The bundled data contains expired or invalid records. Run npm run data:refresh and review it before seeding.')
   let saved = 0
   for (let index = 0; index < valid.length; index += 12) saved += await rememberPublicSources(valid.slice(index, index + 12))

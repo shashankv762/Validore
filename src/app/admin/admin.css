@@ -83,7 +83,7 @@
 .admin-filter select { min-width: 153px; background: #13181f; }
 .admin-selection-bar { display: flex; justify-content: space-between; align-items: center; gap: 20px; background: #e0a52610; border: 1px solid #695321; border-radius: 6px; padding: 12px 18px; margin-bottom: 18px; }
 .admin-selection-bar strong { font-size: 12px; font-weight: 500; color: #f2cd7a; }
-.admin-selection-bar > div { display: flex; align-items: center; gap: 20px; }
+.admin-selection-bar > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 20px; min-width: 0; }
 .admin-account-table-panel { padding: 0; overflow: hidden; }
 .admin-table-wrap { position: relative; overflow-x: auto; }
 .admin-table { width: 100%; min-width: 780px; text-align: left; border-collapse: collapse; font-size: 12px; }

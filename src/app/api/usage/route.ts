@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { and, desc, eq, gte, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, lt, sql } from 'drizzle-orm'
 import { db } from '@/db'
 import { creditLedger, ideas, users, validationJobs } from '@/db/schema'
 import { createClient } from '@/lib/supabase/server'
@@ -35,7 +35,8 @@ export async function GET() {
         credits: sql<number>`coalesce(sum(-${creditLedger.amount}), 0)`.mapWith(Number),
         transactions: sql<number>`count(*)`.mapWith(Number),
       }).from(creditLedger).where(and(eq(creditLedger.userId, account.id), gte(creditLedger.createdAt, start),
-        lt(creditLedger.createdAt, now), lt(creditLedger.amount, 0), sql`right(${creditLedger.transactionType}, 5) <> '_PACK'`))
+        lt(creditLedger.createdAt, now), lt(creditLedger.amount, 0),
+        inArray(creditLedger.transactionType, ['VALIDATION', 'LEAN_CANVAS', 'PRICING', 'CROWDFUNDING', 'PITCH_DECK', 'CUSTOMER_EVIDENCE'])))
         .groupBy(creditLedger.transactionType).orderBy(creditLedger.transactionType),
       db.select({ id: validationJobs.id, ideaName: ideas.name, status: validationJobs.status,
         isLite: validationJobs.isLite, tokensUsed: validationJobs.tokensUsed, createdAt: validationJobs.createdAt,

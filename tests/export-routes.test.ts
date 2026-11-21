@@ -400,8 +400,8 @@ describe('Export Endpoints Comprehensive Test Suite', () => {
       expect(css).toContain('--gold:')
 
       const readme = await zip.file('README.md')!.async('string')
-      expect(readme).toContain('GitHub Pages')
-      expect(readme).toContain('Cloudflare')
+      expect(readme).toContain('open `index.html` in a browser')
+      expect(readme).toContain('Keep `styles.css` in the same folder')
     })
   })
 

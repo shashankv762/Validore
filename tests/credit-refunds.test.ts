@@ -15,7 +15,7 @@ const spend = (createdAt: string) => ({ amount: -50, description: JSON.stringify
 const params = (field: string) => new PgDialect().sqlToQuery(mocks.changes.at(-1)![field]).params
 beforeEach(() => {
   vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-31T12:00:00Z'))
-  mocks.user = { id: 'owner', tier: 'free', creditCycleStartedAt: new Date('2026-10-21T12:00:00Z'), creditResetAt: new Date('2026-11-20T12:00:00Z'), creditBalance: 70, purchasedCredits: 10, creditsUsedThisCycle: 80, validationsThisMonth: 2 }
+  mocks.user = { id: 'owner', tier: 'free', creditCycleAllowance: 100, creditCycleStartedAt: new Date('2026-10-21T12:00:00Z'), creditResetAt: new Date('2026-11-20T12:00:00Z'), creditBalance: 70, purchasedCredits: 10, creditsUsedThisCycle: 80, validationsThisMonth: 2 }
   mocks.results = [[], [spend('2026-10-25T12:00:00Z')]]
   mocks.changes = []
 })
@@ -43,8 +43,8 @@ describe('cycle-aware validation refunds', () => {
     mocks.user.creditResetAt = new Date('2026-10-20T12:00:00Z')
     mocks.results = [[], [spend('2026-10-01T12:00:00Z')]]
     await refundValidationCredits('owner', job)
-    expect(mocks.changes[0]).toMatchObject({ creditBalance: 100, creditsUsedThisCycle: 0, creditResetAt: new Date('2026-11-30T12:00:00Z') })
-    expect(params('creditBalance')).toEqual([100, 0])
+    expect(mocks.changes[0]).toMatchObject({ creditBalance: 0, creditsUsedThisCycle: 0, creditResetAt: new Date('2026-11-30T12:00:00Z') })
+    expect(params('creditBalance')).toEqual([0, 0])
     expect(params('purchasedCredits')).toEqual([20])
     expect(params('creditsUsedThisCycle')).toEqual([0])
     expect(mocks.insert).toHaveBeenCalledWith(expect.objectContaining({ amount: 20 }))

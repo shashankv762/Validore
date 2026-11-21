@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { planningContextPrompt, assertPlanningContextUnchanged, PlanningContextError } from '@/lib/planning/context'
 import { decryptApiKey } from '@/lib/byok-crypto'
 import { validAuthOrigin } from '@/lib/auth-form'
 import { createClient } from '@/lib/supabase/server'
@@ -10,34 +11,26 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { canUserAccess } from '@/lib/tier-gate'
 import { generateWithFallback } from '@/lib/ai/generate'
 import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
-import { loadFounderContext } from '@/lib/interview/context'
-import { webSearch } from '@/lib/ai/search'
+import { webSearch, deduplicateSources } from '@/lib/ai/search'
 import { z } from 'zod'
-import { finiteOrNull } from '@/lib/numbers'
-import * as fin from '@/lib/financial'
+import { PricingInputSchema, calculatePricing } from '@/lib/planning/economics'
+import { planningMethod } from '@/lib/planning/knowledge'
+import { planningSources, validatePricingOutput } from '@/lib/planning/evidence'
+import { pricingEconomicScores } from '@/lib/planning/pricing-scores'
 import { PRICING_WEIGHTS, clampScore, validateWeightTable } from '@/lib/scoring'
 import { rateLimitCheck, checkAndIncrementConcurrency, decrementConcurrency } from '@/lib/rate-limit'
 import { moduleHistory } from '@/lib/module-history'
 import { AdminAccessError, effectiveTier, isActiveAccount, isOwnerAccount } from '@/lib/admin-access'
 import { getPlan } from '@/lib/plan-catalog'
+import { beginPlanningRequest, bindPlanningIdea, preparePlanningContext, completePlanningRequest, failPlanningRequest, lockPlanningIdea, planningIdeaSnapshot, PlanningRequestError, type PlanningRun } from '@/lib/planning/requests'
+import { assertPlanningSourceUnchanged, PlanningSourceReportError } from '@/lib/planning/source-report'
+import { SOURCE_REPORT_CONTEXT_MAX_CHARS } from '@/lib/planning/source-report-contract'
 
 export async function GET(request: NextRequest) { return moduleHistory(request, 'pricing') }
 
-const PricingInputSchema = z.object({
-  ideaId: z.string().uuid(),
-  sellingPrice: z.number().positive(),
-  expectedCustomers: z.number().positive(),
-  variableCostPerUnit: z.number().min(0),
-  fixedCostMonthly: z.number().min(0),
-  discountPercent: z.number().min(0).max(100),
-  conversionRatePercent: z.number().min(0).max(100),
-  estimatedCac: z.number().min(0),
-  retentionMonths: z.number().min(1).max(60),
-})
-
 const PricingAiSchema = z.object({
-  customerWtpInsights: z.string(),
-  customerValueAnalysis: z.string(),
+  customerWtpInsights: z.string().trim().min(20).max(2000),
+  customerValueAnalysis: z.string().trim().min(20).max(2000),
   competitorPrices: z.array(z.object({
     name: z.string(),
     price: z.string(),
@@ -53,22 +46,22 @@ const PricingAiSchema = z.object({
     acceptableRange: z.string(),
     label: z.literal('ASSUMPTION'),
   }),
-  pricingModelRecommendation: z.string(),
-  recommendedPriceToTest: z.string(),
-  validationStepsRequired: z.array(z.string()),
+  pricingModelRecommendation: z.string().trim().min(10).max(1600),
+  recommendedPriceToTest: z.string().trim().min(3).max(1000),
+  validationStepsRequired: z.array(z.string().trim().min(10).max(1000)).min(2).max(8),
   thirtyDayValidationPlan: z.array(z.object({
-    week: z.string(),
-    activity: z.string(),
-    owner: z.string(),
-    kpi: z.string(),
-    expectedOutput: z.string(),
-  })),
+    week: z.string().trim().min(3).max(100),
+    activity: z.string().trim().min(20).max(1600),
+    owner: z.string().trim().min(3).max(120),
+    kpi: z.string().trim().min(10).max(1000),
+    expectedOutput: z.string().trim().min(10).max(1000),
+  })).length(4),
   riskRegister: z.array(z.object({
-    risk: z.string(),
+    risk: z.string().trim().min(10).max(1000),
     probability: z.enum(['low', 'medium', 'high']),
     impact: z.enum(['low', 'medium', 'high']),
-    mitigation: z.string(),
-  })),
+    mitigation: z.string().trim().min(10).max(1000),
+  })).min(1).max(8),
   // Scoring (0-max for each weight)
   customerWtpScore: z.number().min(0).max(PRICING_WEIGHTS.customerWillingnessToPay),
   customerValueScore: z.number().min(0).max(PRICING_WEIGHTS.customerValue),
@@ -104,10 +97,16 @@ export async function POST(request: NextRequest) {
   if (!dbUser) return NextResponse.json({ error: 'User not found' }, { status: 404 })
   if (!isActiveAccount(dbUser)) return NextResponse.json({ error: 'This account is not active.' }, { status: 403 })
 
+  let planningRun: PlanningRun | null = null
+  let concurrencyAcquired = false
+  try {
   const rl = await rateLimitCheck(dbUser.id, 'ai-module')
   if (!rl.success) {
     return NextResponse.json({ error: 'Too many requests', retryAfter: 60 }, { status: 429 })
   }
+
+    planningRun = await beginPlanningRequest(request, dbUser.id, 'pricing')
+    if (planningRun.replay) return NextResponse.json(planningRun.replay, { headers: { 'Cache-Control': 'private, no-store' } })
 
   if (!await canUserAccess(user.id, 'canPricingSimulator')) return NextResponse.json({ error: 'This module requires an eligible plan' }, { status: 403 })
   const creditCheck = await checkCredits(dbUser.id, CREDIT_COSTS.PRICING)
@@ -128,8 +127,8 @@ export async function POST(request: NextRequest) {
     )
   }
 
+  concurrencyAcquired = true
   // GAP-2: Decrypt custom OpenRouter key if stored
-  try {
     let customOpenRouterKey: string | null = null
     if (dbUser.encryptedOpenrouterKey) {
       try { customOpenRouterKey = decryptApiKey(dbUser.encryptedOpenrouterKey) }
@@ -144,64 +143,24 @@ export async function POST(request: NextRequest) {
       where: and(eq(ideas.id, i.ideaId), eq(ideas.userId, dbUser.id)),
     })
     if (!idea) return NextResponse.json({ error: 'Idea not found' }, { status: 404 })
+    if (idea.isActive === false) return NextResponse.json({ error: 'This idea is no longer active in your workspace.' }, { status: 404 })
+    if (idea.isReadOnly) return NextResponse.json({ error: 'This idea is read-only. Choose an editable idea before running this tool.' }, { status: 403 })
+    bindPlanningIdea(planningRun,dbUser.id,idea)
+    const contextSnapshot = await preparePlanningContext(planningRun, dbUser.id, idea.id, 'pricing')
 
-    // ── Financial formulas (all from financial.ts) ──────────────────────────────
-    const contributionMargin = fin.calculateContributionMargin(i.sellingPrice, i.variableCostPerUnit)
-    const contributionMarginPct = fin.calculateContributionMarginPercent(contributionMargin, i.sellingPrice)
-    const grossMarginPct = fin.calculateGrossMarginPercent(i.sellingPrice, i.variableCostPerUnit)
-    const markupPct = fin.calculateMarkupPercent(i.sellingPrice, i.variableCostPerUnit)
-    const breakEvenUnits = fin.calculateBreakEvenUnits(i.fixedCostMonthly, i.sellingPrice, i.variableCostPerUnit)
-    const breakEvenRevenue = fin.calculateBreakEvenRevenue(breakEvenUnits, i.sellingPrice)
-    const revenue = i.sellingPrice * i.expectedCustomers
-    const totalVariableCosts = i.variableCostPerUnit * i.expectedCustomers
-    const operatingProfit = revenue - totalVariableCosts - i.fixedCostMonthly
-    const ltv = fin.calculateLTV(contributionMargin, i.retentionMonths)
-    const ltvCacRatio = fin.calculateLTVCACRatio(ltv, i.estimatedCac)
-    const cacPayback = fin.calculateCACPaybackPeriod(i.estimatedCac, contributionMargin)
-
-    // Discount break-even
-    const discountedPrice = i.sellingPrice * (1 - i.discountPercent / 100)
-    const discountedCM = fin.calculateContributionMargin(discountedPrice, i.variableCostPerUnit)
-    const originalContribution = contributionMargin * i.expectedCustomers
-    const discountBreakEven = fin.calculateDiscountBreakEvenVolume(originalContribution, discountedCM)
-
-    // 5 pricing scenarios
-    const scenarios = [0.6, 0.8, 1.0, 1.2, 1.5].map(multiplier => {
-      const scenarioPrice = Math.round(i.sellingPrice * multiplier * 100) / 100
-      const sCM = fin.calculateContributionMargin(scenarioPrice, i.variableCostPerUnit)
-      const sCustomers = Math.round(i.expectedCustomers / Math.pow(multiplier, 1.5)) // demand elasticity assumption
-      const sRevenue = scenarioPrice * sCustomers
-      const sProfit = sRevenue - (i.variableCostPerUnit * sCustomers) - i.fixedCostMonthly
-      const sBEUnits = fin.calculateBreakEvenUnits(i.fixedCostMonthly, scenarioPrice, i.variableCostPerUnit)
-      return {
-        label: multiplier === 1.0 ? 'Base' : multiplier < 1.0 ? `${Math.round(multiplier * 100)}% Price` : `${Math.round(multiplier * 100)}% Price`,
-        price: scenarioPrice,
-        estimatedCustomers: sCustomers,
-        revenue: Math.round(sRevenue),
-        contributionMargin: sCM,
-        profit: Math.round(sProfit),
-        breakEvenUnits: finiteOrNull(Math.ceil(sBEUnits)),
-        label2: 'ASSUMPTION' as const,
-      }
-    })
-
-    // Sensitivity matrix ±20%
-    const sensitivityMatrix = [-20, -10, 0, 10, 20].map(priceChange => {
-      return [-20, -10, 0, 10, 20].map(volumeChange => {
-        const p = i.sellingPrice * (1 + priceChange / 100)
-        const v = i.expectedCustomers * (1 + volumeChange / 100)
-        const cm = fin.calculateContributionMargin(p, i.variableCostPerUnit)
-        const profit = cm * v - i.fixedCostMonthly
-        return { priceChange, volumeChange, profit: Math.round(profit) }
-      })
-    })
+    const calculations = calculatePricing(i)
+    const { contributionMargin, contributionMarginPct, grossMarginPct, markupPct, breakEvenUnits, ltv, ltvCacRatio, cacPayback } = calculations.computedMetrics
+    const { scenarios, sensitivityMatrix } = calculations
 
     // Web search for competitor pricing
-    const searchResp = await webSearch(publicResearchQuery(idea, 'pricing competitors'), 5)
+    const publicSearch = await webSearch(publicResearchQuery(idea, 'pricing competitors'), 5)
+    const sourceReport = planningRun.sourceReport
+    const searchResp = { ...publicSearch, results: deduplicateSources([...publicSearch.results,...(sourceReport?.sources ?? [])]) }
 
     // AI analysis
     const today = new Date().toISOString().split('T')[0]
     const prompt = `You are an expert pricing strategist analyzing pricing for this startup.
+${planningMethod('pricing')}
 
 STARTUP: ${idea.name} | ${idea.industry} | ${idea.location}
 Product: ${idea.product}
@@ -212,20 +171,25 @@ All input monetary amounts are in Indian rupees (INR), matching the simulator. U
 CURRENT PRICE INPUT: ${i.sellingPrice} INR
 Variable Cost: ${i.variableCostPerUnit}
 Fixed Cost/Month: ${i.fixedCostMonthly}
-Expected Customers: ${i.expectedCustomers}
+Expected Paying Customers/Month: ${i.expectedCustomers}
+Billing Model: ${i.billingModel}
+Retention: ${i.retentionMonths} billing periods (used only for recurring)
+Payment Fees: ${i.paymentFeePercent}%
+Demand Elasticity Hypothesis: ${i.demandElasticity}
+Visitor-to-Payer Conversion Hypothesis: ${i.conversionRatePercent}%
 Estimated CAC: ${i.estimatedCac}
 
 COMPUTED FINANCIALS (verified formulas):
 - Contribution Margin: ${contributionMargin.toFixed(2)} (${contributionMarginPct.toFixed(1)}%)
 - Gross Margin: ${grossMarginPct.toFixed(1)}%
-- Markup: ${markupPct.toFixed(1)}% (NOTE: Markup ≠ Margin — markup is calculated on cost, margin on revenue)
-- Break-Even Customers/Month: ${Math.ceil(breakEvenUnits)}
-- LTV: ${ltv.toFixed(2)} | LTV:CAC: ${ltvCacRatio.toFixed(2)} | CAC Payback: ${cacPayback.toFixed(1)} months
+- Markup: ${markupPct === null ? 'Unavailable (zero product cost)' : markupPct.toFixed(1)}% (NOTE: Markup ≠ Margin — markup is calculated on cost, margin on revenue)
+- Break-Even Customers/Month: ${breakEvenUnits ?? 'Not attainable with this contribution margin'}
+- LTV: ${ltv.toFixed(2)} | LTV:CAC: ${ltvCacRatio === null ? 'Unavailable (zero CAC)' : ltvCacRatio.toFixed(2)} | CAC Payback: ${cacPayback === null ? 'Unavailable; monthly payback applies only to recurring purchases with positive contribution and nonzero CAC' : cacPayback.toFixed(1) + ' months'}
 
 SEARCH RESULTS FOR COMPETITOR PRICING:
-${searchResp.degraded
-  ? 'No live search results. Mark competitor prices as AI_ESTIMATE_UNVERIFIED, leave source empty.'
-  : searchResp.results.map(r => `- ${r.title}: ${r.content.slice(0, 300)} [${r.source}, ${r.fetchedAt}]`).join('\n')}
+${!searchResp.results.length
+  ? 'No retrieved pricing page. competitorPrices and competitorPricingMatrix must be empty arrays; list the evidence gap.'
+  : searchResp.results.map(r => `- ${r.title}: ${r.content.slice(0, 1400)} [URL: ${r.url}; kind: ${r.retrievalKind ?? 'snippet'}; retrieved: ${r.fetchedAt}]`).join('\n')}
 
 Today's date: ${today}
 
@@ -240,31 +204,50 @@ SCORING TASK (score within these max weights):
 NOTE: contributionMarginScore (max ${PRICING_WEIGHTS.contributionMargin}), breakEvenFeasibilityScore (max ${PRICING_WEIGHTS.breakEvenFeasibility}), cacLtvScore (max ${PRICING_WEIGHTS.cacLtvEconomics}) will be computed separately from formulas above.
 
 CRITICAL RULES:
-- competitorPrices dateChecked must be: ${today}
-- Never fabricate prices — only use prices found in search results. If none found, say AI_ESTIMATE_UNVERIFIED and leave source empty
-- vanWestendorpInsights are ASSUMPTION — never claim they are real survey data
+- competitorPrices dateChecked must match the cited page's supplied retrieval date, including when that page is cached. Today's date is not proof of a new check.
+- Never fabricate prices. Retrieve the official pricing page before reporting a competitor price. source must be its exact URL from research, retain plan/unit/currency and date. Empty competitor arrays are correct when pages cannot be retrieved.
+- No price sensitivity survey was supplied. In vanWestendorpInsights use "Not measured — collect customer survey responses" for each barrier and acceptableRange; do not manufacture a price corridor. wtpQuestionnaire should propose the four perception questions plus a real purchase test.
 - recommendedPriceToTest is a hypothesis, not a guaranteed optimal price
 - validationStepsRequired must list what real evidence is still needed before finalising price
-- Generate all fields including: pricingProblem, customerSegments, customerPersonas, wtpQuestionnaire, competitorPricingMatrix, competitivePricingMap, costBreakdown, pricingModels, psychologicalPricing, discountSensitivityTable, priceElasticity, whatIfAnalysis, pricingDecisionMatrix, pricingVsVolumeMatrix`
+- Keep core analysis useful and concise. Optional sections must add a decision or test; omit unsupported numbers, personas posing as actual interviews, invented elasticities or survey results. Deterministic calculations and scenarios are provided below; do not overwrite them. Consider fields including: pricingProblem, customerSegments, customerPersonas, wtpQuestionnaire, competitorPricingMatrix, competitivePricingMap, costBreakdown, pricingModels, psychologicalPricing, discountSensitivityTable, priceElasticity, whatIfAnalysis, pricingDecisionMatrix, pricingVsVolumeMatrix`
 
     const aiResult = await generateWithFallback({
-      sources: searchResp.results, maxResearchRounds: searchResp.results.length ? 1 : 2,
+      sources: searchResp.results,
+      ...(sourceReport ? { privateContextMaxChars: SOURCE_REPORT_CONTEXT_MAX_CHARS, researchMode: 'reuse' as const, maxResearchRounds: 0 }
+        : { maxResearchRounds: searchResp.results.length ? 1 : 2 }),
     researchPrompt: publicResearchBrief(idea),
-      privateContext: await loadFounderContext(idea.id, dbUser.id),
+      privateContext: planningContextPrompt(contextSnapshot, sourceReport),
       prompt,
       schema: PricingAiSchema,
+      validateOutput: validatePricingOutput,
       temperature: 0,
       preferredAiProvider: dbUser.preferredAiProvider,
       maxTokensPerCall: isOwnerAccount(dbUser) ? undefined : plan.maxTokensPerCall,
       customOpenRouterKey,
     })
 
-    const ai = aiResult.data
+    const sources = aiResult.sources ?? searchResp.results
+    const ai = { ...aiResult.data,
+      // Financial tables come from one calculation path shared with the preview.
+      competitorPrices: aiResult.data.competitorPrices.filter(row => row.source && sources.some(source => source.url === row.source && source.retrievalKind === 'page')),
+      competitorPricingMatrix: undefined,
+      competitivePricingMap: undefined,
+      costBreakdown: { cogs: i.variableCostPerUnit, fixedCosts: i.fixedCostMonthly, variableCosts: i.variableCostPerUnit,
+        targetMargin: contributionMarginPct, breakEvenPrice: calculations.computedMetrics.breakEvenPrice },
+      // Demand and discount outcomes use the same entered elasticity and fees
+      // as the visible scenarios. A generated table cannot invent another curve.
+      discountSensitivityTable: undefined,
+      customerSegments: undefined,
+      vanWestendorpInsights: { tooExpensive: 'Not measured — collect customer survey responses', expensive: 'Not measured — collect customer survey responses',
+        bargain: 'Not measured — collect customer survey responses', tooCheap: 'Not measured — collect customer survey responses',
+        acceptableRange: 'Not measured — collect customer survey responses', label: 'ASSUMPTION' as const },
+      pricingVsVolumeMatrix: scenarios.map(row => ({ pricePoint: row.price, estimatedVolume: row.estimatedCustomers, revenue: row.revenue, contributionMargin: row.contributionMargin })),
+      priceElasticity: { coefficient: -i.demandElasticity, elasticityType: i.demandElasticity > 1 ? 'elastic' : i.demandElasticity < 1 ? 'inelastic' : 'unitary',
+        interpretation: 'Founder-controlled constant elasticity scenario assumption; no observed demand curve was supplied.', implications: ['Run comparable purchase tests at several prices before using this curve for planning.'] },
+    }
 
     // Compute formula-based scores
-    const cmScore = clampScore(contributionMarginPct >= 60 ? PRICING_WEIGHTS.contributionMargin : Math.round(contributionMarginPct / 60 * PRICING_WEIGHTS.contributionMargin), PRICING_WEIGHTS.contributionMargin)
-    const beScore = Number.isFinite(breakEvenUnits) ? clampScore(breakEvenUnits <= i.expectedCustomers * 0.5 ? PRICING_WEIGHTS.breakEvenFeasibility : Math.round((1 - breakEvenUnits / (i.expectedCustomers * 2)) * PRICING_WEIGHTS.breakEvenFeasibility), PRICING_WEIGHTS.breakEvenFeasibility) : 0
-    const cacLtvScore = i.estimatedCac > 0 && Number.isFinite(ltvCacRatio) ? clampScore(ltvCacRatio >= 3 ? PRICING_WEIGHTS.cacLtvEconomics : Math.round((ltvCacRatio / 3) * PRICING_WEIGHTS.cacLtvEconomics), PRICING_WEIGHTS.cacLtvEconomics) : 0
+    const { cmScore, beScore, cacLtvScore } = pricingEconomicScores(calculations.computedMetrics, i.expectedCustomers)
 
     const pricingScore = clampScore(ai.customerWtpScore, PRICING_WEIGHTS.customerWillingnessToPay)
       + clampScore(ai.customerValueScore, PRICING_WEIGHTS.customerValue)
@@ -278,33 +261,21 @@ CRITICAL RULES:
     if (!validateWeightTable(PRICING_WEIGHTS)) throw new Error('PRICING_WEIGHTS invariant violated')
 
     const fullResult = {
-      inputs: i,
-      computedMetrics: {
-        contributionMargin,
-        contributionMarginPct,
-        grossMarginPct,
-        markupPct,
-        markupNote: 'Markup is calculated on cost (Price-Cost)/Cost. Gross Margin is calculated on revenue (Price-Cost)/Price. They are NOT the same.',
-        breakEvenUnits: finiteOrNull(Math.ceil(breakEvenUnits)),
-        breakEvenRevenue: finiteOrNull(Math.round(breakEvenRevenue)),
-        revenue: Math.round(revenue),
-        operatingProfit: Math.round(operatingProfit),
-        ltv,
-        ltvCacRatio: finiteOrNull(ltvCacRatio),
-        cacPayback: finiteOrNull(cacPayback),
-        discountBreakEven: finiteOrNull(Math.ceil(discountBreakEven)),
-        undefinedMetricsNote: 'A null metric is not meaningful for the supplied margin or acquisition cost; it is not zero.',
-        label: 'ASSUMPTION' as const,
-      },
-      scenarios,
-      sensitivityMatrix,
-      aiAnalysis: ai,
-      pricingScore,
+      inputs: i, ...calculations, aiAnalysis: ai, pricingScore, ideaSnapshot: planningIdeaSnapshot(idea), sourceReport: sourceReport?.snapshot ?? null,
+          planningContext: contextSnapshot,
+      researchSources: planningSources(sources),
+      evidenceGaps: [
+        'Willingness to pay, survey price barriers and demand elasticity have not been measured by this simulator.',
+        ...(!ai.competitorPrices.length ? ['No competitor pricing page was retrieved; competitor prices remain unavailable.'] : []),
+      ],
     }
 
     const saved = await db.transaction(async tx => {
       const [account] = await tx.select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, dbUser.id)).for('update')
       if (!account || !isActiveAccount(account)) throw new AdminAccessError('This account is not active.', 403, 'account_inactive')
+      await lockPlanningIdea(tx, dbUser.id, i.ideaId)
+      if (!planningRun?.lease) await assertPlanningContextUnchanged(tx, dbUser.id, idea.id, contextSnapshot)
+      if (!planningRun?.lease) await assertPlanningSourceUnchanged(tx,dbUser.id,idea.id,sourceReport)
       const charged = await deductCredits(dbUser.id, CREDIT_COSTS.PRICING, 'PRICING', i.ideaId, undefined, tx)
       if (!charged) return null
       const [created] = await tx.insert(pricingSimulations).values({
@@ -318,16 +289,20 @@ CRITICAL RULES:
         validationPlan: ai.thirtyDayValidationPlan,
         reportData: fullResult,
       }).returning()
+      await completePlanningRequest(tx, planningRun?.lease ?? null, created.id,planningRun?.ideaBinding)
       return created
     })
     if (!saved) return NextResponse.json({ error: 'Insufficient credits. Refresh your balance and try again.' }, { status: 402 })
 
     return NextResponse.json({ simulationId: saved.id, result: fullResult })
   } catch (error) {
+    if (error instanceof PlanningSourceReportError || error instanceof PlanningContextError) return NextResponse.json({ error: error.message, code: error.code },{ status: error.status, headers: { 'Cache-Control':'private, no-store' } })
+    if (error instanceof PlanningRequestError) return NextResponse.json({ error: error.message, retryAfter: error.retryAfter, code: error.code }, { status: error.status, headers: { 'Cache-Control': 'private, no-store', ...(error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : {}) } })
     if (error instanceof AdminAccessError) return NextResponse.json({ error: error.message, code: error.code }, { status: error.status })
-    console.error('[pricing] Analysis failed:', error)
+    console.error('[pricing] Analysis failed', { type: error instanceof Error ? error.name : 'UnknownError' })
     return NextResponse.json({ error: 'Analysis could not complete. Please try again.' }, { status: 503 })
   } finally {
-    await decrementConcurrency(dbUser.id)
+    await failPlanningRequest(planningRun?.lease ?? null)
+    if (concurrencyAcquired) await decrementConcurrency(dbUser.id)
   }
 }

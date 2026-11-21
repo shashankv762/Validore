@@ -1,0 +1,1373 @@
+{
+  "notice": "Recorded 2026-11-15 synthetic acceptance regression. AI-generated findings about a test idea, not customer observations, market training data or verified claims. No source-page bodies, credentials or private customer inputs are included.",
+  "observations": [
+    {
+      "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+      "title": "About Startup India Initiative",
+      "source": "www.startupindia.gov.in",
+      "fetchedAt": "2026-11-15T07:05:29.414Z",
+      "retrievalKind": "page"
+    },
+    {
+      "url": "https://ideaproof.io/versus/ideaproof-vs-ideabuddy",
+      "title": "IdeaProof vs IdeaBuddy: AI Validation vs Business Planning",
+      "source": "ideaproof.io",
+      "fetchedAt": "2026-11-15T07:05:17.822Z"
+    },
+    {
+      "url": "https://ideabuddy.com/pricing",
+      "title": "IdeaBuddy Pricing | Affordable Business Planning Plans | IdeaBuddy",
+      "source": "ideabuddy.com",
+      "fetchedAt": "2026-11-15T07:05:31.432Z",
+      "retrievalKind": "page"
+    },
+    {
+      "url": "https://preuve.ai/compare/ideabuddy",
+      "title": "IdeaBuddy Review (2026): Honest Pros, Cons, Pricing",
+      "source": "preuve.ai",
+      "fetchedAt": "2026-11-15T07:05:17.822Z"
+    },
+    {
+      "url": "https://ideabuddy.com/features/idea-validation",
+      "title": "Test and validate your business idea | IdeaBuddy",
+      "source": "ideabuddy.com",
+      "fetchedAt": "2026-11-15T07:05:17.822Z"
+    },
+    {
+      "url": "https://ideabuddy.com/",
+      "title": "IdeaBuddy | All-in-one business planning software, powered by AI | IdeaBuddy",
+      "source": "ideabuddy.com",
+      "fetchedAt": "2026-11-15T07:05:17.822Z"
+    },
+    {
+      "url": "https://growthora.co.in/blog/atal-incubation-centres-aic",
+      "title": "Atal Incubation Centres (AIC): Complete Guide 2026 · Growthora",
+      "source": "growthora.co.in",
+      "fetchedAt": "2026-11-15T07:05:20.714Z"
+    },
+    {
+      "url": "https://tracxn.com/d/legal-entities/india/institute-incubation-innovation-council-i3c-iit-jammu/__rXaemcTrT1e3GJpXmst1o4LsLgw-Wv4CZeAXgcxrEmU",
+      "title": "INSTITUTE INCUBATION & INNOVATION COUNCIL (I3C)-IIT JAMMU - 2026 Company Profile & Financials - Tracxn",
+      "source": "tracxn.com",
+      "fetchedAt": "2026-11-15T07:05:20.714Z"
+    },
+    {
+      "url": "https://www.linkedin.com/company/new-horizon-council-for-innovation-incubation-entrepreneurship-nhciie",
+      "title": "New Horizon Council for Innovation Incubation & Entrepreneurship",
+      "source": "www.linkedin.com",
+      "fetchedAt": "2026-11-15T07:05:20.714Z"
+    },
+    {
+      "url": "https://tracxn.com/d/legal-entities/india/entrepreneurship-development-and-incubation-sigma-council-sedic/__0QzlyNTP0Rhu8sLr0VEEfFm2oqudA7llv9hqICE6ngY",
+      "title": "ENTREPRENEURSHIP DEVELOPMENT AND INCUBATION SIGMA COUNCIL (SEDIC) - 2026 Company Profile & Financials - Tracxn",
+      "source": "tracxn.com",
+      "fetchedAt": "2026-11-15T07:05:20.714Z"
+    },
+    {
+      "url": "https://www.cbinsights.com/company/iiitd-innovation-incubation-centre",
+      "title": "IIITD Innovation & Incubation Center - Products, Competitors, Financials, Employees, Headquarters Locations",
+      "source": "www.cbinsights.com",
+      "fetchedAt": "2026-11-15T07:05:20.714Z"
+    },
+    {
+      "url": "https://www.data.gov.in/",
+      "title": "Open Government Data Platform India",
+      "source": "www.data.gov.in",
+      "fetchedAt": "2026-11-15T03:57:37.200Z",
+      "publishedAt": null,
+      "dataPeriod": "Dataset directory; select the actual observation period",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=1666533",
+      "title": "Y Combinator",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.030Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=1472206",
+      "title": "Economy of India",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.030Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=52625218",
+      "title": "List of unicorn startup companies",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.031Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=30554896",
+      "title": "E-commerce in India",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.031Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=60669244",
+      "title": "Artificial intelligence industry in India",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.031Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=11501406",
+      "title": "Workday, Inc.",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.160Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=45538011",
+      "title": "Unicorn (finance)",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.160Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=1184796",
+      "title": "Intuit",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.160Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=48795986",
+      "title": "OpenAI",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.160Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=6968",
+      "title": "Customer relationship management",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.126Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=2420207",
+      "title": "Salesforce",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.126Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=277663",
+      "title": "Open-source software",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.127Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=1955",
+      "title": "Adobe Inc.",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:05:02.127Z"
+    },
+    {
+      "url": "https://hai.stanford.edu/ai-index/2026-ai-index-report/economy",
+      "title": "Stanford AI Index 2026: surveyed organizational adoption in 2025",
+      "source": "hai.stanford.edu",
+      "fetchedAt": "2026-10-31T00:00:00.000Z",
+      "publishedAt": null,
+      "dataPeriod": "2025 observations, reported in 2026",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://datatopics.worldbank.org/world-development-indicators/",
+      "title": "World Bank World Development Indicators: dataset and metadata",
+      "source": "datatopics.worldbank.org",
+      "fetchedAt": "2026-10-31T00:00:00.000Z",
+      "publishedAt": null,
+      "dataPeriod": "Varies by indicator and economy",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://api.worldbank.org/v2/source/2?format=json",
+      "title": "World Bank World Development Indicators",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-15T03:57:36.151Z",
+      "publishedAt": null,
+      "dataPeriod": "Dataset directory; select the actual observation period",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+      "title": "Startup India initiative",
+      "source": "www.startupindia.gov.in",
+      "fetchedAt": "2026-11-15T03:57:37.344Z",
+      "publishedAt": null,
+      "dataPeriod": "Dataset directory; select the actual observation period",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://www.rbi.org.in/scripts/Statistics.aspx",
+      "title": "RBI Data Releases",
+      "source": "www.rbi.org.in",
+      "fetchedAt": "2026-11-15T03:57:36.743Z",
+      "publishedAt": null,
+      "dataPeriod": "Dataset directory; select the actual observation period",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://www.npci.org.in/what-we-do/upi/product-statistics",
+      "title": "NPCI UPI product statistics entry point",
+      "source": "www.npci.org.in",
+      "fetchedAt": "2026-11-15T03:57:36.693Z",
+      "publishedAt": null,
+      "dataPeriod": "Dataset directory; select the actual observation period",
+      "retrievalKind": "memory"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=38104075",
+      "title": "General Data Protection Regulation",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:10:03.565Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=49282028",
+      "title": "List of data breaches",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:10:03.565Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=146720",
+      "title": "Drug Enforcement Administration",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:10:03.565Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=22721992",
+      "title": "Transgender rights in the United States",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:10:03.566Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=56822861",
+      "title": "TikTok",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:10:03.566Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=496707",
+      "title": "Angus King",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.854Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=79279422",
+      "title": "US federal agencies targeted by DOGE",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.855Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=224584",
+      "title": "Eric Schmidt",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.855Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=21489944",
+      "title": "Housing affordability in Australia",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.855Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=5437748",
+      "title": "Keith Ellison",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.855Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=1019722",
+      "title": "ISRO",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.833Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=62476636",
+      "title": "Smart City Surat",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.833Z"
+    },
+    {
+      "url": "https://en.wikipedia.org/?curid=6973986",
+      "title": "Harcourt Butler Technical University",
+      "source": "en.wikipedia.org",
+      "fetchedAt": "2026-11-15T07:11:09.833Z"
+    },
+    {
+      "url": "https://doi.org/10.24857/rgsa.v18n9-055",
+      "title": "Innovation Unleashed: Measuring the Effectiveness of Atal Incubation Centres in Nurturing Women Entrepreneurs",
+      "source": "doi.org",
+      "fetchedAt": "2026-11-15T07:11:10.378Z"
+    },
+    {
+      "url": "https://doi.org/10.52783/eel.v14i2.1581",
+      "title": "Analyzing the Financial Performance and Investment Attractiveness of Startups Supported by Incubation Centers",
+      "source": "doi.org",
+      "fetchedAt": "2026-11-15T07:11:10.378Z"
+    }
+  ],
+  "handoffs": [
+    {
+      "role": "market",
+      "data": {
+        "marketScore": 5,
+        "tamSamSom": {
+          "tam": {
+            "value": "Not established",
+            "method": "India; annual research-workspace revenue in INR; reference year 2026. Bottom-up sizing requires eligible first-time software founders × observed annual paid spend, plus eligible university incubators × observed annual institutional spend, avoiding overlapping purchases. Neither buyer counts nor spending are established by successfully read original sources. Top-down economy, e-commerce and general startup totals do not establish this segment. Smallest next task: obtain a dated eligible-incubator roster and segment-specific founder counts, then measure paid spend separately for each buyer type.",
+            "source": "",
+            "label": "PROJECTION"
+          },
+          "sam": {
+            "value": "Not established",
+            "method": "Restrict TAM to Indian founders and university incubators reachable with the launch product's language coverage, research capabilities and purchasing arrangements. Eligible counts, product coverage, institutional procurement requirements and annual spend remain unsupported. Free-report users are not automatically paying customers. No defensible top-down segment share is available.",
+            "label": "PROJECTION"
+          },
+          "som": {
+            "value": "Not established",
+            "method": "Use a 1–3-year capacity-based model: acquired founder subscribers × observed annual paid spend, plus contracted incubators × observed annual contract revenue, excluding duplicate purchases. Bound acquisition by tested channel reach, conversion, retention and institutional sales capacity; bound delivery by onboarding and research-support capacity. These inputs are missing. Downside assumption: preliminary reports satisfy most users and institutional procurement delays paid adoption. Do not substitute an arbitrary market-share percentage.",
+            "label": "PROJECTION"
+          }
+        },
+        "pestleAnalysis": {
+          "political": [
+            "MODERATE: The Startup India page describes DPIIT ecosystem initiatives, including seed funding for proof of concept and market entry, and BHASKAR stakeholder collaboration. This establishes policy infrastructure, not demand for this workspace. Retrieved 2026-11-15: https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+            "WEAK — hypothesis: University incubators could provide concentrated distribution, but access, partnership willingness and procurement eligibility are untested. Government initiative participation does not establish a software purchasing budget."
+          ],
+          "economic": [
+            "WEAK: Segment size, growth, annual software budgets and willingness to pay are not established. The conservative market score reflects a defined use case and potential institutional channel, offset by missing demand and accessibility evidence.",
+            "WEAK — assumptions to test: Monthly credits require repeat research needs and sufficient perceived value beyond preliminary reports. Measure paid conversion and retention separately for founders and incubators; nationality and macroeconomic indicators cannot establish spending or price sensitivity."
+          ],
+          "social": [
+            "WEAK — hypothesis: First-time founders may value structured guidance, while incubators may value comparable cohort reports. Validate actual workflow frequency and whether reports support decisions rather than merely provide reassurance.",
+            "WEAK — adoption risks: Trust in evidence quality, confidentiality expectations, language requirements and preference for mentor review remain unmeasured. Test these barriers with both buyer segments."
+          ],
+          "technological": [
+            "WEAK — hypothesis: Source-linked research and structured exports could fit founder and incubator workflows. Reliability, source coverage, freshness and export compatibility require product tests; no adoption benchmark establishes demand for this product.",
+            "WEAK — risk: Retrieval failures, unsupported generated claims and changing third-party data access could reduce report usefulness. Assess citation traceability, explicit uncertainty handling and repeatable evaluation before scaling."
+          ],
+          "legal": [
+            "WEAK — review required: Map applicable Indian personal-data obligations to founder submissions, institutional accounts, processors, retention and deletion. Applicable provisions and implementation dates have not been established by supplied legal evidence.",
+            "WEAK — review required: Check research-source licensing, permitted reuse in exported reports, confidentiality terms and subscription disclosures. Public source accessibility alone does not establish redistribution rights."
+          ],
+          "environmental": [
+            "WEAK — hypothesis: Digital reports could reduce some printing or travel, but no baseline or measured substitution supports an environmental-benefit claim.",
+            "WEAK — evidence gap: Hosting and research-compute energy use are unmeasured. Environmental impact would require workload, infrastructure and electricity-source data."
+          ]
+        }
+      },
+      "sourceIds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27
+      ]
+    },
+    {
+      "role": "customer",
+      "data": {
+        "problemScore": 4,
+        "customerScore": 7,
+        "wtpScore": 1,
+        "personas": [
+          {
+            "name": "Primary: First-time software founder before a build decision",
+            "ageRange": "Unknown; age is not an eligibility criterion.",
+            "occupation": "Proposed ICP: first-time founder actively evaluating a software idea.",
+            "incomeRange": "Unknown; personal income and research budget require separate observation.",
+            "location": "India; specific recruitment locations remain untested.",
+            "goals": [
+              "Decide whether to build, change or abandon an idea.",
+              "Identify assumptions requiring direct customer evidence."
+            ],
+            "problems": [
+              "Hypothesis: difficulty distinguishing evidence from plausible AI-generated claims.",
+              "Hypothesis: fragmented research before committing development resources."
+            ],
+            "frustrations": [
+              "Hypothesis: conflicting advice and unclear source provenance."
+            ],
+            "buyingBehaviour": "Proposed user and buyer: founder; payer could be founder or sponsor. Trigger: an upcoming build decision. Possible workarounds: search, spreadsheets, general AI and mentors. Past spending, time, authority and usage frequency are unknown.",
+            "preferredChannels": [
+              "Founder communities—recruitment hypothesis",
+              "University incubator referrals—recruitment hypothesis"
+            ],
+            "decisionFactors": [
+              "Traceable evidence",
+              "Actionable next research steps",
+              "Time saved versus existing workflow",
+              "Actual available budget"
+            ],
+            "priceSensitivity": "medium",
+            "jobToBeDone": "Before committing to a build, organize what is known and unknown and choose the next evidence-gathering action. Price sensitivity is unknown; medium is a schema-required placeholder."
+          },
+          {
+            "name": "Secondary: University incubator program manager",
+            "ageRange": "Unknown; role and authority matter more than age.",
+            "occupation": "Proposed ICP: manager supporting a cohort of early-stage software ventures.",
+            "incomeRange": "Unknown; institutional purchasing budget is separate from salary.",
+            "location": "University incubators in India; institution types and procurement rules are untested.",
+            "goals": [
+              "Help teams document assumptions consistently.",
+              "Prioritize mentor attention and review research quality."
+            ],
+            "problems": [
+              "Hypothesis: inconsistent evidence quality across teams.",
+              "Hypothesis: repetitive manual review of research reports."
+            ],
+            "frustrations": [
+              "Hypothesis: polished reports that obscure unsupported claims."
+            ],
+            "buyingBehaviour": "Proposed users: founders and mentors; buyer: program manager; payer: institution, subject to approval. Trigger: cohort onboarding or a review milestone. Possible workaround: templates and mentor review. Past costs, procurement authority and renewal cadence are unknown.",
+            "preferredChannels": [
+              "Direct incubator outreach—recruitment hypothesis",
+              "Program-manager referrals—recruitment hypothesis"
+            ],
+            "decisionFactors": [
+              "Review consistency",
+              "Demonstrated mentor time savings",
+              "Data handling",
+              "Budget approval and procurement fit"
+            ],
+            "priceSensitivity": "medium",
+            "jobToBeDone": "At a cohort review milestone, identify evidence gaps across teams and allocate support. Price sensitivity is unknown; medium is a schema-required placeholder."
+          }
+        ],
+        "problemValidation5Factor": {
+          "frequency": {
+            "score": 2,
+            "reasoning": "WEAK: no observed usage or problem frequency. Planned test: recruit 15 founders with a build decision in the past 90 days; pass if at least 8 document two relevant research episodes in 30 days. If fewer, test milestone-based rather than monthly access."
+          },
+          "severity": {
+            "score": 3,
+            "reasoning": "WEAK: wasted effort is plausible, not measured. Planned test: at least 6 of 15 founders document four or more hours of rework or an avoidable paid expense linked to an unchecked assumption in their last project. If fewer, position as workflow assistance rather than costly-error prevention."
+          },
+          "urgency": {
+            "score": 2,
+            "reasoning": "WEAK: a build or cohort deadline is a proposed trigger. Planned test: at least 5 of 15 eligible founders upload existing research and complete a next-step task within seven days of invitation. If fewer, narrow to founders with imminent decisions."
+          },
+          "dissatisfaction": {
+            "score": 2,
+            "reasoning": "WEAK: no complaints or alternative-switching records supplied. Planned test: at least 6 of 15 founders show a recent workaround failure and a subsequent corrective action. If fewer, investigate complementing existing tools instead of replacing them."
+          },
+          "willingnessToSeekSolution": {
+            "score": 2,
+            "reasoning": "WEAK: no searches, purchases or pilot commitments observed. Planned test: at least 5 of 15 qualified founders complete a pilot and use its output in an actual decision within 14 days. If fewer, revise the task and onboarding before testing payment."
+          }
+        },
+        "customerJPG": {
+          "jobs": [
+            "Proposed founder job: evaluate evidence before a build decision.",
+            "Proposed incubator job: review research quality across a cohort.",
+            "Identify the user, approving buyer and actual payer separately."
+          ],
+          "pains": [
+            "Hypothesis: unsupported claims appear credible.",
+            "Hypothesis: collecting and reconciling sources consumes time.",
+            "Hypothesis: existing reports do not identify useful next experiments."
+          ],
+          "gains": [
+            "Hypothesis: clearer decisions and fewer unsupported assumptions.",
+            "Hypothesis: less research or review time.",
+            "Unknown: recurring need sufficient to justify monthly credits."
+          ],
+          "painRelievers": [
+            "Proposed: label evidence strength, provenance and gaps; reports cannot substitute for customer observation.",
+            "Planned quality test: in 10 pilot reports, users correctly distinguish evidence from assumptions in at least 8; otherwise revise presentation.",
+            "Planned workflow test: compare the same research task with the current workaround; pass if at least 6 of 10 users save 30 minutes without losing source traceability; otherwise narrow scope."
+          ],
+          "gainCreators": [
+            "All mappings and scores are provisional, WEAK evidence assessments, not estimates of population demand. Supplied directories and snippets do not establish buying behavior.",
+            "Reach test: obtain 10 eligible interviews from 50 targeted founder invitations within 14 days; otherwise revise the segment or channel.",
+            "Founder payment test: offer 15 qualified pilot completers an explicitly experimental INR 499 monthly plan; pass if at least 3 pay and at least 2 renew once. Otherwise test one-off access or a different payer. This is not a market-derived price.",
+            "Institutional payment test: approach 8 qualified program managers with an experimental INR 5,000 cohort pilot; pass if at least 2 secure approval and pay within 60 days. Otherwise revise institutional packaging or deprioritize this segment.",
+            "Preserve non-purchases, unused reports and successful existing workarounds as disconfirming evidence; proposed tests are not completed validation."
+          ]
+        },
+        "interviewQuestions": [
+          {
+            "question": "Tell me about the last software idea or cohort project you evaluated before deciding what to build.",
+            "category": "Trigger and context",
+            "rationale": "Anchors discovery in a specific past decision rather than hypothetical interest."
+          },
+          {
+            "question": "Walk me through what you did from the first question to the final decision.",
+            "category": "Current workflow",
+            "rationale": "Reveals actual steps and workarounds without prescribing a solution."
+          },
+          {
+            "question": "What research materials did you use, and how did you decide which claims to rely on?",
+            "category": "Evidence handling",
+            "rationale": "Examines demonstrated evaluation practices rather than assumed confusion."
+          },
+          {
+            "question": "How much time did each part take, and what records could help reconstruct that?",
+            "category": "Time cost",
+            "rationale": "Separates recalled effort from documented effort."
+          },
+          {
+            "question": "What did you pay for during that process, if anything, and who paid?",
+            "category": "Past spending",
+            "rationale": "Establishes actual expenditure and distinguishes user from payer."
+          },
+          {
+            "question": "What, if anything, went differently from what you expected, and what happened afterward?",
+            "category": "Severity and consequences",
+            "rationale": "Allows both consequential failures and satisfactory outcomes to emerge."
+          },
+          {
+            "question": "Which other tools or people did you try, and what led you to keep or stop using each?",
+            "category": "Alternatives and dissatisfaction",
+            "rationale": "Looks for observed switching behavior and successful alternatives."
+          },
+          {
+            "question": "What deadline or event shaped when you did the work, and what happened when research remained unfinished?",
+            "category": "Urgency and inaction",
+            "rationale": "Identifies real triggers and the cost, if any, of doing nothing."
+          },
+          {
+            "question": "How many similar research decisions did you handle in the last 90 days, and can you walk through the most recent two?",
+            "category": "Frequency",
+            "rationale": "Tests recurrence against concrete episodes rather than assuming monthly usage."
+          },
+          {
+            "question": "For the last research-related purchase you made or requested, who approved it, which budget covered it, and how long did approval take?",
+            "category": "Purchase authority",
+            "rationale": "Reconstructs actual buying and procurement behavior, including the absence of a purchase."
+          }
+        ],
+        "wtpSurveyQuestions": [
+          {
+            "question": "In the past 90 days, how much was actually paid for software-idea research tools or services? State the amount in INR, what it covered, and who paid; enter zero if none.",
+            "type": "open"
+          },
+          {
+            "question": "Who funded your most recent research-tool purchase?",
+            "type": "multiple_choice",
+            "options": [
+              "I paid personally",
+              "My startup paid",
+              "An incubator or university paid",
+              "Another sponsor paid",
+              "No purchase was made"
+            ]
+          },
+          {
+            "question": "For how many of the last six months did you have a paid subscription specifically supporting idea research or validation?",
+            "type": "multiple_choice",
+            "options": [
+              "0",
+              "1–2",
+              "3–4",
+              "5–6",
+              "Do not know"
+            ]
+          },
+          {
+            "question": "Describe the last research-tool purchase you declined, cancelled or renewed: what was the price, what happened, and what alternative did you use?",
+            "type": "open"
+          }
+        ]
+      },
+      "sourceIds": [
+        11,
+        28,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        26,
+        27,
+        29
+      ]
+    },
+    {
+      "role": "competitor",
+      "data": {
+        "competitiveScore": 3,
+        "competitors": [],
+        "competitorPositioning": [
+          {
+            "name": "Validore launch acceptance sample",
+            "x": 65,
+            "y": 20,
+            "isOurStartup": true
+          }
+        ],
+        "portersFiveForces": {
+          "competitiveRivalry": {
+            "level": "MEDIUM",
+            "reasoning": "WEAK, provisional: supplied search snippets do not establish relevant direct competitors or current pricing, so the competitor list is empty. The 3/10 differentiation score reflects an unproven moat, not demonstrated market crowding. Positioning axes are x = structured research workflow and y = defensibility, both 0–100; coordinates are illustrative judgments based on the idea description, not measured comparisons."
+          },
+          "threatOfNewEntrants": {
+            "level": "HIGH",
+            "reasoning": "WEAK, assumption: research organization and report export appear replicable unless supported by proprietary evidence, differentiated methodology or embedded institutional workflows. No such barriers are established in the supplied evidence."
+          },
+          "supplierPower": {
+            "level": "MEDIUM",
+            "reasoning": "WEAK, provisional: dependence on external data, search or model providers could create cost and access exposure. The startup's suppliers, licensing requirements and ability to switch providers are not established."
+          },
+          "buyerPower": {
+            "level": "MEDIUM",
+            "reasoning": "WEAK, assumption: founders and incubators could compare software with manual research before adopting. Purchase intent, budgets, switching costs and procurement requirements are unknown; no spending assumptions are inferred from India as the target geography."
+          },
+          "threatOfSubstitutes": {
+            "level": "HIGH",
+            "reasoning": "WEAK, assumption: manual web research organized in documents or spreadsheets, potentially assisted by general-purpose AI, could address parts of idea examination and report preparation. Advisers and incubators may be alternatives or partners, not equivalent software competitors. Relative quality, effort and costs remain untested."
+          }
+        }
+      },
+      "sourceIds": [
+        11,
+        28,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        30
+      ]
+    },
+    {
+      "role": "finance",
+      "data": {
+        "financialScore": 1.5,
+        "businessModelScore": 4,
+        "unitEconomicsAssumptions": {
+          "estimatedSellingPrice": 499,
+          "estimatedVariableCost": 150,
+          "estimatedFixedCostMonthly": 50000,
+          "estimatedCACMonthly": 800,
+          "estimatedMonthlyCustomers": 30,
+          "estimatedChurnRate": 0.2,
+          "estimatedMonthlyGrowthRate": 0,
+          "currency": "INR",
+          "assumptionLabel": "ASSUMPTION"
+        }
+      },
+      "sourceIds": [
+        11,
+        0,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        25,
+        26,
+        27,
+        29,
+        30
+      ]
+    },
+    {
+      "role": "risk",
+      "data": {
+        "keyRisks": [
+          "Paying demand in India is unestablished: missing customer observations do not prove rejection, but they leave both founder-funded and institution-funded adoption uncertain.",
+          "Idea evaluation may be episodic rather than monthly; incubator cohorts could provide recurring demand, but neither usage pattern has been observed.",
+          "Structured reports could make unsupported claims look authoritative, undermining the product’s central promise of separating assumptions from evidence.",
+          "Free preliminary reports could satisfy users while deeper research incurs unrecovered delivery costs; conversion and contribution margins are unmeasured.",
+          "Differentiation from manual research, general-purpose AI and adjacent planning tools remains untested; the incomplete competitor inventory does not establish an uncontested market.",
+          "Confidential founder inputs, institutional access and third-party research reuse create security and legal-review requirements before broader deployment."
+        ],
+        "swot": {
+          "strengths": [
+            "WEAK — proposed design advantage: a single workspace connecting idea examination and structured exports could reduce fragmented research workflows; time savings are untested.",
+            "WEAK — proposed positioning: explicit evidence and assumption labels could address the stated problem, provided users understand them and reports preserve provenance.",
+            "WEAK — proposed distribution advantage: incubator cohorts could concentrate onboarding and report review; access and purchasing authority remain unknown."
+          ],
+          "weaknesses": [
+            "Observed evidence constraint: no completed customer tests, paid commitments or retention observations are supplied; specialist scores are provisional judgments.",
+            "Observed evidence constraint: segment size, budgets, acquisition costs, delivery costs and current competitor comparisons are not established.",
+            "WEAK — business-model assumption: monthly credits require repeat value beyond free preliminary reports.",
+            "Observed reporting constraint: excerpted handoffs omit detail; repeated specialist assumptions are not independent corroboration."
+          ],
+          "opportunities": [
+            "WEAK — testable opportunity: compare founder research and incubator review tasks with existing workflows to identify measurable decision or time-saving benefits.",
+            "WEAK — testable opportunity: institutional sponsorship could serve users who do not purchase individually; procurement feasibility requires direct testing.",
+            "WEAK — testable opportunity: if demand is episodic, per-project credits or cohort packages could fit better than monthly subscriptions.",
+            "WEAK — testable opportunity: traceable, uncertainty-preserving exports could differentiate the workspace if buyers value them over polished report generation alone."
+          ],
+          "threats": [
+            "WEAK — scenario: existing documents, mentors or general-purpose AI may already satisfy the proposed job; their adequacy has not been compared directly.",
+            "WEAK — scenario: data or model-provider changes could impair report availability, cost or quality.",
+            "WEAK — scenario: unsupported recommendations or confidential-data exposure could damage trust before the product establishes repeat use.",
+            "WEAK — scenario: institutional approvals could delay revenue even when users find reports useful; actual purchasing timelines are unknown."
+          ]
+        },
+        "riskRegister": [
+          {
+            "risk": "Market — WEAK analyst judgment: the reachable paying segment is unestablished. A narrow decision-stage niche may support the product, while broad founder interest may not translate into purchases.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: market lead. Early warning: recruitment produces interest but few eligible users with imminent decisions and identifiable payers. Test founder and incubator segments separately, record paid commitments and recruitment effort, and narrow the target segment before scaling acquisition. Detectable during recruitment; targeting remains reversible before major spending."
+          },
+          {
+            "risk": "Customer — WEAK analyst judgment: the proposed evidence-handling problem may not be sufficiently consequential to prompt switching. Existing workflows may work well, or users may have meaningful unresolved pain; neither interpretation is established.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: customer research lead. Early warning: participants cannot demonstrate a recent consequential research failure or use pilot outputs in a real decision. Observe recent workflows and compare the same task with the current workaround. Record successful alternatives as disconfirming evidence; revise the job or segment if the pilot adds no material benefit."
+          },
+          {
+            "risk": "Customer — WEAK analyst judgment: episodic founder decisions may not support monthly credits, although recurring incubator cohorts could provide a different usage pattern. Frequency, willingness to pay and price sensitivity are unknown; the persona's medium price-sensitivity label is unsupported.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: growth lead. Early warning: paid users finish one report and show no subsequent research need or renewal. Track actual research episodes, repeat use and renewals separately by payer segment. Test monthly access against project credits and cohort packages; change packaging rather than assuming nonrenewal reflects price sensitivity."
+          },
+          {
+            "risk": "Product — WEAK analyst judgment: authoritative-looking exports could conceal weak evidence or omit caveats, leading users to treat desk research as completed customer validation. No report-quality audit is supplied.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: product and research-quality lead. Early warning: audited claims lack supporting source text, or users mistake assumptions for observations. Gate exports on claim-level provenance, dates and uncertainty labels; test user comprehension and manually review pilot reports. Pause affected report sections when material errors appear. Errors may be hard to detect after export and costly to reverse."
+          },
+          {
+            "risk": "Financial — WEAK analyst judgment: free reports, deeper research and support may cost more than paid credits recover. No measured conversion, delivery cost or contribution margin is supplied; efficient delivery is also plausible.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: finance lead. Early warning: actual free-tier and paid-tier delivery costs exceed the contribution budget. Instrument research, compute, support and acquisition costs separately; calculate contribution and downside scenarios using observed usage. Cap free workloads and alter pricing or delivery scope before expanding. Negative contribution has no positive-volume break-even."
+          },
+          {
+            "risk": "Competitive — WEAK analyst judgment: research organization and exports may be insufficiently differentiated from substitutes. The empty specialist competitor list reflects incomplete evidence, not competitor absence; current comparable pricing is not established.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: strategy lead. Early warning: pilot users prefer their existing workflow or cannot name a decision-relevant advantage. Run same-task comparisons against user-selected alternatives and assess evidence traceability, usefulness and effort. Focus development on demonstrated advantages or revise positioning before committing to a broad feature roadmap."
+          },
+          {
+            "risk": "Operational — WEAK analyst judgment: incubator onboarding, mentor support and institutional approval could require more work than a self-service credits model anticipates. Concentrated cohort distribution could alternatively reduce acquisition effort.",
+            "probability": "medium",
+            "impact": "medium",
+            "riskLevel": "medium",
+            "mitigation": "Owner: partnerships lead. Signal: pilot activation depends on repeated manual intervention or lacks a confirmed approving buyer. Document approval steps and support effort during a bounded cohort pilot; standardize onboarding and offer assisted delivery only where its cost is covered. Avoid dependence on a single institution."
+          },
+          {
+            "risk": "Technical — WEAK analyst judgment: retrieved webpages, founder inputs or agent summaries could inject instructions, while retrieval failures and provider changes could produce unsupported reports. No security or resilience test results are supplied.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: engineering lead. Early warning: adversarial inputs alter instructions, private inputs enter public queries, or unavailable sources are presented as read evidence. Isolate untrusted content, minimize query data, enforce permissions and test injection and outage cases. Fail closed on sensitive actions and label missing evidence; suspend affected capabilities when tests fail."
+          },
+          {
+            "risk": "Regulatory — WEAK analyst judgment: Indian personal-data obligations, institutional confidentiality terms and research-source reuse permissions have not been assessed. Applicability and permitted exports require specialist review, not assumed legal certainty.",
+            "probability": "medium",
+            "impact": "high",
+            "riskLevel": "high",
+            "mitigation": "Owner: legal/privacy lead. Early warning: personal data reaches unapproved providers, deletion cannot be demonstrated, or export permissions are undocumented. Obtain India-specific counsel review of data flows, retention, access and contracts; check each source's reuse terms. Minimize collected data, restrict institutional access and exclude uncleared content from exports. Disclosure may be difficult to reverse."
+          }
+        ]
+      },
+      "sourceIds": [
+        0,
+        2,
+        31,
+        32,
+        33,
+        34,
+        35,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        25,
+        26,
+        27,
+        29,
+        30
+      ]
+    },
+    {
+      "role": "evidence",
+      "data": {
+        "summary": "The supplied evidence does not establish buyer pain, paid demand, recurring usage, acquisition access or market size for Indian first-time software founders and university incubators. Competitor leads exist, but current prices and differentiation remain unresolved. Persona price sensitivity marked “medium” is an untested placeholder, not an observed finding; frequent use and cultural buying behavior are also unknown. Specialist scores are provisional interpretations, not customer validation. This review uses supplied source text only; no additional page inspection was available.",
+        "checks": [
+          {
+            "claim": "Indian first-time software founders struggle to distinguish assumptions from market evidence.",
+            "url": "https://en.wikipedia.org/?curid=6968",
+            "assessment": "inconclusive",
+            "rationale": "WEAK: The supplied CRM snippet, retrieved 2026-11-15, contains no observations about Indian founders, idea evaluation or consequences of poor evidence handling. It does not establish problem frequency or severity."
+          },
+          {
+            "claim": "Target founders or incubators will pay monthly for deeper research.",
+            "url": "https://ideabuddy.com/pricing",
+            "assessment": "inconclusive",
+            "rationale": "WEAK for demand: Page text retrieved 2026-11-15 includes vendor-selected testimonials and confidentiality statements, not purchases, renewal behavior or budgets among Indian first-time founders or university incubators. Experimental INR prices in the handoff are proposed tests, not observed willingness to pay."
+          },
+          {
+            "claim": "IdeaBuddy's current subscription price is established.",
+            "url": "https://ideabuddy.com/pricing",
+            "assessment": "inconclusive",
+            "rationale": "WEAK: Although retrievalKind is page and retrieval occurred on 2026-11-15, the supplied text contains no price, currency, billing interval or plan allowance. The URL alone cannot establish current pricing or India-specific terms."
+          },
+          {
+            "claim": "The empty competitor list indicates an absence of relevant alternatives.",
+            "url": "https://ideaproof.io/versus/ideaproof-vs-ideabuddy",
+            "assessment": "inconclusive",
+            "rationale": "WEAK: The 2026-11-15 snippet identifies IdeaProof and IdeaBuddy as validation/planning leads. This vendor comparison does not establish current capabilities, complete pricing or fit for Indian buyers. An empty assessed list reflects incomplete coverage, not demonstrated absence of competition."
+          },
+          {
+            "claim": "University incubators provide an accessible, concentrated acquisition channel.",
+            "url": "https://growthora.co.in/blog/atal-incubation-centres-aic",
+            "assessment": "inconclusive",
+            "rationale": "WEAK: The secondary snippet retrieved 2026-11-15 describes Indian incubation infrastructure, but its count has no clear observation date or original-authority confirmation here. AICs include institutions and corporates, not solely university software cohorts. Infrastructure presence does not establish access, partnership willingness or purchasing authority."
+          },
+          {
+            "claim": "Startup India initiatives establish a commercially addressable market for this workspace.",
+            "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+            "assessment": "inconclusive",
+            "rationale": "MODERATE only for the narrow contextual statement: Page text retrieved 2026-11-15 describes DPIIT initiatives and seed-funding purposes in India. Market interpretation remains WEAK: it supplies no eligible customer count, annual research spending, software procurement eligibility or demand for this product."
+          }
+        ],
+        "gaps": [
+          "Problem evidence: Interview 15 Indian first-time software founders with a build decision in the past 90 days; reconstruct workflows, documented rework, consequences and successful alternatives. The proposed sample is a test, not completed research.",
+          "Payment evidence: Record recent research purchases, INR amounts, actual payer and approval authority separately for founders and incubators; test explicit paid commitments and retain non-purchases.",
+          "Recurring demand and price sensitivity: Observe repeat research tasks and renewal decisions over multiple months. Both episodic founder use and institution-funded cohort use remain plausible; “medium” sensitivity is unsupported.",
+          "Acquisition access: Test targeted founder recruitment and outreach to qualified university program managers; record response denominators, introductions, pilot approvals and procurement barriers.",
+          "Competitor coverage: Obtain original product and pricing text establishing dated features, currencies, billing periods, allowances and export capabilities; compare against manual research and general-purpose AI in the same task.",
+          "Market sizing: Establish the eligible Indian founder and university-incubator populations, avoid overlapping users and payers, and measure annual spending before calculating TAM, SAM or SOM.",
+          "Product value and reliability: Compare pilot reports with existing workflows using measured time, decision usefulness and unsupported-claim rates; preserve unused reports and successful workarounds as disconfirming evidence.",
+          "Source limitations: Several handoffs are excerpted and many references are snippets or memory entries. Missing detail is unknown; repeated specialist assumptions and retrieved URLs are not corroboration."
+        ]
+      },
+      "sourceIds": [
+        0,
+        2,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        1,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        25,
+        26,
+        27,
+        29,
+        30
+      ]
+    },
+    {
+      "role": "product",
+      "data": {
+        "uvpOptions": [
+          "Proposed founder proposition: Before you build, examine one critical assumption through a source-linked brief that separates public evidence, uncertainty and the next customer test.",
+          "Proposed experiment proposition: Turn an uncertain software idea into one practical customer experiment with a measurable decision rule, rather than a broad business plan.",
+          "Proposed incubator proposition: Give cohort reviewers a consistent evidence-and-assumptions template to help identify which teams need customer research or mentor attention."
+        ],
+        "selectedUvp": "Proposed founder proposition: Before you build, examine one critical assumption through a source-linked brief that separates public evidence, uncertainty and the next customer test.",
+        "moscowFeatures": {
+          "mustHave": [
+            "Proposed guided intake: capture one software idea, target customer, upcoming build decision and current workaround. Job: focus the research. Test: each pilot participant can name one decision and its most fragile assumption.",
+            "Proposed human-reviewed evidence ledger for up to five material claims: record source URL, observation date, geography, relevant units, evidence strength, assumptions, contradictions and retrieval gaps. Job: distinguish support from speculation. Test: at least 8 of 10 pilot founders correctly classify four of five sampled claims.",
+            "Proposed next-test card: specify one customer hypothesis, eligible participants, non-leading questions, observable behavior and a pass/fail rule. Job: move from desk research to customer evidence. Test: at least 6 of 10 pilot founders complete the agreed action within 14 days.",
+            "Proposed structured brief delivered through a simple document template, with a manually prepared JSON export when requested. Job: use the findings in a build decision. Test: record whether each founder cites the brief when choosing to build, change, defer or abandon.",
+            "Proposed minimal data controls and pilot operations: obtain consent, restrict access, agree retention and deletion terms, exclude confidential inputs from public searches, and track researcher time and delivery cost. Job: participate safely and assess delivery feasibility. Test: apply the checklist to every pilot and log effort per brief."
+          ],
+          "shouldHave": [
+            "Proposed revision log linking new customer observations to changed assumptions. Job: update decisions. Test: add only if pilot founders return with new evidence that changes their brief.",
+            "Proposed transparent paid follow-up offer with stated scope and expiry. Job: purchase another bounded research task. Test: measure actual payments, use, cancellations and delivery cost rather than stated interest."
+          ],
+          "couldHave": [
+            "Proposed incubator review template and manual cohort summary. Job: compare evidence gaps across teams. Test separately with program managers before building institutional software.",
+            "Proposed automated document and JSON exports. Job: reduce formatting work. Build only if manual delivery logs show formatting is a meaningful bottleneck.",
+            "Proposed additional-language templates. Job: improve comprehension. Prioritize only after observing language-related failures in recruited users."
+          ],
+          "wontHave": [
+            "No autonomous multi-agent research platform, broad integrations or live market-monitoring dashboard in the first pilot.",
+            "No comprehensive business plans, pitch decks or financial forecasts before testing the evidence-to-action workflow.",
+            "No definitive validation verdicts, unsupported market-size estimates or scores presented as proof of demand.",
+            "No incubator administration suite or mandatory recurring subscription before institutional buying and repeat founder usage are observed."
+          ]
+        },
+        "mvpDescription": "Proposed concierge MVP for first-time software founders in India facing a build decision within 30 days: a form, a private working document, human-reviewed public research and a short evidence-to-action brief. Cap each brief at one decision, one fragile hypothesis and five material claims. The central hypothesis is WEAK and untested: founders will use explicit evidence gaps to undertake customer research before committing to a build. Recruit 10 eligible founders; capture their existing workflow and baseline claim-classification performance, then observe comprehension and action after delivery. Proposed gates: at least 8 of 10 correctly classify four of five claims, and at least 6 of 10 complete the agreed customer-research action within 14 days and document its implication for their decision. Log non-use, contradictory findings, successful workarounds, researcher effort and costs. These thresholds are experimental decision rules, not demand estimates. If comprehension fails, revise labels; if comprehension passes but action fails, revise the customer segment or test guidance before adding features. Public evidence does not establish demand, willingness to pay, recurring need or a defensible competitor gap. Feature order is a qualitative dependency judgment, not a calculated RICE ranking: reach, impact, confidence and effort lack measured inputs, and rank_priorities was unavailable. Test paid follow-up only after usefulness is observed; automate only a demonstrated delivery bottleneck.",
+        "oneLineConcept": "A proposed evidence-to-action research pilot helping first-time software founders in India examine one risky assumption before building.",
+        "landingPageCopy": {
+          "headline": "Before you build, examine your riskiest assumption.",
+          "subheadline": "Join a small research pilot designed to separate public evidence from open questions and help you plan one practical customer test.",
+          "benefits": [
+            "Aim to see which important claims have source support—and which remain assumptions.",
+            "Aim to focus your next customer conversation on the uncertainty that matters most.",
+            "Aim to carry a concise evidence-and-next-steps brief into your build decision."
+          ],
+          "howItWorks": "Proposed pilot: describe one software idea and an upcoming decision without submitting sensitive details. A researcher would review relevant public sources, label support and gaps, and prepare a short brief with one customer-test plan. You would then carry out the test and discuss what it means for your decision.",
+          "cta": "Apply for the research pilot",
+          "pricingHypothesis": "Experimental offer, not established pricing: a free preliminary brief, followed by an optional INR 499 monthly plan with two credits. One credit would cover one human-reviewed follow-up brief for one assumption and up to five claims; unused credits would expire after that month. Tax treatment and final terms must be disclosed before payment. In a separate test with 15 qualified pilot completers, seek at least 3 actual purchases and observe paid reuse in the following month. Compare this with an INR 499 one-off option in a subsequent test if recurring use is weak. Affordability, renewal demand and delivery margins remain unknown.",
+          "faq": [
+            {
+              "question": "Will this tell me whether my startup will succeed?",
+              "answer": "No. The proposed brief would organize available evidence and uncertainty. Public research cannot establish customer demand or guarantee a successful business."
+            },
+            {
+              "question": "Who is the pilot intended for?",
+              "answer": "First-time founders in India evaluating a software idea and facing a build decision within 30 days. Incubator workflows would be tested separately."
+            },
+            {
+              "question": "Is this already an automated research workspace?",
+              "answer": "No completed capability is claimed here. The first pilot is proposed as a manually operated, human-reviewed service using simple forms and document templates."
+            },
+            {
+              "question": "What happens when evidence is missing?",
+              "answer": "The proposed brief would mark the gap, keep unsupported claims as assumptions and suggest a direct customer test rather than inventing an answer."
+            },
+            {
+              "question": "What information should I share?",
+              "answer": "Share only the minimum non-sensitive context needed. Do not submit credentials, customer personal data or confidential documents. Access, retention and deletion terms would be agreed before participation."
+            },
+            {
+              "question": "Does the free brief require a subscription?",
+              "answer": "The proposed preliminary pilot brief would not require a subscription. Any paid follow-up would be optional, explicitly experimental and subject to disclosed scope and terms."
+            }
+          ]
+        }
+      },
+      "sourceIds": [
+        11,
+        0,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        25,
+        26,
+        27,
+        29,
+        30
+      ]
+    },
+    {
+      "role": "growth",
+      "data": {
+        "actionPlan": [
+          {
+            "week": "Week 1: November 15–21",
+            "action": "Proposed experiment: interview 10 first-time software founders in India with a build decision within 30 days. Before pitching, reconstruct their last research task, workaround, time spent, actual purchases, payer and consequences. Request consent for redacted supporting records; preserve satisfactory workarounds and contrary findings.",
+            "owner": "Founder / customer research lead",
+            "kpi": "Completed interviews and founders documenting consequential research problems.",
+            "hypothesis": "WEAK assumption: founders facing an imminent build decision experience consequential difficulty separating assumptions from evidence.",
+            "participantUnit": "One individual founder",
+            "denominator": "Proposed convenience sample of 10 eligible individual founders; not a representative survey.",
+            "passCriterion": "By November 21, complete 10 interviews and have at least 6 founders document a recent evidence-handling problem causing at least four hours of rework or an avoidable paid expense.",
+            "decisionOnFailure": "Pause the pilot. Revise the problem or eligibility criteria and repeat discovery with a new proposed sample of 10; do not interpret incomplete recruitment or hypothetical interest as demand."
+          },
+          {
+            "week": "Week 2: November 22–24",
+            "action": "Proposed experiment, conditional on Week 1 passing: deliver a manually assisted, source-linked report to the same 10 founders using consented, redacted material. Compare a matched research task with their existing workflow; test whether they distinguish evidence from assumptions and complete one recommended customer-research action.",
+            "owner": "Research quality lead",
+            "kpi": "Founders correctly interpreting evidence labels, completing an external research action and saving measured task time.",
+            "hypothesis": "WEAK assumption: an evidence-aware report improves decisions and task efficiency beyond the existing workaround.",
+            "participantUnit": "One individual founder",
+            "denominator": "The same proposed 10 individual founders; non-completion remains in the denominator.",
+            "passCriterion": "By November 24, at least 8 of 10 correctly classify four of five pre-scored evidence/assumption examples, at least 6 complete one recommended customer-research action, and at least 6 save 30 minutes on the matched task.",
+            "decisionOnFailure": "Revise report labels or scope and repeat the workflow test before charging. Stop development expansion if the existing workaround performs as well or better."
+          },
+          {
+            "week": "Week 2: November 25–28",
+            "action": "Proposed experiment, conditional on the workflow gate passing: offer all 10 founders the same experimental INR 499 monthly plan on November 25, with explicitly defined research credits, delivery limits, cancellation and refund terms. Request actual payment without interview incentives offsetting the price; identify the actual payer separately.",
+            "owner": "Founder / commercial lead",
+            "kpi": "Actual purchases, declined offers, refunds and reasons for non-purchase.",
+            "hypothesis": "WEAK assumption: individual founders will personally pay INR 499 for a month of clearly scoped deeper research.",
+            "participantUnit": "One individual founder",
+            "denominator": "All 10 individual founders offered the identical plan, including non-users and non-buyers.",
+            "passCriterion": "At least 3 of 10 make an actual INR 499 payment by November 28, with no refund through the end of Week 3. Emails, verbal interest and sponsor-funded access do not pass this founder-payer test.",
+            "decisionOnFailure": "Stop acquisition expansion. Interview non-buyers and revise scope or price before repeating a paid test; test institutional purchasing separately rather than treating founders as organizational buyers."
+          },
+          {
+            "week": "Weeks 3–4: November 29–December 12",
+            "action": "Proposed experiment, conditional on the payment gate passing: recruit through one permission-based founder-community channel. Present the same preliminary report and INR 499 offer to 50 new eligible founders using one consistent message. Track delivery, report use, payment, refunds, channel spending and staff time.",
+            "owner": "Growth lead",
+            "kpi": "New paying founders per 50 delivered offers, plus recorded acquisition spending and staff hours.",
+            "hypothesis": "WEAK assumption: one founder-community channel can attract paying founders beyond the discovery sample.",
+            "participantUnit": "One individual founder",
+            "denominator": "Proposed sample of 50 new, unique eligible individual founders receiving a delivered offer; exclude the original 10 and disclose delivery failures separately.",
+            "passCriterion": "By December 12, deliver 50 offers and obtain at least 3 actual INR 499 purchases, with no refunds during the following seven days. Record all acquisition spending and staff hours before judging channel economics.",
+            "decisionOnFailure": "Do not increase channel spending. Review delivery, eligibility and non-purchase reasons, change one channel or message variable, and repeat with a fresh sample of 50. Conversion alone does not establish sustainable acquisition economics."
+          },
+          {
+            "week": "Week 5: December 13–19",
+            "action": "Proposed experiment, conditional on the original payment gate passing: observe whether the original paying founders initiate a second distinct research task within their purchased credits. Do not count reminder-driven logins or reopened reports as repeat demand; record users with no further research need.",
+            "owner": "Product research lead",
+            "kpi": "Original buyers initiating a second task and using its output in a real research or build decision.",
+            "hypothesis": "WEAK assumption: the research need recurs sufficiently to support monthly credits rather than only a one-off report.",
+            "participantUnit": "One individual founder",
+            "denominator": "Every original founder who paid in Week 2; expected minimum 3 only if the payment gate passes. Report the actual denominator.",
+            "passCriterion": "By December 19, at least 2 original paying founders independently initiate a second distinct task and document one action or decision informed by its output.",
+            "decisionOnFailure": "Pause the recurring-plan assumption. Test a one-off report or milestone-based package with explicit payment instead of adding retention features or treating logins as recurring value."
+          },
+          {
+            "week": "Week 6: December 20–26",
+            "action": "Proposed experiment: offer the original buyers a second month at the unchanged INR 499 price on their individual monthly renewal dates. Require explicit renewal consent and actual payment. Review renewal alongside repeat use, refunds and logged delivery costs before authorizing further product investment.",
+            "owner": "Founder / commercial lead",
+            "kpi": "Explicitly purchased second months, cancellations, refunds and delivery-cost records.",
+            "hypothesis": "WEAK assumption: original buyers value repeated research enough to purchase another month without a discount or automatic renewal.",
+            "participantUnit": "One individual founder",
+            "denominator": "All original Week 2 paying founders whose renewal is due by December 26; disclose any later-due buyers separately and do not count them as renewals.",
+            "passCriterion": "By December 26, at least 2 original buyers explicitly pay INR 499 for a second month, with repeat-use evidence from Week 5 and delivery costs recorded for each paying founder.",
+            "decisionOnFailure": "Do not scale or claim subscription retention. Interview cancellations and non-renewers, revise packaging, and repeat a paid-use cycle. If renewal passes but delivery economics remain unclear, continue a capped pilot."
+          }
+        ],
+        "nextStepRecommendation": "MORE_VALIDATION",
+        "nextStepRationale": "As of November 15, 2026, supplied evidence does not establish completed customer interviews, purchases, recurring use or a repeatable acquisition channel. These are proposed experiments with authored thresholds, not observed traction or population estimates. Priority is problem evidence, low-cost workflow value, actual payment, channel acquisition, repeat use and renewal. rank_priorities was unavailable; this ordering is qualitative, not a tool result. Advance to a narrowly scoped MVP only after the problem, utility and payment gates pass. Scale requires repeatable paid acquisition, renewal and acceptable measured delivery economics; market size and institutional demand remain unresolved."
+      },
+      "sourceIds": [
+        11,
+        0,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        25,
+        26,
+        27,
+        29,
+        30
+      ]
+    }
+  ],
+  "rejectedFullJudgment": {
+    "decision": "NO_GO",
+    "decisionReasons": [
+      "Product-specific demand, willingness to pay and repeat use are not established in the supplied evidence. This is missing customer evidence, not evidence of customer rejection.",
+      "The financial scenario is unsustainable as modeled: customers decline from 30 in month one to 3 in month twelve, with no subsequent acquisitions and a twelve-month cumulative operating loss of INR 575,489. Positive contribution alone does not establish viability.",
+      "The value proposition, MVP and sequential experiments are omitted from the handoffs, so their alignment cannot be assessed. Any launch recommendation based only on report generation would need correction to address payment, repeat use, evidence accuracy and delivery costs.",
+      "Retrieved material provides ecosystem context and adjacent software positioning, but does not establish differentiation for Indian first-time founders or incubator purchasing demand.",
+      "Specialist sub-scores are omitted, preventing calculation of the required total or score-band verdict. TEST_FURTHER is a provisional evidence-limited judgment; the execution score is an unverified readiness estimate, not a reconstructed specialist score.",
+      "The decision was aligned with the final weighted score band."
+    ],
+    "nextStepRecommendation": "MORE_VALIDATION",
+    "nextStepRationale": "The decision was aligned with the final weighted score band.",
+    "decisionAudit": {
+      "policyVersion": "2026-11-14.1",
+      "scoreBand": "NO_GO",
+      "originalDecision": "TEST_FURTHER",
+      "finalDecision": "NO_GO",
+      "missingAgents": [],
+      "issues": [
+        "The decision was aligned with the final weighted score band."
+      ]
+    },
+    "overallScore": 28,
+    "keyEvidence": [
+      {
+        "claim": "Startup India's page describes seed-fund assistance for proof of concept, prototypes, product trials, market entry and commercialisation. This establishes support-program context, not demand for this workspace.",
+        "source": "www.startupindia.gov.in",
+        "publication": "About Startup India Initiative",
+        "link": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+        "geography": "India",
+        "fetchedAt": "2026-11-15T07:05:29.414Z",
+        "strength": "MODERATE",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "The retrieved IdeaBuddy page contains business-planning and financial-projection positioning and confidentiality assurances. Its supplied text does not establish current plan prices or comparative research quality.",
+        "source": "ideabuddy.com",
+        "publication": "IdeaBuddy Pricing",
+        "link": "https://ideabuddy.com/pricing",
+        "fetchedAt": "2026-11-15T07:05:31.432Z",
+        "strength": "MODERATE",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "An IdeaProof comparison snippet positions AI validation before business planning. This suggests adjacent positioning, but does not establish equivalent functionality, independent performance or Indian buyer preference.",
+        "source": "ideaproof.io",
+        "publication": "IdeaProof vs IdeaBuddy: AI Validation vs Business Planning",
+        "link": "https://ideaproof.io/versus/ideaproof-vs-ideabuddy",
+        "fetchedAt": "2026-11-15T07:05:17.822Z",
+        "strength": "WEAK",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "Under the supplied assumptions, monthly contribution is INR 349 per customer and contribution break-even is 144 customers. The modeled cohort falls from 30 to 3 customers over twelve months, producing a cumulative operating loss of INR 575,489 despite an assumed LTV:CAC ratio of 2.18125.",
+        "source": "",
+        "geography": "India; INR scenario",
+        "strength": "WEAK",
+        "label": "AI_ESTIMATE_UNVERIFIED",
+        "link": "",
+        "publication": ""
+      },
+      {
+        "claim": "Mechanical downside scenarios produce twelve-month cumulative operating losses of INR 589,361.20 with a 20% lower price, INR 581,489 with 25% higher acquisition cost, and INR 589,449 with 50% higher monthly churn. These are sensitivity tests, not observed outcomes or probabilities.",
+        "source": "",
+        "geography": "India; INR scenario",
+        "strength": "WEAK",
+        "label": "AI_ESTIMATE_UNVERIFIED",
+        "link": "",
+        "publication": ""
+      }
+    ],
+    "evidenceReview": {
+      "summary": "The supplied evidence does not establish buyer pain, paid demand, recurring usage, acquisition access or market size for Indian first-time software founders and university incubators. Competitor leads exist, but current prices and differentiation remain unresolved. Persona price sensitivity marked “medium” is an untested placeholder, not an observed finding; frequent use and cultural buying behavior are also unknown. Specialist scores are provisional interpretations, not customer validation. This review uses supplied source text only; no additional page inspection was available.",
+      "checks": [
+        {
+          "claim": "Indian first-time software founders struggle to distinguish assumptions from market evidence.",
+          "url": "https://en.wikipedia.org/?curid=6968",
+          "assessment": "inconclusive",
+          "rationale": "Only a search excerpt or dated memory was supplied. Read the original source before assessing this claim."
+        },
+        {
+          "claim": "Target founders or incubators will pay monthly for deeper research.",
+          "url": "https://ideabuddy.com/pricing",
+          "assessment": "inconclusive",
+          "rationale": "WEAK for demand: Page text retrieved 2026-11-15 includes vendor-selected testimonials and confidentiality statements, not purchases, renewal behavior or budgets among Indian first-time founders or university incubators. Experimental INR prices in the handoff are proposed tests, not observed willingness to pay."
+        },
+        {
+          "claim": "IdeaBuddy's current subscription price is established.",
+          "url": "https://ideabuddy.com/pricing",
+          "assessment": "inconclusive",
+          "rationale": "WEAK: Although retrievalKind is page and retrieval occurred on 2026-11-15, the supplied text contains no price, currency, billing interval or plan allowance. The URL alone cannot establish current pricing or India-specific terms."
+        },
+        {
+          "claim": "The empty competitor list indicates an absence of relevant alternatives.",
+          "url": "https://ideaproof.io/versus/ideaproof-vs-ideabuddy",
+          "assessment": "inconclusive",
+          "rationale": "Only a search excerpt or dated memory was supplied. Read the original source before assessing this claim."
+        },
+        {
+          "claim": "University incubators provide an accessible, concentrated acquisition channel.",
+          "url": "https://growthora.co.in/blog/atal-incubation-centres-aic",
+          "assessment": "inconclusive",
+          "rationale": "Only a search excerpt or dated memory was supplied. Read the original source before assessing this claim."
+        },
+        {
+          "claim": "Startup India initiatives establish a commercially addressable market for this workspace.",
+          "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+          "assessment": "inconclusive",
+          "rationale": "MODERATE only for the narrow contextual statement: Page text retrieved 2026-11-15 describes DPIIT initiatives and seed-funding purposes in India. Market interpretation remains WEAK: it supplies no eligible customer count, annual research spending, software procurement eligibility or demand for this product."
+        }
+      ],
+      "gaps": [
+        "Problem evidence: Interview 15 Indian first-time software founders with a build decision in the past 90 days; reconstruct workflows, documented rework, consequences and successful alternatives. The proposed sample is a test, not completed research.",
+        "Payment evidence: Record recent research purchases, INR amounts, actual payer and approval authority separately for founders and incubators; test explicit paid commitments and retain non-purchases.",
+        "Recurring demand and price sensitivity: Observe repeat research tasks and renewal decisions over multiple months. Both episodic founder use and institution-funded cohort use remain plausible; “medium” sensitivity is unsupported.",
+        "Acquisition access: Test targeted founder recruitment and outreach to qualified university program managers; record response denominators, introductions, pilot approvals and procurement barriers.",
+        "Competitor coverage: Obtain original product and pricing text establishing dated features, currencies, billing periods, allowances and export capabilities; compare against manual research and general-purpose AI in the same task.",
+        "Market sizing: Establish the eligible Indian founder and university-incubator populations, avoid overlapping users and payers, and measure annual spending before calculating TAM, SAM or SOM.",
+        "Product value and reliability: Compare pilot reports with existing workflows using measured time, decision usefulness and unsupported-claim rates; preserve unused reports and successful workarounds as disconfirming evidence.",
+        "Source limitations: Several handoffs are excerpted and many references are snippets or memory entries. Missing detail is unknown; repeated specialist assumptions and retrieved URLs are not corroboration."
+      ]
+    }
+  },
+  "rejectedLiteJudgment": {
+    "decision": "NO_GO",
+    "decisionReasons": [
+      "AI_ESTIMATE_UNVERIFIED: Total is 29/100. The supplied numeric rule would imply NO_GO; TEST_FURTHER is an explicit evidence-limited exception because missing validation does not establish fundamental failure.",
+      "ASSUMPTION: Evidence-aware reports may help founders make better build decisions, but problem frequency, consequences and dissatisfaction with alternatives remain unobserved.",
+      "AI_ESTIMATE_UNVERIFIED: Preserve the specialists' problem, customer, market and WTP scores. Paid demand, market inputs and recurring usage are not established.",
+      "PROPOSED_STRATEGY: Test a narrow founder workflow before committing to launch: source-linked evidence, explicit assumptions, a structured export and one actionable customer experiment.",
+      "AI_ESTIMATE_UNVERIFIED: Separate competitive, business-model, financial and execution specialist reviews were not supplied; these four scores are provisional synthesis judgments.",
+      "The decision was aligned with the final weighted score band."
+    ],
+    "nextStepRecommendation": "MORE_VALIDATION",
+    "nextStepRationale": "The decision was aligned with the final weighted score band.",
+    "decisionAudit": {
+      "policyVersion": "2026-11-14.1",
+      "scoreBand": "NO_GO",
+      "originalDecision": "TEST_FURTHER",
+      "finalDecision": "NO_GO",
+      "missingAgents": [],
+      "issues": [
+        "The decision was aligned with the final weighted score band."
+      ]
+    },
+    "overallScore": 29,
+    "keyEvidence": [
+      {
+        "claim": "The read ValidatorAI homepage advertises free AI tools and founder-data analysis. This establishes an adjacent offering, not Indian demand or independently confirmed usage.",
+        "source": "validatorai.com",
+        "publication": "ValidatorAI homepage",
+        "year": "Publication date not supplied",
+        "link": "https://validatorai.com/",
+        "geography": "Website; India-specific coverage not established",
+        "fetchedAt": "2026-11-15T07:18:18.390Z",
+        "strength": "MODERATE",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "Startup India describes DPIIT ecosystem initiatives and seed funding objectives covering proof of concept through commercialisation. Policy context does not establish demand or this startup's funding eligibility.",
+        "source": "www.startupindia.gov.in",
+        "publication": "About Startup India Initiative",
+        "year": "Publication date not supplied",
+        "link": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+        "geography": "India",
+        "fetchedAt": "2026-11-15T07:05:29.414Z",
+        "strength": "MODERATE",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "The supplied IdeaProof snippet advertises a €99.99 one-time package with 4,500 credits. Current terms and comparability require an original-page read; this is not evidence of customer purchases.",
+        "source": "ideaproof.io",
+        "publication": "IdeaProof website search excerpt",
+        "year": "Publication date not supplied",
+        "link": "https://ideaproof.io/",
+        "geography": "Website; India-specific sales not established",
+        "fetchedAt": "2026-11-15T07:18:04.863Z",
+        "strength": "WEAK",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      },
+      {
+        "claim": "Founders may value transparent evidence and practical experiments; alternatively, existing AI tools, search and mentors may already suffice. Neither explanation has direct customer support.",
+        "source": "",
+        "publication": "",
+        "year": "2026",
+        "link": "",
+        "geography": "India target segment",
+        "strength": "WEAK",
+        "label": "AI_ESTIMATE_UNVERIFIED"
+      }
+    ]
+  },
+  "originalFullJudgment": {
+    "decision": "TEST_FURTHER",
+    "decisionReasons": [
+      "Product-specific demand, willingness to pay and repeat use are not established in the supplied evidence. This is missing customer evidence, not evidence of customer rejection.",
+      "The financial scenario is unsustainable as modeled: customers decline from 30 in month one to 3 in month twelve, with no subsequent acquisitions and a twelve-month cumulative operating loss of INR 575,489. Positive contribution alone does not establish viability.",
+      "The value proposition, MVP and sequential experiments are omitted from the handoffs, so their alignment cannot be assessed. Any launch recommendation based only on report generation would need correction to address payment, repeat use, evidence accuracy and delivery costs.",
+      "Retrieved material provides ecosystem context and adjacent software positioning, but does not establish differentiation for Indian first-time founders or incubator purchasing demand.",
+      "Specialist sub-scores are omitted, preventing calculation of the required total or score-band verdict. TEST_FURTHER is a provisional evidence-limited judgment; the execution score is an unverified readiness estimate, not a reconstructed specialist score."
+    ],
+    "nextStepRecommendation": "MORE_VALIDATION",
+    "nextStepRationale": "Recover the omitted scores and exact product/growth plans before confirming plan alignment or the score-band decision. Preserve those plans, but correct any progression gate that omits real payment, repeat paid use, source accuracy and measured delivery costs. Test founders and incubator budget owners separately: founders may need only one report, while incubators may have different procurement requirements. Treat generic AI and adviser support as alternative explanations for low demand. Before testing, specify pass criteria for payment conversion, repeat use, evidence quality and acquisition/delivery economics. Proceed to an MVP commitment only if those criteria pass and revised economics demonstrate a credible route to covering fixed costs; otherwise revise the segment, billing model or scope.",
+    "integrityNote": "Assessment dated 2026-11-15. Retrieved page text supports only the narrow claims cited; URLs establish provenance, not independent verification. Snippets remain weak evidence, and dated memory supplies no current product-demand claim. All eight specialist roles are marked available, but their detailed findings, scores and product/growth plans are omitted; no agent failure is inferred. TAM/SAM/SOM remain Not established. Financial outputs are deterministic projections from untested assumptions, not measured economics. They assume immediate collections and exclude taxes, financing, payment delays and setup costs. No opening cash was supplied, so runway is not established. Proposed tests have not passed, and repeated assumptions are not corroboration."
+  }
+}

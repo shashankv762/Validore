@@ -208,7 +208,7 @@ describe('rewarded credits with PostgreSQL transactions', () => {
     expect(await account()).toMatchObject({ creditBalance: 0, rewardCredits: 0, purchasedCredits: 15 })
     await db.update(users).set({ rewardCredits: 20, creditResetAt: new Date(Date.now() - 1000) }).where(eq(users.id, owner))
     await topUpMonthlyCredits(owner)
-    expect(await account()).toMatchObject({ creditBalance: 100, rewardCredits: 20, purchasedCredits: 15 })
+    expect(await account()).toMatchObject({ creditBalance: 0, rewardCredits: 20, purchasedCredits: 15 })
   })
 
   it('keeps migration reruns additive and denies browser roles access to reward data', async () => {

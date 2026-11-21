@@ -3,7 +3,7 @@ import { retrieveMarketMemory, needsCurrentEvidence } from '@/lib/ai/market-memo
 import { compactEvidence } from '@/lib/ai/evidence-context'
 import { deduplicateSources, type SearchResult } from '@/lib/ai/search'
 
-const now = Date.parse('2026-10-31T12:00:00Z')
+const now = Date.parse('2026-11-01T00:00:00Z')
 afterEach(() => vi.unstubAllEnvs())
 
 describe('dated market memory', () => {
@@ -13,11 +13,13 @@ describe('dated market memory', () => {
     expect(registration.content).toContain('8.7 crore')
     expect(registration.content).toContain('June 2026')
     expect(registration.content).toContain('not a count of active paying customers')
-    expect(registration.fetchedAt).toBe('2026-10-31T00:00:00.000Z')
+    expect(registration.fetchedAt).toBe('2026-10-31T19:15:22.192Z')
     expect(registration.retrievalKind).toBe('memory')
   })
   it('excludes expired, future-dated and irrelevant-country memories', () => {
-    expect(retrieveMarketMemory('India MSME small business', { now: Date.parse('2026-12-01') }).some(item => item.title.includes('Udyam'))).toBe(false)
+    // A newly verified directory can remain available after the old numerical
+    // memory expires. Check the historical observation, not that fresh reference.
+    expect(retrieveMarketMemory('India MSME small business', { now: Date.parse('2026-12-01') }).some(item => item.content.startsWith('HISTORICAL OBSERVATION') && item.title.includes('Udyam'))).toBe(false)
     expect(retrieveMarketMemory('India MSME', { now: Date.parse('2026-01-01') })).toEqual([])
     expect(retrieveMarketMemory('US small business', { now }).some(item => item.title.includes('Udyam'))).toBe(false)
     expect(retrieveMarketMemory('US MSME business trends', { now }).some(item => item.title.includes('Udyam'))).toBe(false)

@@ -7,6 +7,7 @@ vi.mock('@/lib/auth-form', () => ({ validAuthOrigin: () => true }))
 vi.mock('@/lib/tier-gate', () => ({ canUserAccess: async () => true }))
 vi.mock('@/lib/rate-limit', () => ({ rateLimitCheck: async () => ({ success: true }) }))
 vi.mock('@/lib/canvas-store', () => ({ saveCanvasVersion: mocks.save }))
+vi.mock('@/lib/interview/context', () => ({ loadFounderContext: async () => '' }))
 import { POST } from '@/app/api/lean-canvas/manual/route'
 const ideaId = '22222222-2222-4222-8222-222222222222'
 const blocks = { problem: 'Founders lack clear evidence', customerSegments: '', uvp: '', solution: '', channels: '', revenueStreams: '', costStructure: '', keyMetrics: '', unfairAdvantage: '' }
@@ -23,11 +24,18 @@ describe('manual canvas authoring', () => {
     const response = await POST(request({ ideaId, blocks }))
     expect(response.status).toBe(200)
     expect(mocks.save).toHaveBeenCalledWith('owner', ideaId, expect.objectContaining({
-      problem: { content: blocks.problem, confidenceScore: 0, label: 'ASSUMPTION', keyAssumptions: [] },
-    }))
+      problem: expect.objectContaining({ content: blocks.problem, confidenceScore: 0, label: 'ASSUMPTION', keyAssumptions: [] }),
+    }), 0, expect.any(Function))
   })
   it('rejects an idea that is absent from the owner lookup', async () => {
     mocks.idea.mockResolvedValue(null)
+    expect((await POST(request({ ideaId, blocks }))).status).toBe(404)
+    expect(mocks.save).not.toHaveBeenCalled()
+  })
+  it('preserves a read-only or archived idea without creating a manual revision', async () => {
+    mocks.idea.mockResolvedValueOnce({ id: ideaId, isReadOnly: true })
+    expect((await POST(request({ ideaId, blocks }))).status).toBe(403)
+    mocks.idea.mockResolvedValueOnce({ id: ideaId, isActive: false })
     expect((await POST(request({ ideaId, blocks }))).status).toBe(404)
     expect(mocks.save).not.toHaveBeenCalled()
   })

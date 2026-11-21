@@ -4,6 +4,8 @@ import {
 import { sql } from 'drizzle-orm'
 import type { InterviewState } from '@/lib/interview/schema'
 import type { SearchResult } from '@/lib/ai/search'
+import type { FeedbackAnalysis } from '@/lib/customer-feedback/schema'
+import type { ValidationEntitlementSnapshot } from '@/lib/validation-entitlement'
 
 export const tierEnum = pgEnum('tier', ['free', 'premium', 'max_premium'])
 export const evidenceEnum = pgEnum('evidence_strength', ['WEAK', 'MODERATE', 'STRONGER'])
@@ -125,6 +127,7 @@ export const ideas = pgTable('ideas', {
   businessModel: text('business_model').notNull(),
   coreProblem: text('core_problem').notNull(),
   proposedSolution: text('proposed_solution').notNull(),
+  publicResearchFocus: text('public_research_focus'),
   isReadOnly: boolean('is_read_only').notNull().default(false),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow(),
@@ -145,6 +148,9 @@ export const validationJobs = pgTable('validation_jobs', {
   estimatedCostUsd: text('estimated_cost_usd'),
   errorMessage: text('error_message'),
   aiProvider: text('ai_provider'),
+  entitlementSnapshot: jsonb('entitlement_snapshot').$type<ValidationEntitlementSnapshot>(),
+  dispatchedAt: timestamp('dispatched_at', { withTimezone: true }),
+  dispatchLeaseExpiresAt: timestamp('dispatch_lease_expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow(),
 }, (table) => [
@@ -316,6 +322,8 @@ export const creditLedger = pgTable('credit_ledger', {
   createdAt: timestamp('created_at').defaultNow(),
 }, (table) => [
   index('credit_ledger_user_created_idx').on(table.userId, table.createdAt),
+  uniqueIndex('credit_ledger_signup_once_idx').on(table.userId).where(sql`${table.transactionType} = 'SIGNUP_GRANT'`),
+  uniqueIndex('credit_ledger_daily_claim_once_idx').on(table.userId, table.description).where(sql`${table.transactionType} = 'DAILY_LOGIN_CLAIM'`),
 ]).enableRLS()
 
 // Only a verified provider callback may award these sessions. Browser roles
@@ -383,4 +391,84 @@ export const researchSources = pgTable('research_sources', {
   index('research_sources_search_idx').using('gin', sql`to_tsvector('english', ${table.searchText})`),
   check('research_sources_time_order', sql`${table.expiresAt} > ${table.fetchedAt}`),
   check('research_sources_excerpt_size', sql`octet_length(${table.source}::text) <= 24000 AND octet_length(${table.searchText}) <= 16000`),
+]).enableRLS()
+
+// Owner-scoped research records. Public imports omit reviewer identities; no
+// browser Data API policies permit cross-account access to these notebooks.
+export const customerFeedback = pgTable('customer_feedback', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ideaId: uuid('idea_id').notNull().references(() => ideas.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), content: text('content').notNull(),
+  sourceLabel: text('source_label').notNull(), sourceUrl: text('source_url'),
+  occurredAt: text('occurred_at'), rating: text('rating'),
+  sentiment: text('sentiment'), provenance: text('provenance').notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }),
+  contentHash: text('content_hash').notNull(), requestId: text('request_id').notNull(),
+  noticeVersion: text('notice_version').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('customer_feedback_content_uidx').on(table.ideaId, table.userId, table.contentHash).where(sql`${table.deletedAt} IS NULL`),
+  uniqueIndex('customer_feedback_request_uidx').on(table.ideaId, table.userId, table.requestId),
+  index('customer_feedback_owner_idx').on(table.userId, table.ideaId, table.createdAt),
+  check('customer_feedback_kind_check', sql`${table.kind} in ('review', 'interview', 'support', 'survey', 'problem', 'idea')`),
+  check('customer_feedback_sentiment_check', sql`${table.sentiment} is null or ${table.sentiment} in ('positive', 'negative', 'mixed', 'neutral', 'unknown')`),
+  check('customer_feedback_provenance_check', sql`${table.provenance} in ('owner_recorded', 'public_review_markup', 'public_review_feed')`),
+  check('customer_feedback_content_size', sql`octet_length(${table.content}) <= 16000 and char_length(${table.content}) between 3 and 3000`),
+]).enableRLS()
+
+export const customerFeedbackAnalyses = pgTable('customer_feedback_analyses', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ideaId: uuid('idea_id').notNull().references(() => ideas.id, { onDelete: 'cascade' }),
+  sourceDigest: text('source_digest').notNull(), methodVersion: text('method_version').notNull(),
+  ideaFingerprint: text('idea_fingerprint').notNull().default(''),
+  analysis: jsonb('analysis').$type<FeedbackAnalysis>().notNull(),
+  analyzedRecords: integer('analyzed_records').notNull(), totalRecords: integer('total_records').notNull(),
+  provider: text('provider').notNull(), tokensUsed: integer('tokens_used').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('customer_feedback_analysis_snapshot_uidx').on(table.userId, table.ideaId, table.sourceDigest, table.methodVersion, table.ideaFingerprint),
+  index('customer_feedback_analysis_owner_idx').on(table.userId, table.ideaId, table.createdAt),
+  check('customer_feedback_analysis_count_check', sql`${table.analyzedRecords} > 0 and ${table.analyzedRecords} <= 40 and ${table.totalRecords} >= ${table.analyzedRecords}`),
+  check('customer_feedback_analysis_size', sql`octet_length(${table.analysis}::text) <= 96000`),
+]).enableRLS()
+
+// Private retry identity. Completed keys remain bound to their saved result;
+// expired leases may be reclaimed, with a new token fencing the old worker.
+export const planningModuleRequests = pgTable('planning_module_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  ideaId: uuid('idea_id').notNull().references(() => ideas.id, { onDelete: 'cascade' }),
+  requestKey: uuid('request_key').notNull(), module: text('module').notNull(),
+  payloadHash: text('payload_hash').notNull(), ideaFingerprint: text('idea_fingerprint').notNull(),
+  status: text('status').notNull(), leaseToken: uuid('lease_token').notNull(),
+  leaseExpiresAt: timestamp('lease_expires_at', { withTimezone: true }).notNull(),
+  resultId: uuid('result_id'),
+  stageData: jsonb('stage_data'),
+  contextSnapshot: jsonb('context_snapshot'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  uniqueIndex('planning_module_requests_key_uidx').on(table.userId, table.requestKey),
+  index('planning_module_requests_pending_idx').on(table.status, table.leaseExpiresAt),
+  check('planning_module_requests_module_check', sql`${table.module} in ('lean-canvas', 'pitch-deck', 'crowdfunding', 'pricing')`),
+  check('planning_module_requests_status_check', sql`${table.status} in ('pending', 'completed', 'failed')`),
+  check('planning_module_requests_result_check', sql`(${table.status} = 'completed' and ${table.resultId} is not null) or (${table.status} <> 'completed' and ${table.resultId} is null)`),
+  check('planning_module_requests_stage_size', sql`${table.stageData} is null or octet_length(${table.stageData}::text) <= 512000`),
+  check('planning_module_requests_context_size', sql`${table.contextSnapshot} is null or octet_length(${table.contextSnapshot}::text) <= 256000`),
+]).enableRLS()
+
+// Short-lived admission leases let expensive routes outside the validation
+// runner share the same cross-instance AI capacity gate.
+export const aiExecutionLeases = pgTable('ai_execution_leases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  leaseKind: text('lease_kind').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, table => [
+  index('ai_execution_leases_expiry_idx').on(table.expiresAt),
+  check('ai_execution_leases_kind_check', sql`${table.leaseKind} in ('customer-feedback-analysis')`),
 ]).enableRLS()

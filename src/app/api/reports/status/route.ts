@@ -5,6 +5,7 @@ import { validationReports, validationJobs, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { z } from 'zod'
 import { isStaleValidationJob, reapStaleValidationJobs } from '@/lib/validation/jobs'
+import { dispatchValidationJob } from '@/lib/validation/dispatch'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       await reapStaleValidationJobs(job.id)
       job = (await db.query.validationJobs.findFirst({ where: and(eq(validationJobs.id, job.id), eq(validationJobs.userId, dbUser.id)) })) ?? job
     }
+    if (job.status === 'pending') await dispatchValidationJob(job.id)
 
     // When the job is done, include the reportId so the client can redirect.
     let reportId: string | null = null

@@ -4,6 +4,7 @@ import type { LanguageModelV4GenerateResult } from '@ai-sdk/provider'
 import type { RunValidationStep } from '@/lib/validation/steps'
 import { FullReportSchema } from '@/lib/validation/schemas'
 import { PIPELINE_IDEA, PIPELINE_REPLIES, PIPELINE_LITE_REPLY, PRIVATE_ANSWER, PRIVATE_DERIVED } from './fixtures/agent-payloads'
+import seedData from '@/data/market/seed-sources.json'
 
 const mocks = vi.hoisted(() => ({ create: vi.fn(), candidates: vi.fn(), read: vi.fn(), failed: vi.fn() }))
 // Only external boundaries are replaced. Coordinator, agents, generateText,
@@ -18,6 +19,10 @@ vi.mock('@/db', () => ({ db: {} }))
 const models = new Map<string, MockLanguageModelV4>()
 const sharedQuery = 'independent shop inventory research benchmark'
 const privateContext = JSON.stringify({ answers: [{ answer: PRIVATE_ANSWER, evidence: 'assumption' }] })
+// Refreshing the real local snapshot must not turn an integration fixture's
+// frozen clock into a time before that snapshot was retrieved.
+const populationSeed = seedData.find(source => source.country === 'IN' && source.indicator === 'SP.POP.TOTL')!
+const snapshotTime = Math.max(Date.parse('2026-11-15T00:00:00Z'), ...seedData.map(source => Date.parse(source.fetchedAt))) + 1000
 let lite = false
 let malformedRole = ''
 const reply = (content: LanguageModelV4GenerateResult['content'], tools = false): LanguageModelV4GenerateResult => ({
@@ -36,7 +41,7 @@ const requests = () => [...models.values()].flatMap(model => model.doGenerateCal
 
 beforeEach(() => {
   vi.resetModules(); vi.clearAllMocks(); models.clear(); lite = false; malformedRole = ''
-  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-01T00:00:00Z'))
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(snapshotTime))
   for (const name of ['DATABASE_URL', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN', 'TAVILY_API_KEY', 'SERPER_API_KEY', 'SERPAPI_API_KEY', 'SEARXNG_BASE_URL']) vi.stubEnv(name, '')
   vi.stubEnv('AI_FREE_ONLY', 'true'); vi.stubEnv('MARKET_MEMORY_ENABLED', 'true'); vi.stubEnv('RESEARCH_STORE_ENABLED', 'true')
   vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('External network traffic is forbidden in this synthetic check') }))
@@ -109,7 +114,7 @@ describe('real SDK and research pipeline with synthetic external services', () =
     expect(first!.report.computedUnitEconomics.contributionMargin).toBe(40)
     expect(first!.report.financialProjection).toHaveLength(12)
     expect(first!.report.tamSamSom.tam.value).toBe('Not established')
-    expect(first!.report.researchSources).toContainEqual(expect.objectContaining({ country: 'IN', indicator: 'SP.POP.TOTL', observationYear: 2025 }))
+    expect(first!.report.researchSources).toContainEqual(expect.objectContaining({ country: 'IN', indicator: 'SP.POP.TOTL', observationYear: populationSeed.observationYear, value: populationSeed.value }))
     expect(first!.agentTrail.tools).toContainEqual(expect.objectContaining({ tool: 'read_market_indicator', status: 'complete' }))
     expect(requests()).toHaveLength(19)
     expect(first!.report.tokensUsed).toBe(1900)

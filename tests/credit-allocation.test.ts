@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { allocateCredits, affordableValidations, canFundExtraLite, totalCredits } from '@/lib/credit-allocation'
 import { actionAllowance, creditEntryDescription, creditOverview } from '@/lib/account-usage'
 
-const user = { tier: 'free', creditBalance: 100, purchasedCredits: 1000, rewardCredits: 50, validationsThisMonth: 0 }
+const user = { tier: 'free', creditCycleAllowance: 100, creditBalance: 100, purchasedCredits: 1000, rewardCredits: 50, validationsThisMonth: 0 }
 
 describe('earned credits and spending order', () => {
   it('uses plan credits before rewards, and rewards before paid credits', () => {

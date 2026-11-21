@@ -1,4 +1,5 @@
 import React from 'react'
+import { hasReportContent } from '@/lib/planning/report-content'
 
 const Badge = ({ label }: { label: string }) => {
   let color = 'bg-gray-100 text-gray-800 border-gray-200'
@@ -15,32 +16,32 @@ const Badge = ({ label }: { label: string }) => {
   )
 }
 
-const Section = ({ title, badge, children }: { title: string, badge?: string, children: React.ReactNode }) => (
+const Section = ({ title, badge, children, evidence }: { title: string, badge?: string, children: React.ReactNode; evidence: unknown }) => hasReportContent(evidence) ? (
   <div className="mb-6 card-angular p-6 bg-white border border-[#E5E7EB]">
     <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#E5E7EB]">
-      <h3 className="text-sm font-bold text-[#141923] ">{title}</h3>
+      <h3 className="text-sm font-bold text-[#141923] ">{title.replace(/^\d+\.\s*/, '')}</h3>
       {badge && <Badge label={badge} />}
     </div>
     <div className="text-sm text-[#364152] leading-relaxed space-y-4">
       {children}
     </div>
   </div>
-)
+): null
 
-export function CrowdfundingReport({ data }: { data: any }) {
+export function CrowdfundingReport({ data, currency = 'USD' }: { data: any; currency?: string }) {
   if (!data) return null;
 
   return (
     <div className="space-y-8 mt-8">
       <h2 className="text-xl font-light text-[#141923] border-b border-[#E5E7EB] pb-2">Deep Campaign Analysis</h2>
       
-      <Section title="1. Founder Assumptions" badge="ASSUMPTION">
+      <Section title="1. Founder Assumptions" badge="ASSUMPTION" evidence={data.founderAssumptions}>
         <ul className="list-disc pl-5 space-y-1">
           {(data.founderAssumptions || []).map((a: string, i: number) => <li key={i}>{a}</li>)}
         </ul>
       </Section>
       
-      <Section title="2. Funding Probability Bands" badge="PROJECTION">
+      <Section title="2. Funding Probability Bands" badge="PROJECTION" evidence={data.fundingBands}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(data.fundingBands || []).map((b: any, i: number) => (
             <div key={i} className="p-3 bg-[#FFFFFF] border border-[#E5E7EB]">
@@ -53,7 +54,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="3. Goal Multiple Analysis" badge="SYNTHETIC DATA">
+      <Section title="3. Goal Multiple Analysis" badge="SYNTHETIC DATA" evidence={data.goalBands}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
@@ -76,19 +77,19 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="4. Backer Segments" badge="ASSUMPTION">
+      <Section title="4. Backer Segments" badge="ASSUMPTION" evidence={data.backerSegments}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(data.backerSegments || []).map((b: any, i: number) => (
             <div key={i} className="p-3 bg-white border border-[#E5E7EB] shadow-sm">
               <div className="font-bold text-[#89620B]">{b.segment} ({b.percentage}%)</div>
-              <div className="text-xs mt-1">Avg Pledge: ${b.avgPledge}</div>
+              <div className="text-xs mt-1">Avg Pledge: {currency} {b.avgPledge}</div>
               <div className="text-xs mt-2 italic text-stone-600">{b.motivation}</div>
             </div>
           ))}
         </div>
       </Section>
       
-      <Section title="5. Reward Economics" badge="PROJECTION">
+      <Section title="5. Reward Economics" badge="PROJECTION" evidence={data.rewardEconomics}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>
@@ -104,8 +105,8 @@ export function CrowdfundingReport({ data }: { data: any }) {
               {(data.rewardEconomics || []).map((r: any, i: number) => (
                 <tr key={i} className="border-b">
                   <td className="py-2 px-2 font-bold">{r.tier}</td>
-                  <td className="py-2 px-2">${r.cost}</td>
-                  <td className="py-2 px-2">${r.revenue}</td>
+                  <td className="py-2 px-2">{currency} {r.cost}</td>
+                  <td className="py-2 px-2">{currency} {r.revenue}</td>
                   <td className="py-2 px-2">{r.roi}%</td>
                   <td className="py-2 px-2 text-stone-600">{r.recommendation}</td>
                 </tr>
@@ -115,7 +116,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="6. Campaign Duration Analysis" badge="SYNTHETIC DATA">
+      <Section title="6. Campaign Duration Analysis" badge="SYNTHETIC DATA" evidence={data.campaignDurationAnalysis}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {(data.campaignDurationAnalysis || []).map((c: any, i: number) => (
             <div key={i} className="p-3 bg-[#FFFFFF] border border-[#E5E7EB]">
@@ -127,15 +128,15 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="7. Category Benchmark" badge="SYNTHETIC DATA">
+      <Section title="7. Category Benchmark" badge="SYNTHETIC DATA" evidence={data.categoryBenchmark}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="p-3 bg-white border border-[#E5E7EB]">
             <div className="text-xs text-stone-500">Median Goal</div>
-            <div className="tabular-nums text-lg text-[#89620B]">${data.categoryBenchmark?.medianGoal}</div>
+            <div className="tabular-nums text-lg text-[#89620B]">{currency} {data.categoryBenchmark?.medianGoal}</div>
           </div>
           <div className="p-3 bg-white border border-[#E5E7EB]">
             <div className="text-xs text-stone-500">Median Funded</div>
-            <div className="tabular-nums text-lg text-[#89620B]">${data.categoryBenchmark?.medianFunded}</div>
+            <div className="tabular-nums text-lg text-[#89620B]">{currency} {data.categoryBenchmark?.medianFunded}</div>
           </div>
           <div className="p-3 bg-white border border-[#E5E7EB]">
             <div className="text-xs text-stone-500">Median Backers</div>
@@ -148,7 +149,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="8. Campaign Page Scorecard" badge="AI_ESTIMATE_UNVERIFIED">
+      <Section title="8. Campaign Page Scorecard" badge="AI_ESTIMATE_UNVERIFIED" evidence={data.campaignPageScorecard}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {Object.entries(data.campaignPageScorecard || {}).map(([k, v]) => (
             k !== 'totalScore' && (
@@ -164,7 +165,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="9. Campaign Story Scorecard" badge="AI_ESTIMATE_UNVERIFIED">
+      <Section title="9. Campaign Story Scorecard" badge="AI_ESTIMATE_UNVERIFIED" evidence={data.campaignStoryScorecard}>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {Object.entries(data.campaignStoryScorecard || {}).map(([k, v]) => (
             k !== 'totalScore' && (
@@ -180,7 +181,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="10. Early Momentum Analysis" badge="PROJECTION">
+      <Section title="10. Early Momentum Analysis" badge="PROJECTION" evidence={data.earlyMomentumAnalysis}>
         <div className="p-4 bg-[#FFFFFF] border border-[#E5E7EB] mb-4">
           <div className="font-bold text-[#141923] mb-2">Momentum Strategy</div>
           <ul className="list-disc pl-5 text-sm">
@@ -193,7 +194,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="11. Marketing Funnel" badge="ASSUMPTION">
+      <Section title="11. Marketing Funnel" badge="ASSUMPTION" evidence={data.marketingFunnel}>
         <div className="space-y-4">
           <div className="p-3 bg-white border border-[#E5E7EB]">
             <div className="font-bold text-[#89620B]">Awareness (Est Reach: {data.marketingFunnel?.awareness?.estimatedReach})</div>
@@ -211,7 +212,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="12. Social Proof Analysis" badge="AI_ESTIMATE_UNVERIFIED">
+      <Section title="12. Social Proof Analysis" badge="AI_ESTIMATE_UNVERIFIED" evidence={data.socialProofAnalysis}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-3 bg-white border border-[#E5E7EB]">
             <div className="font-bold text-emerald-700">Strengths</div>
@@ -234,7 +235,7 @@ export function CrowdfundingReport({ data }: { data: any }) {
         </div>
       </Section>
       
-      <Section title="13. Pre-Launch Checklist" badge="PROPOSED_STRATEGY">
+      <Section title="13. Pre-Launch Checklist" badge="PROPOSED_STRATEGY" evidence={data.preLaunchChecklist}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
             <thead>

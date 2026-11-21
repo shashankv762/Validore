@@ -1,0 +1,4061 @@
+{
+  "manifest": {
+    "version": 1,
+    "id": "bb498892ff9ab2a1b838290fade4e985da268c192cf596623e6fa716a5861b0d",
+    "createdAt": "2026-11-20T03:06:09.465Z",
+    "checksums": {
+      "observations": "0d3a5f9d26dbeb8126cfd8edd40d6619dfeade587103a00719a84db9adaebed7",
+      "trends": "a0d7154e3275a01ad0fbb95bd8e45514f65c70fca4a480d53a82237c64d178c8",
+      "metadata": "d9fc16f3526f42f6c446c90f0be7ed21665d3d415cc716742e77aade4cac2651",
+      "catalog": "61f97790b9930362b65fbdcc4440c28c616c43193acf43ed90ab0be165c13dcb"
+    },
+    "counts": {
+      "observations": 48,
+      "trends": 48,
+      "trendValues": 379,
+      "metadata": 8,
+      "catalog": 10
+    },
+    "observationYears": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "retrievedFrom": "2026-11-20T03:05:44.980Z",
+    "retrievedThrough": "2026-11-20T03:06:04.170Z"
+  },
+  "observations": [
+    {
+      "title": "India: Inflation, consumer prices (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/FP.CPI.TOTL.ZG?format=json&date=2025&per_page=100",
+      "content": "India — Inflation, consumer prices (annual %): 2.39884954182294 annual % change in consumer prices. Observation year: 2025. Previous year (2024): 4.9530355097366 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.422Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.422Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.422Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 2.39884954182294,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.9530355097366,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: Individuals using the Internet (% of population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/IT.NET.USER.ZS?format=json&date=2025&per_page=100",
+      "content": "India — Individuals using the Internet (% of population): 70 % of population. Observation year: 2025. Previous year (2024): 64.9434967 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.925Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.925Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.925Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 70,
+      "unit": "% of population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 64.9434967,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "India — GDP (current US$): 3956067115771.63 current US dollars. Observation year: 2025. Previous year (2024): 3760813470500.86 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:44.980Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:44.980Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:44.980Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 3956067115771.63,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 3760813470500.86,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "India — GDP growth (annual %): 7.56666179284244 annual % change in real GDP. Observation year: 2025. Previous year (2024): 7.09927893176518 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:00.352Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:00.352Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:00.352Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 7.56666179284244,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 7.09927893176518,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "India — GDP per capita (current US$): 2702.47987141553 current US dollars per person. Observation year: 2025. Previous year (2024): 2591.9916607122 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.211Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.211Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.211Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 2702.47987141553,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2591.9916607122,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "India — Unemployment, total (% of total labor force) (modeled ILO estimate): 4.219 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 4.173 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.380Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.380Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.380Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 4.219,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.173,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "India — Population, total: 1463865525 people. Observation year: 2025. Previous year (2024): 1450935791 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:45.239Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:45.239Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:45.239Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SP.POP.TOTL",
+      "value": 1463865525,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 1450935791,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "India: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/IN/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "India — Urban population (% of total population): 35.689155772396 % of total population. Observation year: 2025. Previous year (2024): 35.3788972368389 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.190Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.190Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.190Z",
+      "datasetId": "world-bank-wdi",
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 35.689155772396,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 35.3788972368389,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/IN/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: Inflation, consumer prices (annual %) (2024)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/FP.CPI.TOTL.ZG?format=json&date=2024&per_page=100",
+      "content": "United States — Inflation, consumer prices (annual %): 2.94952520485207 annual % change in consumer prices. Observation year: 2024. Previous year (2023): 4.11633838374487 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.228Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.228Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2024",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.228Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 2.94952520485207,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2024,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2023,
+        "value": 4.11633838374487,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/all/indicator/FP.CPI.TOTL.ZG?format=json&date=2018:2025&per_page=20000",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: Individuals using the Internet (% of population) (2024)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/IT.NET.USER.ZS?format=json&date=2024&per_page=100",
+      "content": "United States — Individuals using the Internet (% of population): 94.69380188 % of population. Observation year: 2024. Previous year (2023): 93.52559662 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.986Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.986Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2024",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.986Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 94.69380188,
+      "unit": "% of population",
+      "observationYear": 2024,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2023,
+        "value": 93.52559662,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "United States — GDP (current US$): 30769700000000 current US dollars. Observation year: 2025. Previous year (2024): 29298013000000 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:45.060Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:45.060Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:45.060Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 30769700000000,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 29298013000000,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "United States — GDP growth (annual %): 2.16138195623856 annual % change in real GDP. Observation year: 2025. Previous year (2024): 2.79318715363841 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:00.424Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:00.424Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:00.424Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 2.16138195623856,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2.79318715363841,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "United States — GDP per capita (current US$): 90026.5163005744 current US dollars per person. Observation year: 2025. Previous year (2024): 86169.6641581917 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.290Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.290Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.290Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 90026.5163005744,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 86169.6641581917,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "United States — Unemployment, total (% of total labor force) (modeled ILO estimate): 4.198 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 4.022 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.634Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.634Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.634Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 4.198,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.022,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "United States — Population, total: 341784857 people. Observation year: 2025. Previous year (2024): 340003797 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:45.299Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:45.299Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:45.299Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SP.POP.TOTL",
+      "value": 341784857,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 340003797,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United States: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/US/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "United States — Urban population (% of total population): 80.1921733027869 % of total population. Observation year: 2025. Previous year (2024): 80.1247798047184 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.260Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.260Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.260Z",
+      "datasetId": "world-bank-wdi",
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 80.1921733027869,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 80.1247798047184,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/US/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: Inflation, consumer prices (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/FP.CPI.TOTL.ZG?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — Inflation, consumer prices (annual %): 3.88306881625999 annual % change in consumer prices. Observation year: 2025. Previous year (2024): 3.2715729463592 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.591Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.591Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.591Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 3.88306881625999,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 3.2715729463592,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: Individuals using the Internet (% of population) (2024)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/IT.NET.USER.ZS?format=json&date=2024&per_page=100",
+      "content": "United Kingdom — Individuals using the Internet (% of population): 95.4720993 % of population. Observation year: 2024. Previous year (2023): 95.44719696 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.064Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.064Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2024",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.064Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 95.4720993,
+      "unit": "% of population",
+      "observationYear": 2024,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2023,
+        "value": 95.44719696,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — GDP (current US$): 4002587541846.01 current US dollars. Observation year: 2025. Previous year (2024): 3695539513534.15 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:45.126Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:45.126Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:45.126Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 4002587541846.01,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 3695539513534.15,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — GDP growth (annual %): 1.38844207858726 annual % change in real GDP. Observation year: 2025. Previous year (2024): 1.08027716858781 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:03.009Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:03.009Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:03.009Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 1.38844207858726,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 1.08027716858781,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — GDP per capita (current US$): 57601.9621201954 current US dollars per person. Observation year: 2025. Previous year (2024): 53341.3131094262 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.548Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.548Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.548Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 57601.9621201954,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 53341.3131094262,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — Unemployment, total (% of total labor force) (modeled ILO estimate): 4.746 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 4.361 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.724Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.724Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.724Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 4.746,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.361,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — Population, total: 69487000 people. Observation year: 2025. Previous year (2024): 69281000 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.621Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.621Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.621Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SP.POP.TOTL",
+      "value": 69487000,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 69281000,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "United Kingdom: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/GB/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "United Kingdom — Urban population (% of total population): 83.323608078271 % of total population. Observation year: 2025. Previous year (2024): 83.2429544416085 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.664Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.664Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.664Z",
+      "datasetId": "world-bank-wdi",
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 83.323608078271,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 83.2429544416085,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/GB/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: Inflation, consumer prices (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/FP.CPI.TOTL.ZG?format=json&date=2025&per_page=100",
+      "content": "Singapore — Inflation, consumer prices (annual %): 0.902998495002676 annual % change in consumer prices. Observation year: 2025. Previous year (2024): 2.38951123595017 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.703Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.703Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.703Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 0.902998495002676,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2.38951123595017,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: Individuals using the Internet (% of population) (2024)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/IT.NET.USER.ZS?format=json&date=2024&per_page=100",
+      "content": "Singapore — Individuals using the Internet (% of population): 94.37757178 % of population. Observation year: 2024. Previous year (2023): 94.28518987 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:57.864Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:57.864Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2024",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:57.864Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 94.37757178,
+      "unit": "% of population",
+      "observationYear": 2024,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2023,
+        "value": 94.28518987,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "Singapore — GDP (current US$): 603869516998.738 current US dollars. Observation year: 2025. Previous year (2024): 572877260178.427 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.390Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.390Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.390Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 603869516998.738,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 572877260178.427,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "Singapore — GDP growth (annual %): 5.02588199508003 annual % change in real GDP. Observation year: 2025. Previous year (2024): 5.3435120192366 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:03.088Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:03.088Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:03.088Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 5.02588199508003,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 5.3435120192366,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "Singapore — GDP per capita (current US$): 98813.9788172877 current US dollars per person. Observation year: 2025. Previous year (2024): 94896.5621495988 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.696Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.696Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.696Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 98813.9788172877,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 94896.5621495988,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "Singapore — Unemployment, total (% of total labor force) (modeled ILO estimate): 2.818 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 2.737 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.790Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.790Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.790Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 2.818,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2.737,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "Singapore — Population, total: 6111175 people. Observation year: 2025. Previous year (2024): 6036860 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.689Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.689Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.689Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SP.POP.TOTL",
+      "value": 6111175,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 6036860,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Singapore: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/SG/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "Singapore — Urban population (% of total population): 100 % of total population. Observation year: 2025. Previous year (2024): 100 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.748Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.748Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.748Z",
+      "datasetId": "world-bank-wdi",
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 100,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 100,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/SG/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: Inflation, consumer prices (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/FP.CPI.TOTL.ZG?format=json&date=2025&per_page=100",
+      "content": "Brazil — Inflation, consumer prices (annual %): 5.01675279604836 annual % change in consumer prices. Observation year: 2025. Previous year (2024): 4.36746407652336 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.782Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.782Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.782Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 5.01675279604836,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.36746407652336,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: Individuals using the Internet (% of population) (2024)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/IT.NET.USER.ZS?format=json&date=2024&per_page=100",
+      "content": "Brazil — Individuals using the Internet (% of population): 84.46347227 % of population. Observation year: 2024. Previous year (2023): 84.15060238 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:57.918Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:57.918Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2024",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:57.918Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 84.46347227,
+      "unit": "% of population",
+      "observationYear": 2024,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2023,
+        "value": 84.15060238,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "Brazil — GDP (current US$): 2279920092492.13 current US dollars. Observation year: 2025. Previous year (2024): 2185821610689.31 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.460Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.460Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.460Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 2279920092492.13,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2185821610689.31,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "Brazil — GDP growth (annual %): 2.2857464902475 annual % change in real GDP. Observation year: 2025. Previous year (2024): 3.41931516501906 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:03.142Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:03.142Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:03.142Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 2.2857464902475,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 3.41931516501906,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "Brazil — GDP per capita (current US$): 10713.2856869511 current US dollars per person. Observation year: 2025. Previous year (2024): 10310.5486973693 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:58.774Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:58.774Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:58.774Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 10713.2856869511,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 10310.5486973693,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "Brazil — Unemployment, total (% of total labor force) (modeled ILO estimate): 5.97 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 6.801 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.856Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.856Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.856Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 5.97,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 6.801,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "Brazil — Population, total: 212812405 people. Observation year: 2025. Previous year (2024): 211998573 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.742Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.742Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.742Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SP.POP.TOTL",
+      "value": 212812405,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 211998573,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "Brazil: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/BR/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "Brazil — Urban population (% of total population): 88.1772996487898 % of total population. Observation year: 2025. Previous year (2024): 87.8958549533146 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:03.900Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:03.900Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:03.900Z",
+      "datasetId": "world-bank-wdi",
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 88.1772996487898,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 87.8958549533146,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/BR/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: Inflation, consumer prices (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/FP.CPI.TOTL.ZG?format=json&date=2025&per_page=100",
+      "content": "World — Inflation, consumer prices (annual %): 3.04141321556539 annual % change in consumer prices. Observation year: 2025. Previous year (2024): 3.01447576977999 annual % change in consumer prices. Source: World Bank World Development Indicators, indicator FP.CPI.TOTL.ZG; upstream: International Financial Statistics database, International Monetary Fund (IMF). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.143Z. Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.143Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.143Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "value": 3.04141321556539,
+      "unit": "annual % change in consumer prices",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 3.01447576977999,
+        "unit": "annual % change in consumer prices"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: Individuals using the Internet (% of population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/IT.NET.USER.ZS?format=json&date=2025&per_page=100",
+      "content": "World — Individuals using the Internet (% of population): 73.6 % of population. Observation year: 2025. Previous year (2024): 71.2 % of population. Source: World Bank World Development Indicators, indicator IT.NET.USER.ZS; upstream: World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:57.984Z. Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:57.984Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:57.984Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "IT.NET.USER.ZS",
+      "value": 73.6,
+      "unit": "% of population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 71.2,
+        "unit": "% of population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: GDP (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.CD?format=json&date=2025&per_page=100",
+      "content": "World — GDP (current US$): 118350166039396 current US dollars. Observation year: 2025. Previous year (2024): 111669432109121 current US dollars. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:54.526Z. Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:54.526Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:54.526Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.MKTP.CD",
+      "value": 118350166039396,
+      "unit": "current US dollars",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 111669432109121,
+        "unit": "current US dollars"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: GDP growth (annual %) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2025&per_page=100",
+      "content": "World — GDP growth (annual %): 2.92127318539153 annual % change in real GDP. Observation year: 2025. Previous year (2024): 2.90001340156711 annual % change in real GDP. Source: World Bank World Development Indicators, indicator NY.GDP.MKTP.KD.ZG; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:03.202Z. Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:03.202Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:03.202Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "value": 2.92127318539153,
+      "unit": "annual % change in real GDP",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 2.90001340156711,
+        "unit": "annual % change in real GDP"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: GDP per capita (current US$) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.PCAP.CD?format=json&date=2025&per_page=100",
+      "content": "World — GDP per capita (current US$): 14405.8484595528 current US dollars per person. Observation year: 2025. Previous year (2024): 13717.0909956338 current US dollars per person. Source: World Bank World Development Indicators, indicator NY.GDP.PCAP.CD; upstream: Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB). WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:59.050Z. GDP per capita is output per person, not median income, household income, or willingness to pay. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:59.050Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:59.050Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.PCAP.CD",
+      "value": 14405.8484595528,
+      "unit": "current US dollars per person",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 13717.0909956338,
+        "unit": "current US dollars per person"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: Unemployment, total (% of total labor force) (modeled ILO estimate) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/SL.UEM.TOTL.ZS?format=json&date=2025&per_page=100",
+      "content": "World — Unemployment, total (% of total labor force) (modeled ILO estimate): 4.7913330740211 % of total labor force (modeled ILO estimate). Observation year: 2025. Previous year (2024): 4.80627976615483 % of total labor force (modeled ILO estimate). Source: World Bank World Development Indicators, indicator SL.UEM.TOTL.ZS; upstream: ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:01.934Z. This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:01.934Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:01.934Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "value": 4.7913330740211,
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 4.80627976615483,
+        "unit": "% of total labor force (modeled ILO estimate)"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: Population, total (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/SP.POP.TOTL?format=json&date=2025&per_page=100",
+      "content": "World — Population, total: 8215424893 people. Observation year: 2025. Previous year (2024): 8140897523 people. Source: World Bank World Development Indicators, indicator SP.POP.TOTL; upstream: World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, pub. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:05:53.802Z. Total population is contextual scale, not a count of customers or addressable buyers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:05:53.802Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:05:53.802Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SP.POP.TOTL",
+      "value": 8215424893,
+      "unit": "people",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 8140897523,
+        "unit": "people"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "title": "World: Urban population (% of total population) (2025)",
+      "url": "https://api.worldbank.org/v2/country/WLD/indicator/SP.URB.TOTL.IN.ZS?format=json&date=2025&per_page=100",
+      "content": "World — Urban population (% of total population): 57.8251158115221 % of total population. Observation year: 2025. Previous year (2024): 57.565600293551 % of total population. Source: World Bank World Development Indicators, indicator SP.URB.TOTL.IN.ZS; upstream: World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division. WDI revision date: 2026-11-11; fetched: 2026-11-20T03:06:04.170Z. Urban definitions vary across countries. Urban share is not a count of reachable or paying customers. Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.",
+      "source": "api.worldbank.org",
+      "fetchedAt": "2026-11-20T03:06:04.170Z",
+      "retrievalKind": "open-data",
+      "dataPeriod": "2025",
+      "publishedAt": null,
+      "expiresAt": "2026-12-20T03:06:04.170Z",
+      "datasetId": "world-bank-wdi",
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "value": 57.8251158115221,
+      "unit": "% of total population",
+      "observationYear": 2025,
+      "metadataUpdatedAt": "2026-11-11",
+      "observationStatus": null,
+      "previousObservation": {
+        "year": 2024,
+        "value": 57.565600293551,
+        "unit": "% of total population"
+      },
+      "queryUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    }
+  ],
+  "trends": [
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.93882646691642
+        },
+        {
+          "year": 2019,
+          "value": 3.72950573539123
+        },
+        {
+          "year": 2020,
+          "value": 6.62343677628529
+        },
+        {
+          "year": 2021,
+          "value": 5.13140747176363
+        },
+        {
+          "year": 2022,
+          "value": 6.69903414079857
+        },
+        {
+          "year": 2023,
+          "value": 5.64914318907925
+        },
+        {
+          "year": 2024,
+          "value": 4.9530355097366
+        },
+        {
+          "year": 2025,
+          "value": 2.39884954182294
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.422Z",
+      "expiresAt": "2026-12-20T03:05:58.422Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 20.0813000379384
+        },
+        {
+          "year": 2019,
+          "value": 29.52350044
+        },
+        {
+          "year": 2020,
+          "value": 43.40544313
+        },
+        {
+          "year": 2021,
+          "value": 49.2580986
+        },
+        {
+          "year": 2022,
+          "value": 55.9
+        },
+        {
+          "year": 2023,
+          "value": 60.25230026
+        },
+        {
+          "year": 2024,
+          "value": 64.9434967
+        },
+        {
+          "year": 2025,
+          "value": 70
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.925Z",
+      "expiresAt": "2026-12-20T03:05:53.925Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2702929641648.74
+        },
+        {
+          "year": 2019,
+          "value": 2835606256558.19
+        },
+        {
+          "year": 2020,
+          "value": 2674851578587.27
+        },
+        {
+          "year": 2021,
+          "value": 3167270623260.47
+        },
+        {
+          "year": 2022,
+          "value": 3249938492013.47
+        },
+        {
+          "year": 2023,
+          "value": 3500906030644.76
+        },
+        {
+          "year": 2024,
+          "value": 3760813470500.86
+        },
+        {
+          "year": 2025,
+          "value": 3956067115771.63
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:44.980Z",
+      "expiresAt": "2026-12-20T03:05:44.980Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 6.45385134495295
+        },
+        {
+          "year": 2019,
+          "value": 3.87143694070524
+        },
+        {
+          "year": 2020,
+          "value": -5.77772470687303
+        },
+        {
+          "year": 2021,
+          "value": 9.68959249191741
+        },
+        {
+          "year": 2022,
+          "value": 7.6093649776932
+        },
+        {
+          "year": 2023,
+          "value": 7.210224629335
+        },
+        {
+          "year": 2024,
+          "value": 7.09927893176518
+        },
+        {
+          "year": 2025,
+          "value": 7.56666179284244
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:00.352Z",
+      "expiresAt": "2026-12-20T03:06:00.352Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 1966.25455171679
+        },
+        {
+          "year": 2019,
+          "value": 2041.42863698585
+        },
+        {
+          "year": 2020,
+          "value": 1907.04251637669
+        },
+        {
+          "year": 2021,
+          "value": 2239.61384367482
+        },
+        {
+          "year": 2022,
+          "value": 2279.98145719369
+        },
+        {
+          "year": 2023,
+          "value": 2434.44826340989
+        },
+        {
+          "year": 2024,
+          "value": 2591.9916607122
+        },
+        {
+          "year": 2025,
+          "value": 2702.47987141553
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.211Z",
+      "expiresAt": "2026-12-20T03:05:54.211Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 7.652
+        },
+        {
+          "year": 2019,
+          "value": 6.51
+        },
+        {
+          "year": 2020,
+          "value": 7.859
+        },
+        {
+          "year": 2021,
+          "value": 6.38
+        },
+        {
+          "year": 2022,
+          "value": 4.822
+        },
+        {
+          "year": 2023,
+          "value": 4.172
+        },
+        {
+          "year": 2024,
+          "value": 4.173
+        },
+        {
+          "year": 2025,
+          "value": 4.219
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.380Z",
+      "expiresAt": "2026-12-20T03:05:59.380Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 1374659064
+        },
+        {
+          "year": 2019,
+          "value": 1389030312
+        },
+        {
+          "year": 2020,
+          "value": 1402617695
+        },
+        {
+          "year": 2021,
+          "value": 1414203896
+        },
+        {
+          "year": 2022,
+          "value": 1425423212
+        },
+        {
+          "year": 2023,
+          "value": 1438069596
+        },
+        {
+          "year": 2024,
+          "value": 1450935791
+        },
+        {
+          "year": 2025,
+          "value": 1463865525
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:45.239Z",
+      "expiresAt": "2026-12-20T03:05:45.239Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "IN",
+      "countryName": "India",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 33.4984353473598
+        },
+        {
+          "year": 2019,
+          "value": 33.8139578818147
+        },
+        {
+          "year": 2020,
+          "value": 34.1286726088333
+        },
+        {
+          "year": 2021,
+          "value": 34.4425517181304
+        },
+        {
+          "year": 2022,
+          "value": 34.7555673994206
+        },
+        {
+          "year": 2023,
+          "value": 35.0676918424186
+        },
+        {
+          "year": 2024,
+          "value": 35.3788972368389
+        },
+        {
+          "year": 2025,
+          "value": 35.689155772396
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.190Z",
+      "expiresAt": "2026-12-20T03:05:59.190Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/IN/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2.44258329692816
+        },
+        {
+          "year": 2019,
+          "value": 1.8122100752602
+        },
+        {
+          "year": 2020,
+          "value": 1.23358439630629
+        },
+        {
+          "year": 2021,
+          "value": 4.69785886363742
+        },
+        {
+          "year": 2022,
+          "value": 8.00279982052121
+        },
+        {
+          "year": 2023,
+          "value": 4.11633838374487
+        },
+        {
+          "year": 2024,
+          "value": 2.94952520485207
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.228Z",
+      "expiresAt": "2026-12-20T03:05:59.228Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/all/indicator/FP.CPI.TOTL.ZG?format=json&date=2018:2025&per_page=20000",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 88.498903165152
+        },
+        {
+          "year": 2019,
+          "value": 89.4302848575712
+        },
+        {
+          "year": 2020,
+          "value": 90.34470367
+        },
+        {
+          "year": 2021,
+          "value": 91.2684021
+        },
+        {
+          "year": 2022,
+          "value": 92.72850037
+        },
+        {
+          "year": 2023,
+          "value": 93.52559662
+        },
+        {
+          "year": 2024,
+          "value": 94.69380188
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.986Z",
+      "expiresAt": "2026-12-20T03:05:53.986Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 20656516000000
+        },
+        {
+          "year": 2019,
+          "value": 21539982000000
+        },
+        {
+          "year": 2020,
+          "value": 21375281000000
+        },
+        {
+          "year": 2021,
+          "value": 23725645000000
+        },
+        {
+          "year": 2022,
+          "value": 26054614000000
+        },
+        {
+          "year": 2023,
+          "value": 27811517000000
+        },
+        {
+          "year": 2024,
+          "value": 29298013000000
+        },
+        {
+          "year": 2025,
+          "value": 30769700000000
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:45.060Z",
+      "expiresAt": "2026-12-20T03:05:45.060Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2.96650506701943
+        },
+        {
+          "year": 2019,
+          "value": 2.58382533052225
+        },
+        {
+          "year": 2020,
+          "value": -2.081375977796
+        },
+        {
+          "year": 2021,
+          "value": 6.15202247867526
+        },
+        {
+          "year": 2022,
+          "value": 2.52421385073222
+        },
+        {
+          "year": 2023,
+          "value": 2.93436322440155
+        },
+        {
+          "year": 2024,
+          "value": 2.79318715363841
+        },
+        {
+          "year": 2025,
+          "value": 2.16138195623856
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:00.424Z",
+      "expiresAt": "2026-12-20T03:06:00.424Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 62875.6661382728
+        },
+        {
+          "year": 2019,
+          "value": 65227.9565911038
+        },
+        {
+          "year": 2020,
+          "value": 64465.2971415748
+        },
+        {
+          "year": 2021,
+          "value": 71441.2319805947
+        },
+        {
+          "year": 2022,
+          "value": 78008.6895811877
+        },
+        {
+          "year": 2023,
+          "value": 82586.7847707894
+        },
+        {
+          "year": 2024,
+          "value": 86169.6641581917
+        },
+        {
+          "year": 2025,
+          "value": 90026.5163005744
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.290Z",
+      "expiresAt": "2026-12-20T03:05:54.290Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.896
+        },
+        {
+          "year": 2019,
+          "value": 3.669
+        },
+        {
+          "year": 2020,
+          "value": 8.055
+        },
+        {
+          "year": 2021,
+          "value": 5.349
+        },
+        {
+          "year": 2022,
+          "value": 3.65
+        },
+        {
+          "year": 2023,
+          "value": 3.638
+        },
+        {
+          "year": 2024,
+          "value": 4.022
+        },
+        {
+          "year": 2025,
+          "value": 4.198
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.634Z",
+      "expiresAt": "2026-12-20T03:06:01.634Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 328529577
+        },
+        {
+          "year": 2019,
+          "value": 330226227
+        },
+        {
+          "year": 2020,
+          "value": 331578104
+        },
+        {
+          "year": 2021,
+          "value": 332100166
+        },
+        {
+          "year": 2022,
+          "value": 333996304
+        },
+        {
+          "year": 2023,
+          "value": 336755052
+        },
+        {
+          "year": 2024,
+          "value": 340003797
+        },
+        {
+          "year": 2025,
+          "value": 341784857
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:45.299Z",
+      "expiresAt": "2026-12-20T03:05:45.299Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "US",
+      "countryName": "United States",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 80.2804567987377
+        },
+        {
+          "year": 2019,
+          "value": 80.1304793353594
+        },
+        {
+          "year": 2020,
+          "value": 79.997451762548
+        },
+        {
+          "year": 2021,
+          "value": 80.0074765140272
+        },
+        {
+          "year": 2022,
+          "value": 80.0324978239707
+        },
+        {
+          "year": 2023,
+          "value": 80.071561119178
+        },
+        {
+          "year": 2024,
+          "value": 80.1247798047184
+        },
+        {
+          "year": 2025,
+          "value": 80.1921733027869
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.260Z",
+      "expiresAt": "2026-12-20T03:05:59.260Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/US/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2.29283990345937
+        },
+        {
+          "year": 2019,
+          "value": 1.73810460086512
+        },
+        {
+          "year": 2020,
+          "value": 0.989486703772491
+        },
+        {
+          "year": 2021,
+          "value": 2.51837109614213
+        },
+        {
+          "year": 2022,
+          "value": 7.92204883147902
+        },
+        {
+          "year": 2023,
+          "value": 6.79396706793962
+        },
+        {
+          "year": 2024,
+          "value": 3.2715729463592
+        },
+        {
+          "year": 2025,
+          "value": 3.88306881625999
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.591Z",
+      "expiresAt": "2026-12-20T03:05:58.591Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 90.692008988783
+        },
+        {
+          "year": 2019,
+          "value": 92.5166285497138
+        },
+        {
+          "year": 2020,
+          "value": 94.81820132
+        },
+        {
+          "year": 2021,
+          "value": 96.19650269
+        },
+        {
+          "year": 2022,
+          "value": 95.46530151
+        },
+        {
+          "year": 2023,
+          "value": 95.44719696
+        },
+        {
+          "year": 2024,
+          "value": 95.4720993
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.064Z",
+      "expiresAt": "2026-12-20T03:05:54.064Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2897028009916.05
+        },
+        {
+          "year": 2019,
+          "value": 2875710080015.3
+        },
+        {
+          "year": 2020,
+          "value": 2724001478304.59
+        },
+        {
+          "year": 2021,
+          "value": 3194559188925.93
+        },
+        {
+          "year": 2022,
+          "value": 3181244350465.41
+        },
+        {
+          "year": 2023,
+          "value": 3420796653789.08
+        },
+        {
+          "year": 2024,
+          "value": 3695539513534.15
+        },
+        {
+          "year": 2025,
+          "value": 4002587541846.01
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:45.126Z",
+      "expiresAt": "2026-12-20T03:05:45.126Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 1.55133095078786
+        },
+        {
+          "year": 2019,
+          "value": 1.25629899760824
+        },
+        {
+          "year": 2020,
+          "value": -10.047896637362
+        },
+        {
+          "year": 2021,
+          "value": 8.5431118453255
+        },
+        {
+          "year": 2022,
+          "value": 5.14970388522993
+        },
+        {
+          "year": 2023,
+          "value": 0.271650048355255
+        },
+        {
+          "year": 2024,
+          "value": 1.08027716858781
+        },
+        {
+          "year": 2025,
+          "value": 1.38844207858726
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:03.009Z",
+      "expiresAt": "2026-12-20T03:06:03.009Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 43704.3162296687
+        },
+        {
+          "year": 2019,
+          "value": 43160.6843971799
+        },
+        {
+          "year": 2020,
+          "value": 40815.1255364787
+        },
+        {
+          "year": 2021,
+          "value": 47695.6491523474
+        },
+        {
+          "year": 2022,
+          "value": 47034.7795621476
+        },
+        {
+          "year": 2023,
+          "value": 49919.6896621586
+        },
+        {
+          "year": 2024,
+          "value": 53341.3131094262
+        },
+        {
+          "year": 2025,
+          "value": 57601.9621201954
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.548Z",
+      "expiresAt": "2026-12-20T03:05:58.548Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 4.145
+        },
+        {
+          "year": 2019,
+          "value": 3.657
+        },
+        {
+          "year": 2020,
+          "value": 4.472
+        },
+        {
+          "year": 2021,
+          "value": 4.864
+        },
+        {
+          "year": 2022,
+          "value": 3.768
+        },
+        {
+          "year": 2023,
+          "value": 4.025
+        },
+        {
+          "year": 2024,
+          "value": 4.361
+        },
+        {
+          "year": 2025,
+          "value": 4.746
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.724Z",
+      "expiresAt": "2026-12-20T03:06:01.724Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 66287000
+        },
+        {
+          "year": 2019,
+          "value": 66628000
+        },
+        {
+          "year": 2020,
+          "value": 66740000
+        },
+        {
+          "year": 2021,
+          "value": 66978000
+        },
+        {
+          "year": 2022,
+          "value": 67636000
+        },
+        {
+          "year": 2023,
+          "value": 68526000
+        },
+        {
+          "year": 2024,
+          "value": 69281000
+        },
+        {
+          "year": 2025,
+          "value": 69487000
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.621Z",
+      "expiresAt": "2026-12-20T03:05:53.621Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "GB",
+      "countryName": "United Kingdom",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 82.4465657551295
+        },
+        {
+          "year": 2019,
+          "value": 82.6699420738913
+        },
+        {
+          "year": 2020,
+          "value": 82.9000015258789
+        },
+        {
+          "year": 2021,
+          "value": 82.9886431523641
+        },
+        {
+          "year": 2022,
+          "value": 83.0753982997505
+        },
+        {
+          "year": 2023,
+          "value": 83.1601932891335
+        },
+        {
+          "year": 2024,
+          "value": 83.2429544416085
+        },
+        {
+          "year": 2025,
+          "value": 83.323608078271
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.664Z",
+      "expiresAt": "2026-12-20T03:06:01.664Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/GB/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 0.438784215129622
+        },
+        {
+          "year": 2019,
+          "value": 0.567829988405447
+        },
+        {
+          "year": 2020,
+          "value": -0.172111865925382
+        },
+        {
+          "year": 2021,
+          "value": 2.31610315765145
+        },
+        {
+          "year": 2022,
+          "value": 6.13095418919732
+        },
+        {
+          "year": 2023,
+          "value": 4.83372362825797
+        },
+        {
+          "year": 2024,
+          "value": 2.38951123595017
+        },
+        {
+          "year": 2025,
+          "value": 0.902998495002676
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.703Z",
+      "expiresAt": "2026-12-20T03:05:58.703Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 88.1656360313447
+        },
+        {
+          "year": 2019,
+          "value": 88.9492526850762
+        },
+        {
+          "year": 2020,
+          "value": 92.00434653
+        },
+        {
+          "year": 2021,
+          "value": 96.92468156
+        },
+        {
+          "year": 2022,
+          "value": 95.95386476
+        },
+        {
+          "year": 2023,
+          "value": 94.28518987
+        },
+        {
+          "year": 2024,
+          "value": 94.37757178
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:57.864Z",
+      "expiresAt": "2026-12-20T03:05:57.864Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 377976367877.038
+        },
+        {
+          "year": 2019,
+          "value": 376827390962.044
+        },
+        {
+          "year": 2020,
+          "value": 351226533656.292
+        },
+        {
+          "year": 2021,
+          "value": 441110903524.645
+        },
+        {
+          "year": 2022,
+          "value": 514252535238.749
+        },
+        {
+          "year": 2023,
+          "value": 511181761243.76
+        },
+        {
+          "year": 2024,
+          "value": 572877260178.427
+        },
+        {
+          "year": 2025,
+          "value": 603869516998.738
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.390Z",
+      "expiresAt": "2026-12-20T03:05:54.390Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.18660848474074
+        },
+        {
+          "year": 2019,
+          "value": 1.15877947300108
+        },
+        {
+          "year": 2020,
+          "value": -3.61084281729929
+        },
+        {
+          "year": 2021,
+          "value": 10.1410845197192
+        },
+        {
+          "year": 2022,
+          "value": 4.01027884472296
+        },
+        {
+          "year": 2023,
+          "value": 1.45026775889565
+        },
+        {
+          "year": 2024,
+          "value": 5.3435120192366
+        },
+        {
+          "year": 2025,
+          "value": 5.02588199508003
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:03.088Z",
+      "expiresAt": "2026-12-20T03:06:03.088Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 67032.8225769734
+        },
+        {
+          "year": 2019,
+          "value": 66068.7003106378
+        },
+        {
+          "year": 2020,
+          "value": 61772.5036492256
+        },
+        {
+          "year": 2021,
+          "value": 80884.8565369236
+        },
+        {
+          "year": 2022,
+          "value": 91227.6970426492
+        },
+        {
+          "year": 2023,
+          "value": 86382.5900499252
+        },
+        {
+          "year": 2024,
+          "value": 94896.5621495988
+        },
+        {
+          "year": 2025,
+          "value": 98813.9788172877
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.696Z",
+      "expiresAt": "2026-12-20T03:05:58.696Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.613
+        },
+        {
+          "year": 2019,
+          "value": 3.1
+        },
+        {
+          "year": 2020,
+          "value": 4.1
+        },
+        {
+          "year": 2021,
+          "value": 4.64
+        },
+        {
+          "year": 2022,
+          "value": 3.591
+        },
+        {
+          "year": 2023,
+          "value": 3.444
+        },
+        {
+          "year": 2024,
+          "value": 2.737
+        },
+        {
+          "year": 2025,
+          "value": 2.818
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.790Z",
+      "expiresAt": "2026-12-20T03:06:01.790Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 5638676
+        },
+        {
+          "year": 2019,
+          "value": 5703569
+        },
+        {
+          "year": 2020,
+          "value": 5685807
+        },
+        {
+          "year": 2021,
+          "value": 5453566
+        },
+        {
+          "year": 2022,
+          "value": 5637022
+        },
+        {
+          "year": 2023,
+          "value": 5917648
+        },
+        {
+          "year": 2024,
+          "value": 6036860
+        },
+        {
+          "year": 2025,
+          "value": 6111175
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.689Z",
+      "expiresAt": "2026-12-20T03:05:53.689Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "SG",
+      "countryName": "Singapore",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 100
+        },
+        {
+          "year": 2019,
+          "value": 100
+        },
+        {
+          "year": 2020,
+          "value": 100
+        },
+        {
+          "year": 2021,
+          "value": 100
+        },
+        {
+          "year": 2022,
+          "value": 100
+        },
+        {
+          "year": 2023,
+          "value": 100
+        },
+        {
+          "year": 2024,
+          "value": 100
+        },
+        {
+          "year": 2025,
+          "value": 100
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.748Z",
+      "expiresAt": "2026-12-20T03:06:01.748Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/SG/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.66485028376728
+        },
+        {
+          "year": 2019,
+          "value": 3.73297621216893
+        },
+        {
+          "year": 2020,
+          "value": 3.21176803803376
+        },
+        {
+          "year": 2021,
+          "value": 8.30165975585673
+        },
+        {
+          "year": 2022,
+          "value": 9.28010608956872
+        },
+        {
+          "year": 2023,
+          "value": 4.59356282283203
+        },
+        {
+          "year": 2024,
+          "value": 4.36746407652336
+        },
+        {
+          "year": 2025,
+          "value": 5.01675279604836
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.782Z",
+      "expiresAt": "2026-12-20T03:05:58.782Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 70.4342825404361
+        },
+        {
+          "year": 2019,
+          "value": 73.9124399133589
+        },
+        {
+          "year": 2020,
+          "value": 81.34269353
+        },
+        {
+          "year": 2021,
+          "value": 80.68989314
+        },
+        {
+          "year": 2022,
+          "value": 80.52775094
+        },
+        {
+          "year": 2023,
+          "value": 84.15060238
+        },
+        {
+          "year": 2024,
+          "value": 84.46347227
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:57.918Z",
+      "expiresAt": "2026-12-20T03:05:57.918Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 1916933898010.99
+        },
+        {
+          "year": 2019,
+          "value": 1873288205059.69
+        },
+        {
+          "year": 2020,
+          "value": 1476107231310.49
+        },
+        {
+          "year": 2021,
+          "value": 1670647398904.9
+        },
+        {
+          "year": 2022,
+          "value": 1951923942083.32
+        },
+        {
+          "year": 2023,
+          "value": 2191131765684.63
+        },
+        {
+          "year": 2024,
+          "value": 2185821610689.31
+        },
+        {
+          "year": 2025,
+          "value": 2279920092492.13
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.460Z",
+      "expiresAt": "2026-12-20T03:05:54.460Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 1.783666761634
+        },
+        {
+          "year": 2019,
+          "value": 1.22077782360842
+        },
+        {
+          "year": 2020,
+          "value": -3.2767587964736
+        },
+        {
+          "year": 2021,
+          "value": 4.76260437908608
+        },
+        {
+          "year": 2022,
+          "value": 3.01669435393015
+        },
+        {
+          "year": 2023,
+          "value": 3.24165532906981
+        },
+        {
+          "year": 2024,
+          "value": 3.41931516501906
+        },
+        {
+          "year": 2025,
+          "value": 2.2857464902475
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:03.142Z",
+      "expiresAt": "2026-12-20T03:06:03.142Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 9300.66164923219
+        },
+        {
+          "year": 2019,
+          "value": 9029.83326681073
+        },
+        {
+          "year": 2020,
+          "value": 7074.19378337644
+        },
+        {
+          "year": 2021,
+          "value": 7972.5366498646
+        },
+        {
+          "year": 2022,
+          "value": 9281.33334441234
+        },
+        {
+          "year": 2023,
+          "value": 10377.5892792557
+        },
+        {
+          "year": 2024,
+          "value": 10310.5486973693
+        },
+        {
+          "year": 2025,
+          "value": 10713.2856869511
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:58.774Z",
+      "expiresAt": "2026-12-20T03:05:58.774Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 12.329
+        },
+        {
+          "year": 2019,
+          "value": 11.936
+        },
+        {
+          "year": 2020,
+          "value": 13.697
+        },
+        {
+          "year": 2021,
+          "value": 13.158
+        },
+        {
+          "year": 2022,
+          "value": 9.231
+        },
+        {
+          "year": 2023,
+          "value": 7.947
+        },
+        {
+          "year": 2024,
+          "value": 6.801
+        },
+        {
+          "year": 2025,
+          "value": 5.97
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.856Z",
+      "expiresAt": "2026-12-20T03:06:01.856Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 206107261
+        },
+        {
+          "year": 2019,
+          "value": 207455459
+        },
+        {
+          "year": 2020,
+          "value": 208660842
+        },
+        {
+          "year": 2021,
+          "value": 209550294
+        },
+        {
+          "year": 2022,
+          "value": 210306415
+        },
+        {
+          "year": 2023,
+          "value": 211140729
+        },
+        {
+          "year": 2024,
+          "value": 211998573
+        },
+        {
+          "year": 2025,
+          "value": 212812405
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.742Z",
+      "expiresAt": "2026-12-20T03:05:53.742Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "BR",
+      "countryName": "Brazil",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 86.4420719945072
+        },
+        {
+          "year": 2019,
+          "value": 86.6797991084296
+        },
+        {
+          "year": 2020,
+          "value": 86.9112186503004
+        },
+        {
+          "year": 2021,
+          "value": 87.1360781715439
+        },
+        {
+          "year": 2022,
+          "value": 87.349556243881
+        },
+        {
+          "year": 2023,
+          "value": 87.6159710235763
+        },
+        {
+          "year": 2024,
+          "value": 87.8958549533146
+        },
+        {
+          "year": 2025,
+          "value": 88.1772996487898
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:03.900Z",
+      "expiresAt": "2026-12-20T03:06:03.900Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/BR/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "FP.CPI.TOTL.ZG",
+      "title": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 2.4508342253648
+        },
+        {
+          "year": 2019,
+          "value": 2.21677593359908
+        },
+        {
+          "year": 2020,
+          "value": 1.91983527270792
+        },
+        {
+          "year": 2021,
+          "value": 3.4676759410803
+        },
+        {
+          "year": 2022,
+          "value": 8.00279982052121
+        },
+        {
+          "year": 2023,
+          "value": 5.73316283034957
+        },
+        {
+          "year": 2024,
+          "value": 3.01447576977999
+        },
+        {
+          "year": 2025,
+          "value": 3.04141321556539
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.143Z",
+      "expiresAt": "2026-12-20T03:05:59.143Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/FP.CPI.TOTL.ZG?format=json&per_page=8",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "limitation": "Annual consumer-price inflation is not a category-specific price forecast. Negative inflation is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "IT.NET.USER.ZS",
+      "title": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 49.4
+        },
+        {
+          "year": 2019,
+          "value": 53.9
+        },
+        {
+          "year": 2020,
+          "value": 60.1
+        },
+        {
+          "year": 2021,
+          "value": 63.8
+        },
+        {
+          "year": 2022,
+          "value": 67
+        },
+        {
+          "year": 2023,
+          "value": 69.2
+        },
+        {
+          "year": 2024,
+          "value": 71.2
+        },
+        {
+          "year": 2025,
+          "value": 73.6
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:57.984Z",
+      "expiresAt": "2026-12-20T03:05:57.984Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/IT.NET.USER.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "limitation": "Internet use is a broad access indicator; it does not establish paid digital demand or a reachable customer segment.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.MKTP.CD",
+      "title": "GDP (current US$)",
+      "unit": "current US dollars",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 87310840056717.8
+        },
+        {
+          "year": 2019,
+          "value": 88796498078977.6
+        },
+        {
+          "year": 2020,
+          "value": 86388502867289.2
+        },
+        {
+          "year": 2021,
+          "value": 98780038374127.1
+        },
+        {
+          "year": 2022,
+          "value": 102862471365575
+        },
+        {
+          "year": 2023,
+          "value": 107348614073350
+        },
+        {
+          "year": 2024,
+          "value": 111669432109121
+        },
+        {
+          "year": 2025,
+          "value": 118350166039396
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:54.526Z",
+      "expiresAt": "2026-12-20T03:05:54.526Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Nominal GDP measures economy-wide output, not category revenue, customer spending, or startup TAM.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.MKTP.KD.ZG",
+      "title": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 3.28663086462807
+        },
+        {
+          "year": 2019,
+          "value": 2.680308747553
+        },
+        {
+          "year": 2020,
+          "value": -2.8862118545708
+        },
+        {
+          "year": 2021,
+          "value": 6.48508887596732
+        },
+        {
+          "year": 2022,
+          "value": 3.44001097265658
+        },
+        {
+          "year": 2023,
+          "value": 2.85938493335971
+        },
+        {
+          "year": 2024,
+          "value": 2.90001340156711
+        },
+        {
+          "year": 2025,
+          "value": 2.92127318539153
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:03.202Z",
+      "expiresAt": "2026-12-20T03:06:03.202Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.MKTP.KD.ZG?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "Real GDP growth describes the whole economy and must not be presented as growth in a product category. Negative growth is valid.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "NY.GDP.PCAP.CD",
+      "title": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 11344.728168656
+        },
+        {
+          "year": 2019,
+          "value": 11417.5958587724
+        },
+        {
+          "year": 2020,
+          "value": 10999.4917581781
+        },
+        {
+          "year": 2021,
+          "value": 12472.9074157191
+        },
+        {
+          "year": 2022,
+          "value": 12876.2377124072
+        },
+        {
+          "year": 2023,
+          "value": 13313.8575826001
+        },
+        {
+          "year": 2024,
+          "value": 13717.0909956338
+        },
+        {
+          "year": 2025,
+          "value": 14405.8484595528
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:59.050Z",
+      "expiresAt": "2026-12-20T03:05:59.050Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/NY.GDP.PCAP.CD?format=json&per_page=8",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks; National Accounts data files, Organisation for Economic Co-operation and Development (OECD); Staff estimates, World Bank (WB)",
+      "limitation": "GDP per capita is output per person, not median income, household income, or willingness to pay.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SL.UEM.TOTL.ZS",
+      "title": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 5.7595415280045
+        },
+        {
+          "year": 2019,
+          "value": 5.58847960382446
+        },
+        {
+          "year": 2020,
+          "value": 6.58768935720693
+        },
+        {
+          "year": 2021,
+          "value": 6.04556088000376
+        },
+        {
+          "year": 2022,
+          "value": 5.23462796913747
+        },
+        {
+          "year": 2023,
+          "value": 4.84991713588619
+        },
+        {
+          "year": 2024,
+          "value": 4.80627976615483
+        },
+        {
+          "year": 2025,
+          "value": 4.7913330740211
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:01.934Z",
+      "expiresAt": "2026-12-20T03:06:01.934Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SL.UEM.TOTL.ZS?format=json&per_page=8",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "limitation": "This is a modeled ILO estimate, not necessarily the national unemployment headline; survey definitions and revisions differ.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SP.POP.TOTL",
+      "title": "Population, total",
+      "unit": "people",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 7696159728
+        },
+        {
+          "year": 2019,
+          "value": 7777162476
+        },
+        {
+          "year": 2020,
+          "value": 7853863139
+        },
+        {
+          "year": 2021,
+          "value": 7919567995
+        },
+        {
+          "year": 2022,
+          "value": 7988550201
+        },
+        {
+          "year": 2023,
+          "value": 8062923417
+        },
+        {
+          "year": 2024,
+          "value": 8140897523
+        },
+        {
+          "year": 2025,
+          "value": 8215424893
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:05:53.802Z",
+      "expiresAt": "2026-12-20T03:05:53.802Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SP.POP.TOTL?format=json&per_page=8",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division; Statistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices; Eurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat; Population and Vital Statistics ",
+      "limitation": "Total population is contextual scale, not a count of customers or addressable buyers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    },
+    {
+      "country": "WLD",
+      "countryName": "World",
+      "indicator": "SP.URB.TOTL.IN.ZS",
+      "title": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "observations": [
+        {
+          "year": 2018,
+          "value": 55.7520777819135
+        },
+        {
+          "year": 2019,
+          "value": 56.1409825640469
+        },
+        {
+          "year": 2020,
+          "value": 56.4441759386598
+        },
+        {
+          "year": 2021,
+          "value": 56.80922270108
+        },
+        {
+          "year": 2022,
+          "value": 57.0722541398634
+        },
+        {
+          "year": 2023,
+          "value": 57.3116916082902
+        },
+        {
+          "year": 2024,
+          "value": 57.565600293551
+        },
+        {
+          "year": 2025,
+          "value": 57.8251158115221
+        }
+      ],
+      "fetchedAt": "2026-11-20T03:06:04.170Z",
+      "expiresAt": "2026-12-20T03:06:04.170Z",
+      "metadataUpdatedAt": "2026-11-11",
+      "sourceUrl": "https://api.worldbank.org/v2/country/WLD/indicator/SP.URB.TOTL.IN.ZS?format=json&per_page=8",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "limitation": "Urban definitions vary across countries. Urban share is not a count of reachable or paying customers.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use"
+    }
+  ],
+  "metadata": [
+    {
+      "id": "SP.POP.TOTL",
+      "name": "Population, total",
+      "unit": "people",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Total population is based on the de facto definition of population, which counts all residents regardless of legal status or citizenship. The values shown are midyear estimates.",
+      "sourceOrganization": "World Population Prospects, United Nations (UN), uri: https://population.un.org/wpp/, publisher: UN Population Division;\nStatistical databases and publications from national statistical offices, National Statistical Offices (NSOs), uri: https://unstats.un.org/home/nso_sites/, publisher: National Statistical Offices;\nEurostat: Demographic Statistics, Eurostat (ESTAT), uri: https://ec.europa.eu/eurostat/data/database?node_code=earn_ses_monthly, publisher: Eurostat;\nPopulation and Vital Statistics Report (various years), United Nations (UN), uri: https://unstats.un.org, publisher: UN Statistics Division",
+      "topics": [
+        {
+          "id": "19",
+          "value": "Climate Change"
+        },
+        {
+          "id": "8",
+          "value": "Health "
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/SP.POP.TOTL?format=json",
+      "fetchedAt": "2026-11-20T03:05:45.180Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "NY.GDP.MKTP.CD",
+      "name": "GDP (current US$)",
+      "unit": "current US dollars",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Gross domestic product is the total income earned through the production of goods and services in an economic territory during an accounting period. It can be measured in three different ways: using either the expenditure approach, the income approach, or the production approach. This indicator is expressed in current prices, meaning no adjustment has been made to account for price changes over time. This indicator is expressed in United States dollars.",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks;\nNational Accounts data files, Organisation for Economic Co-operation and Development (OECD);\nStaff estimates, World Bank (WB)",
+      "topics": [
+        {
+          "id": "3",
+          "value": "Economy & Growth"
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.CD?format=json",
+      "fetchedAt": "2026-11-20T03:05:44.899Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "NY.GDP.PCAP.CD",
+      "name": "GDP per capita (current US$)",
+      "unit": "current US dollars per person",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Gross domestic product is the total income earned through the production of goods and services in an economic territory during an accounting period. It can be measured in three different ways: using either the expenditure approach, the income approach, or the production approach. The core indicator has been divided by the general population to achieve a per capita estimate.This indicator is expressed in current prices, meaning no adjustment has been made to account for price changes over time. This indicator is expressed in United States dollars.",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks;\nNational Accounts data files, Organisation for Economic Co-operation and Development (OECD);\nStaff estimates, World Bank (WB)",
+      "topics": [
+        {
+          "id": "3",
+          "value": "Economy & Growth"
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.PCAP.CD?format=json",
+      "fetchedAt": "2026-11-20T03:05:44.900Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "IT.NET.USER.ZS",
+      "name": "Individuals using the Internet (% of population)",
+      "unit": "% of population",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Internet users are individuals who have used the Internet (from any location) in the last 3 months. The Internet can be used via a computer, mobile phone, personal digital assistant, games machine, digital TV etc.",
+      "sourceOrganization": "World Telecommunication/ICT Indicators Database, International Telecommunication Union (ITU), uri: https://datahub.itu.int/",
+      "topics": [
+        {
+          "id": "9",
+          "value": "Infrastructure "
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/IT.NET.USER.ZS?format=json",
+      "fetchedAt": "2026-11-20T03:05:53.870Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "FP.CPI.TOTL.ZG",
+      "name": "Inflation, consumer prices (annual %)",
+      "unit": "annual % change in consumer prices",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Inflation as measured by the consumer price index reflects the annual percentage change in the cost to the average consumer of acquiring a basket of goods and services that may be fixed or changed at specified intervals, such as yearly.",
+      "sourceOrganization": "International Financial Statistics database, International Monetary Fund (IMF)",
+      "topics": [
+        {
+          "id": "3",
+          "value": "Economy & Growth"
+        },
+        {
+          "id": "7",
+          "value": "Financial Sector "
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/FP.CPI.TOTL.ZG?format=json",
+      "fetchedAt": "2026-11-20T03:05:54.616Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "NY.GDP.MKTP.KD.ZG",
+      "name": "GDP growth (annual %)",
+      "unit": "annual % change in real GDP",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Gross domestic product is the total income earned through the production of goods and services in an economic territory during an accounting period. It can be measured in three different ways: using either the expenditure approach, the income approach, or the production approach. This indicator denotes the percentage change over each previous year of the constant price (base year 2015) series in United States dollars.",
+      "sourceOrganization": "Country official statistics, National Statistical Organizations and/or Central Banks;\nNational Accounts data files, Organisation for Economic Co-operation and Development (OECD);\nStaff estimates, World Bank (WB)",
+      "topics": [
+        {
+          "id": "3",
+          "value": "Economy & Growth"
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/NY.GDP.MKTP.KD.ZG?format=json",
+      "fetchedAt": "2026-11-20T03:05:58.112Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "SP.URB.TOTL.IN.ZS",
+      "name": "Urban population (% of total population)",
+      "unit": "% of total population",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Urban population refers to people living in urban areas as defined by national statistical offices. The data are collected and smoothed by United Nations Population Division.",
+      "sourceOrganization": "World Urbanization Prospects, United Nations (UN), uri: https://population.un.org/wup/, note: United Nations Population Division's World Urbanization Prospects, National definitions, publisher: UN Population Division",
+      "topics": [
+        {
+          "id": "19",
+          "value": "Climate Change"
+        },
+        {
+          "id": "16",
+          "value": "Urban Development "
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/SP.URB.TOTL.IN.ZS?format=json",
+      "fetchedAt": "2026-11-20T03:05:59.118Z",
+      "metadataUpdatedAt": "2026-11-11"
+    },
+    {
+      "id": "SL.UEM.TOTL.ZS",
+      "name": "Unemployment, total (% of total labor force) (modeled ILO estimate)",
+      "unit": "% of total labor force (modeled ILO estimate)",
+      "source": {
+        "id": "2",
+        "value": "World Development Indicators"
+      },
+      "sourceNote": "Unemployment refers to the share of the labor force that is without work but available for and seeking employment.",
+      "sourceOrganization": "ILO Modelled Estimates database (ILOEST), International Labour Organization (ILO), uri: https://ilostat.ilo.org/data/bulk/, publisher: ILOSTAT, type: external database, date accessed: January 17, 2026",
+      "topics": [
+        {
+          "id": "4",
+          "value": "Education "
+        },
+        {
+          "id": "10",
+          "value": "Social Protection & Labor"
+        }
+      ],
+      "metadataUrl": "https://api.worldbank.org/v2/indicator/SL.UEM.TOTL.ZS?format=json",
+      "fetchedAt": "2026-11-20T03:05:59.296Z",
+      "metadataUpdatedAt": "2026-11-11"
+    }
+  ],
+  "catalog": [
+    {
+      "id": "world-bank-wdi",
+      "title": "World Bank World Development Indicators",
+      "url": "https://api.worldbank.org/v2/source/2?format=json",
+      "source": "World Bank",
+      "recordType": "reference",
+      "geography": [
+        "Global",
+        "India"
+      ],
+      "updateCadence": "Annual observations for the selected indicators; release revisions vary.",
+      "intendedUses": [
+        "Cross-country macroeconomic context",
+        "Population and digital-access baselines"
+      ],
+      "limitations": "Annual observations can lag publication and may be estimates or revised. Dataset-specific and third-party terms may apply.",
+      "licenseUrl": "https://data.worldbank.org/summary-terms-of-use",
+      "licenseNote": "Consult linked source terms, including any third-party restrictions.",
+      "verifiedAt": "2026-11-20T03:06:04.250Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "application/json;charset=utf-8",
+        "bytes": 236,
+        "pageTitle": null,
+        "metadataExcerpt": "[{\"page\":\"1\",\"pages\":\"1\",\"per_page\":\"50\",\"total\":\"1\"},[{\"id\":\"2\",\"lastupdated\":\"2026-11-11\",\"name\":\"World Development Indicators\",\"code\":\"WDI\",\"description\":\"\",\"url\":\"\",\"dataavailability\":\"Y\",\"metadataavailability\":\"Y\",\"concepts\":\"3\"}]]",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "rbi-data-releases",
+      "title": "RBI Data Releases",
+      "url": "https://www.rbi.org.in/scripts/Statistics.aspx",
+      "source": "Reserve Bank of India",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Banking, credit, monetary and payment statistics discovery"
+      ],
+      "limitations": "Publication directory only. Select the actual dated table and its units before citing a number; release frequency varies.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:04.646Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 85014,
+        "pageTitle": "Data Releases | Official Website of Reserve Bank of India",
+        "metadataExcerpt": "Data Releases | Official Website of Reserve Bank of India Skip to main content Not Pressed Change Language हिंदी Search the Website Search Home About Us ▼ About Us Organisation & Functions ▶ Organisation Structure Departments Offices Training Establishment ▶ College of Agricultural Banking Reserve Bank Staff College College of Supervisors RBI's Functions and Working Governors Deputy Governors Executive Directors Media Kit Communication Policy of RBI Sources of Information ▶ Annual Publications H",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "npci-upi",
+      "title": "NPCI UPI product statistics entry point",
+      "url": "https://www.npci.org.in/what-we-do/upi/product-statistics",
+      "source": "National Payments Corporation of India",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Find official UPI transaction volume and value releases"
+      ],
+      "limitations": "Verified public NPCI route; its HTML is an application shell, not a verified numeric table. Transaction counts are not unique users, businesses, or customer demand.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:04.674Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "bytes": 7110,
+        "pageTitle": "National Payments Corporation of India (NPCI) - Enabling digital payments in India",
+        "metadataExcerpt": "National Payments Corporation of India (NPCI) - Enabling digital payments in India You need to enable JavaScript to run this app.",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "mospi",
+      "title": "MoSPI statistics portal",
+      "url": "https://www.mospi.gov.in/",
+      "source": "Ministry of Statistics and Programme Implementation",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Find national accounts, CPI and official household or labor surveys"
+      ],
+      "limitations": "Verified ministry landing page, with dynamic content. No statistical tables or numbers were extracted; individual release definitions and dates must be checked.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:04.563Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 2644,
+        "pageTitle": "Ministry of Statistics and Program Implementation | Government Of India",
+        "metadataExcerpt": "Ministry of Statistics and Program Implementation | Government Of India",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "data-gov-in",
+      "title": "Open Government Data Platform India",
+      "url": "https://www.data.gov.in/",
+      "source": "Government of India",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Discover ministry and state datasets and documented APIs"
+      ],
+      "limitations": "Dataset directory, not a single dataset. API-key requirements, licensing, update dates, geographic coverage and units must be checked per resource.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:05.948Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 1365007,
+        "pageTitle": "Home | Open Government Data (OGD) Platform India",
+        "metadataExcerpt": "Home | Open Government Data (OGD) Platform India Ministry of Electronics and Information Technology Choose your theme Select default-theme Select blue-theme Select yellow-theme Select green-theme Facebook Twitter RSS Accessibility Dropdown A A + A A - Open Government Data Portal India Search Datasets Here Search Notifications 0 0 New Notification All(0) Unread(0) No Notification No records found View All Login | Register Dashboard User Logout HOME CATALOG APIs SECTOR CHIEF DATA OFFICER METRICS T",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "udyam",
+      "title": "Udyam registration official portal",
+      "url": "https://udyamregistration.gov.in/",
+      "source": "Ministry of Micro, Small and Medium Enterprises",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Find official MSME registration information and linked publications"
+      ],
+      "limitations": "Registration portal reference only. Registrations are not a census of operating firms, paying customers, or annual firm births; no count is imported here.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:06.207Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 53594,
+        "pageTitle": "Udyam Registration : Zero cost, No Fee and Free Registration of MSMEs. This is official website of Govt. of India, Ministry of MSME. No other website/portal/app is official. MSMEs are requested to do MSME Registration here only",
+        "metadataExcerpt": "Udyam Registration : Zero cost, No Fee and Free Registration of MSMEs. This is official website of Govt. of India, Ministry of MSME. No other website/portal/app is official. MSMEs are requested to do MSME Registration here only Government of India --> Home NIC Code Useful Documents Important Udyam Registration Benefits Circulars & Orders Udyam Registration Sample Form Udyam Registration Bulletin Udyam Registration Bulletin I Udyam Registration Bulletin II Udyam Registration Bulletin III Udyam Re",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "startup-india",
+      "title": "Startup India initiative",
+      "url": "https://www.startupindia.gov.in/content/sih/en/about-startup-india-initiative.html",
+      "source": "Department for Promotion of Industry and Internal Trade",
+      "recordType": "reference",
+      "geography": [
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Find DPIIT recognition definitions, programs and official ecosystem releases"
+      ],
+      "limitations": "Program reference only. Recognized startups are an administrative subset; recognition counts are not total startups, active businesses, or addressable demand.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:05.169Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=UTF-8",
+        "bytes": 359872,
+        "pageTitle": "About Startup India Initiative",
+        "metadataExcerpt": "About Startup India Initiative --> Login Dashboard --> Dashboard View Profile Edit Profile --> --> My Connections Notifications Settings Privacy Settings Change Email ID Change Password Create Password Switch to Startup --> Logout --> dipp-startups@nic.in --> Our Toll Free Number: 1800 115 565 (10:00 AM to 05:30 PM) --> English English हिन्दी मराठी বাঙালি ગુજરાતી ਪੰਜਾਬੀ ନୀୟ தமிழ் తెలుగు മലയാളം ಕನ್ನಡ অসমীয়া कोंकणी ᱥᱟᱱᱛᱟᱲᱤ मैथिली संस्कृतम् बड़ सिन्धी মণিপুরী नेपाली اردو کشمیری डोगरी Azərbaycan Бе",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "ilo-data-explorer",
+      "title": "ILOSTAT Data Explorer",
+      "url": "https://rshiny.ilo.org/dataexplorer54/",
+      "source": "International Labour Organization",
+      "recordType": "reference",
+      "geography": [
+        "Global",
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Find labor-force, employment and unemployment data and definitions"
+      ],
+      "limitations": "Verified interactive explorer entry point only. No standalone ILO series was downloaded; distinguish modeled estimates from national survey measures.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:09.462Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html; charset=UTF-8",
+        "bytes": 27345,
+        "pageTitle": "ILOSTAT Data Explorer",
+        "metadataExcerpt": "ILOSTAT Data Explorer Toggle navigation ILOSTAT data explorer 19 Loading...",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "un-system-data",
+      "title": "UN System Data Commons",
+      "url": "https://data.un.org/",
+      "source": "United Nations",
+      "recordType": "reference",
+      "geography": [
+        "Global",
+        "India"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Discover UN statistical datasets and metadata"
+      ],
+      "limitations": "Directory reference only. Agency sources, indicator definitions, revision dates and licenses vary; no numeric series was imported from this page.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:07.166Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "text/html",
+        "bytes": 3769,
+        "pageTitle": "UN - Welcome to UN System Data Commons",
+        "metadataExcerpt": "--> UN - Welcome to UN System Data Commons You need to enable JavaScript to run this app.",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    },
+    {
+      "id": "oecd-sdmx-catalog",
+      "title": "OECD Short-Term Economic Statistics SDMX catalog",
+      "url": "https://sdmx.oecd.org/public/rest/v1/dataflow/OECD.SDD.STES/all/latest?references=none",
+      "source": "Organisation for Economic Co-operation and Development",
+      "recordType": "reference",
+      "geography": [
+        "OECD members",
+        "Selected non-member economies"
+      ],
+      "updateCadence": null,
+      "intendedUses": [
+        "Discover OECD short-term economic datasets and structural metadata"
+      ],
+      "limitations": "Dataflow metadata only, including non-production flows. Select a production dataset, dimensions, units and coverage before requesting values; no OECD observations were imported.",
+      "licenseUrl": null,
+      "licenseNote": "Not established by this fetch; public accessibility does not itself grant reuse rights.",
+      "verifiedAt": "2026-11-20T03:06:08.384Z",
+      "verification": {
+        "httpStatus": 200,
+        "contentType": "application/xml; charset=utf-8; version=2.1",
+        "bytes": 55469,
+        "pageTitle": null,
+        "metadataExcerpt": "IDREF91 false 2026-11-20T04:06:08.0126252+01:00 NonProductionDataflow true REF_AREA LAYOUT_ROW TIME_PERIOD LAYOUT_COLUMN UNIT_MULT=0,OBS_STATUS=A,ACTIVITY=_Z,TRANSFORMATION=_Z,ADJUSTMENT=_Z,UNIT_MEASURE=GR NOT_DISPLAYED FREQ=M,MEASURE=PRVM,UNIT_MEASURE=IX,ACTIVITY=BTE DEFAULT COMBINED_MEASURE:MEASURE,ACTIVITY;COMBINED_UNIT_MEASURE:UNIT_MEASURE,BASE_PER,UNIT_MULT,TRANSFORMATION,ADJUSTMENT COMBINED_CONCEPTS COMBINED_MEASURE:Measure;COMBINED_UNIT_MEASURE:Unit of measure COMBINED_MEASURE:Mesure;COMB",
+        "scope": "Accessible official metadata or directory only; this entry is not numerical market evidence."
+      }
+    }
+  ]
+}

@@ -195,7 +195,7 @@ describe('runMultiAgentValidation', () => {
   it('propagates durable scheduling failures instead of recording false model failures', async () => {
     const scheduled = new Error('step must be resumed in another invocation')
     const runStep: RunValidationStep = async <T>(id: string, work: () => Promise<T>) => {
-      if (id === 'agent-market') throw scheduled
+      if (id.startsWith('agent-market-')) throw scheduled
       return work()
     }
     await expect(runMultiAgentValidation(idea, { runStep })).rejects.toBe(scheduled)
@@ -217,7 +217,9 @@ describe('runMultiAgentValidation', () => {
     })
 
     expect(result).not.toBeNull()
-    expect(result!.report.decision).toBe('GO')
+    expect(result!.report.decision).toBe('TEST_FURTHER')
+    expect(result!.report.decisionAudit?.scoreBand).toBe('GO')
+    expect(result!.report.decisionAudit?.issues.join(' ')).toContain('commercial')
     expect(result!.report.overallScore).toBeGreaterThan(0)
     // 8 sub-scores present and clamped
     expect(result!.report.problemScore).toBeLessThanOrEqual(20)
@@ -231,8 +233,8 @@ describe('runMultiAgentValidation', () => {
     expect(progress.at(-1)?.completed).toBe(9)
     expect(progress.at(-1)?.total).toBe(9)
     const review = vi.mocked(generateWithFallback).mock.calls.find(([options]) => options.agentRole === 'synthesis')?.[0]
-    expect(review?.prompt).toContain('growthExperiments')
-    expect(review?.prompt).toContain('sourceReview')
+    expect(review?.prompt).toContain('"role":"growth"')
+    expect(review?.prompt).toContain('"role":"evidence"')
     expect(review?.researchMode).toBe('reuse')
     for (const role of ['finance', 'product', 'growth']) {
       const options = vi.mocked(generateWithFallback).mock.calls.find(([input]) => input.agentRole === role)?.[0]
@@ -285,8 +287,8 @@ describe('runMultiAgentValidation', () => {
     expect(fp[0].month).toBe(1)
     expect(fp[0].customers).toBe(50)
     expect(fp[0].label).toBe('PROJECTION')
-    // month 2 = 50 * 1.1 = 55 customers
-    expect(fp[1].customers).toBe(55)
+    // No unprovided acquisition growth: 50 opening customers minus 2% churn.
+    expect(fp[1].customers).toBe(49)
     // revenue month 1 = 50 * 50 = 2500
     expect(fp[0].revenue).toBe(2500)
   })

@@ -6,8 +6,10 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { DialogShell } from '@/components/ui/DialogShell'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
-import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { PLAN_CATALOG, subscriptionAvailable, subscriptionCurrency, type PaidPlanTier } from '@/lib/plans'
+import { CurrencyDisclosure, CurrencySelector, useCurrency } from '@/components/CurrencyProvider'
 import { PrivacyControls } from '@/components/PrivacyControls'
+import { workspaceModelCopy } from '@/lib/workspace-model-copy'
 import {
   User,
   Shield,
@@ -37,13 +39,18 @@ function SettingsContent() {
   const searchParams = useSearchParams()
   const [supabase] = useState(createClient)
   const account = useAccount()
+  const { currency, formatPlanPrice } = useCurrency()
+  const checkoutCurrency = subscriptionCurrency(currency)
   const profile = account.data?.user ?? null
   const catalog = account.data?.plans ?? PLAN_CATALOG
   const currentPlan = account.data?.plan ?? (profile ? catalog[profile.tier] : null)
   const loading = account.loading
   const profileError = account.error
   const billing = account.data?.billing ?? { credits: false, premium: false, maxPremium: false }
+  const premiumAvailable = subscriptionAvailable(billing, 'premium', checkoutCurrency)
+  const maxPremiumAvailable = subscriptionAvailable(billing, 'max_premium', checkoutCurrency)
   const freeOnly = account.data?.ai.freeOnly !== false
+  const modelCopy = workspaceModelCopy(account.data?.ai.workspaceModelPolicy)
   const hasSavedKey = Boolean(profile?.hasCustomApiKey)
   const [resettingPassword, setResettingPassword] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
@@ -159,11 +166,11 @@ function SettingsContent() {
     }
   }
 
-  const openBilling = async (tier?: 'premium' | 'max_premium') => {
+  const openBilling = async (tier?: PaidPlanTier) => {
     setBillingBusy(true)
     try {
       const response = await fetch(tier ? '/api/billing/checkout' : '/api/billing/portal', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tier ? { tier } : {}),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tier ? { tier, currency: checkoutCurrency } : {}),
       })
       const data = await response.json()
       if (!response.ok || !data.url) throw new Error(data.error || 'Billing is unavailable')
@@ -313,10 +320,11 @@ function SettingsContent() {
       {/* Subscription Management Section */}
       {profile?.unlimited ? <section className="card-angular bg-white p-6"><div className="flex items-center gap-2"><Crown size={18} aria-hidden="true" className="text-[#89620B]" /><h2 className="text-base font-medium">Owner plan</h2></div><p className="mt-4 text-2xl font-light">Unlimited research allowance</p><p className="mt-3 text-sm text-[#53616A]">All research tools and exports are included. Your owner access does not require a subscription or credit purchases.</p><a href="/admin" className="mt-4 inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Open command center</a></section> :
       <section className="card-angular p-6 bg-[#FFFFFF]">
+        <div className="mb-6"><CurrencySelector /><CurrencyDisclosure /></div>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-[#89620B]" />
-            <h2 className="text-base font-normal text-[#141923]">Subscription Management</h2>
+            <h2 className="text-base font-normal text-[#141923]">{profile?.manualPlan ? 'Owner-assigned plan' : 'Plan and billing'}</h2>
           </div>
           <span
             className={`text-xs px-2.5 py-1 rounded font-medium capitalize ${
@@ -327,7 +335,7 @@ function SettingsContent() {
                 : 'bg-[#E5E7EB] text-[#364152]'
             }`}
           >
-            {profile && currentPlan ? `${currentPlan.name} (${formatUsd(currentPlan.monthlyPriceUsd)}${profile.tier === 'free' ? '' : '/mo'})` : 'Loading plan…'}
+            {profile && currentPlan ? profile.manualPlan ? `${currentPlan.name} · no automatic payment` : currentPlan.name : 'Loading plan…'}
           </span>
         </div>
 
@@ -367,7 +375,7 @@ function SettingsContent() {
                 </span>
               </div>
               <p className="text-[11px] text-[#364152]/60 mt-1">
-                {profile?.currentPeriodEnd
+                {profile?.manualPlan ? `Credit cycle renews ${formatDate(profile.creditResetAt)}` : profile?.currentPeriodEnd
                   ? `Cycle ends ${formatDate(profile.currentPeriodEnd)}`
                   : 'No renewal scheduled'}
               </p>
@@ -380,14 +388,14 @@ function SettingsContent() {
               <div className="flex flex-col gap-2 mt-1">
                 <button
                   onClick={() => openBilling()}
-                  disabled={billingBusy || loading || !billing.credits || !profile?.subscriptionStatus}
+                  disabled={billingBusy || loading || !(billing.portal ?? billing.credits) || !profile?.subscriptionStatus || profile.manualPlan}
                   className="inline-flex items-center justify-center gap-1 px-3 py-1.5 text-xs font-medium text-[#141923] bg-[#E5E7EB] hover:bg-[#E0A526] rounded transition-colors"
                 >
                   <CreditCard className="w-3 h-3" />
                   <span>Manage Billing</span>
                 </button>
 
-                {profile?.tier !== 'free' && !profile?.cancelAtPeriodEnd && (
+                {profile?.tier !== 'free' && !profile?.manualPlan && !profile?.cancelAtPeriodEnd && (
                   <button
                     onClick={() => setCancelDialogOpen(true)}
                     className="text-[11px] text-rose-700 hover:text-rose-900 underline text-left"
@@ -395,6 +403,7 @@ function SettingsContent() {
                     Cancel Subscription
                   </button>
                 )}
+                {profile?.manualPlan && <p className="text-xs text-[#53616A]">This plan continues until the owner changes it. The credit cycle reset does not end access. No automatic charge is attached.</p>}
               </div>
             </div>
           </div>
@@ -407,7 +416,7 @@ function SettingsContent() {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Pro Plan ($29/mo) */}
+            {/* Premium plan */}
             <div
               className={`p-4 rounded border transition-colors ${
                 profile?.tier === 'premium'
@@ -416,7 +425,7 @@ function SettingsContent() {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#141923]">{catalog.premium.name} ({formatUsd(catalog.premium.monthlyPriceUsd)}/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">{catalog.premium.name} ({formatPlanPrice(catalog.premium)}/mo)</span>
                 {profile?.tier === 'premium' && (
                   <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
@@ -429,10 +438,10 @@ function SettingsContent() {
               {profile?.tier === 'free' ? (
                 <button
                   onClick={() => openBilling('premium')}
-                  disabled={billingBusy || loading || !billing.premium}
+                  disabled={billingBusy || loading || !premiumAvailable}
                   className="w-full py-2 px-3 text-xs font-medium text-[#141923] bg-[#E5E7EB] hover:bg-[#E0A526] rounded transition-colors"
                 >
-                  {billing.premium ? `Upgrade to ${catalog.premium.name} (${formatUsd(catalog.premium.monthlyPriceUsd)}/mo)` : `${catalog.premium.name} is currently unavailable`}
+                  {premiumAvailable ? `Upgrade to ${catalog.premium.name} (${formatPlanPrice(catalog.premium)}/mo)` : `${catalog.premium.name} is currently unavailable`}
                 </button>
               ) : (
                 <div className="text-xs text-emerald-700 font-medium flex items-center gap-1">
@@ -441,7 +450,7 @@ function SettingsContent() {
               )}
             </div>
 
-            {/* Max Plan ($79/mo) */}
+            {/* Max Premium plan */}
             <div
               className={`p-4 rounded border transition-colors ${
                 profile?.tier === 'max_premium'
@@ -450,7 +459,7 @@ function SettingsContent() {
               }`}
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-sm text-[#141923]">{catalog.max_premium.name} ({formatUsd(catalog.max_premium.monthlyPriceUsd)}/mo)</span>
+                <span className="font-medium text-sm text-[#141923]">{catalog.max_premium.name} ({formatPlanPrice(catalog.max_premium)}/mo)</span>
                 {profile?.tier === 'max_premium' && (
                   <span className="text-[10px] bg-[#E0A526] text-[#141923] font-bold px-2 py-0.5 rounded">
                     Active Plan
@@ -463,10 +472,10 @@ function SettingsContent() {
               {profile?.tier !== 'max_premium' ? (
                 <button
                   onClick={() => openBilling('max_premium')}
-                  disabled={billingBusy || loading || !billing.maxPremium}
+                  disabled={billingBusy || loading || !maxPremiumAvailable}
                   className="w-full py-2 px-3 text-xs font-semibold text-[#141923] bg-[#E0A526] hover:bg-[#b09048] rounded transition-colors"
                 >
-                  {billing.maxPremium ? `Upgrade to ${catalog.max_premium.name} (${formatUsd(catalog.max_premium.monthlyPriceUsd)}/mo)` : `${catalog.max_premium.name} is currently unavailable`}
+                  {maxPremiumAvailable ? `Upgrade to ${catalog.max_premium.name} (${formatPlanPrice(catalog.max_premium)}/mo)` : `${catalog.max_premium.name} is currently unavailable`}
                 </button>
               ) : (
                 <div className="text-xs text-[#89620B] font-medium flex items-center gap-1">
@@ -494,7 +503,7 @@ function SettingsContent() {
         </p>
 
         <div className="space-y-4">
-          {/* Mode 1: Default (Free Models Chain) */}
+          {/* The stored default preference remains compatible across funding policies. */}
           <label
             className={`block p-4 rounded border cursor-pointer transition-colors ${
               aiProvider === 'free_models'
@@ -514,20 +523,21 @@ function SettingsContent() {
               <div className="flex-1">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-[#141923]">
-                    Automatic free models
+                    {modelCopy.title}
                   </span>
                   <span className="text-[10px] font-bold  bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
                     Recommended
                   </span>
                 </div>
                 <p className="text-xs text-[#364152]/70 mt-1">
-                  Use the available free models selected for each research task. If one provider is unavailable, the team tries another within its request budget.
+                  {modelCopy.description}
                 </p>
+                {modelCopy.fundingNote && <p className="mt-2 text-xs leading-relaxed text-[#364152]/70">{modelCopy.fundingNote}</p>}
                 <div className="mt-3 p-2 bg-[#FFFFFF] rounded border border-[#E5E7EB] text-[11px] tabular-nums text-[#141923]">
                   <div className="text-[10px]  text-[#364152]/50 font-sans font-semibold mb-1">
                     How research works:
                   </div>
-                  <div>Specialists reuse dated market knowledge, read public sources and check calculations. Free-model availability and quotas vary.</div>
+                  <div>Specialists reuse dated market knowledge, read public sources and check calculations. {modelCopy.availability}</div>
                   <div className="mt-0.5">
                     Available models are selected for each task within the workspace request limits.
                   </div>

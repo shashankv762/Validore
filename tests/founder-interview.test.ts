@@ -9,6 +9,9 @@ import { LEGAL } from '@/lib/legal'
 
 const mocks = vi.hoisted(() => ({ idea: vi.fn(), interview: vi.fn() }))
 vi.mock('@/lib/ai/generate', () => ({ generateWithFallback: vi.fn() }))
+// This suite isolates founder interviews; real combined notebook/owner access
+// is exercised with PostgreSQL semantics in customer-feedback-database.test.ts.
+vi.mock('@/lib/customer-feedback/context', () => ({ loadCustomerFeedbackContext: async () => '' }))
 vi.mock('@/db', () => ({ db: { query: { ideas: { findFirst: mocks.idea }, founderInterviews: { findFirst: mocks.interview } } } }))
 
 const idea = { name: 'Test venture', industry: 'Fintech', product: 'A cash-flow planning application', targetCustomer: 'Independent shops',

@@ -26,11 +26,15 @@ const EXPECTED_TABLES = [
   'research_sources',
   'rewarded_ad_sessions',
   'credit_purchases',
+  'customer_feedback',
+  'customer_feedback_analyses',
   'crowdfunding_analyses',
   'founding_member_counter',
   'ideas',
   'lean_canvases',
   'pitch_decks',
+  'planning_module_requests',
+  'ai_execution_leases',
   'pricing_simulations',
   'synthetic_campaigns',
   'tier_config',
@@ -131,6 +135,46 @@ async function verify() {
   const adminConstraints = await client`SELECT conname FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
     WHERE n.nspname = 'public' AND conname IN ('users_account_status_valid', 'users_owner_active', 'users_credit_cycle_allowance_nonnegative')`
   if (adminConstraints.length !== 3) { console.error('Required account status and owner constraints are missing. Apply migration 0006 before deploying.'); hasErrors = true }
+
+  // The new flows depend on additive SQL constraints as well as Drizzle's
+  // table definitions. A db:push alone must not be reported as release-ready.
+  const workflowColumns = await client`SELECT table_name, column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name IN ('customer_feedback', 'customer_feedback_analyses', 'planning_module_requests', 'ai_execution_leases', 'validation_jobs', 'ideas')`
+  const requiredWorkflowColumns: Record<string, string[]> = {
+    customer_feedback: ['user_id', 'idea_id', 'kind', 'content', 'source_label', 'source_url', 'occurred_at', 'rating', 'sentiment', 'provenance', 'fetched_at', 'content_hash', 'request_id', 'notice_version', 'created_at', 'deleted_at'],
+    customer_feedback_analyses: ['user_id', 'idea_id', 'source_digest', 'method_version', 'idea_fingerprint', 'analysis', 'analyzed_records', 'total_records', 'provider', 'tokens_used', 'created_at'],
+    planning_module_requests: ['user_id', 'idea_id', 'request_key', 'module', 'payload_hash', 'idea_fingerprint', 'status', 'lease_token', 'lease_expires_at', 'result_id', 'stage_data', 'context_snapshot', 'created_at', 'updated_at'],
+    ai_execution_leases: ['user_id', 'lease_kind', 'expires_at', 'created_at'],
+    validation_jobs: ['entitlement_snapshot', 'dispatched_at', 'dispatch_lease_expires_at'],
+    ideas: ['public_research_focus'],
+  }
+  for (const [table, columns] of Object.entries(requiredWorkflowColumns)) {
+    const missing = columns.filter(column => !workflowColumns.some(row => row.table_name === table && row.column_name === column))
+    if (missing.length) { console.error(`Missing workflow columns in ${table}: ${missing.join(', ')}. Apply migrations 0007–0014 before deploying.`); hasErrors = true }
+  }
+  const requiredWorkflowIndexes = [
+    'credit_ledger_signup_once_idx', 'credit_ledger_daily_claim_once_idx',
+    'customer_feedback_content_uidx', 'customer_feedback_request_uidx', 'customer_feedback_owner_idx',
+    'customer_feedback_analysis_snapshot_uidx', 'customer_feedback_analysis_owner_idx',
+    'planning_module_requests_key_uidx', 'planning_module_requests_pending_idx',
+    'ai_execution_leases_expiry_idx',
+  ]
+  const workflowIndexes = await client`SELECT c.relname AS indexname, i.indisvalid AS valid, i.indisunique AS is_unique
+    FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relname = ANY(${requiredWorkflowIndexes})`
+  for (const name of requiredWorkflowIndexes) {
+    const found = workflowIndexes.find(index => index.indexname === name)
+    const needsUnique = name.includes('_once_') || name.endsWith('_uidx')
+    if (!found?.valid || needsUnique && !found.is_unique) { console.error(`Missing or invalid workflow index: ${name}. Apply migrations 0007–0009 before deploying.`); hasErrors = true }
+  }
+  const requiredWorkflowConstraints = ['ai_execution_leases_kind_check', 'customer_feedback_kind_check', 'customer_feedback_sentiment_check',
+    'customer_feedback_provenance_check', 'customer_feedback_content_size', 'customer_feedback_analysis_count_check',
+    'customer_feedback_analysis_size', 'planning_module_requests_module_check', 'planning_module_requests_status_check', 'planning_module_requests_result_check',
+    'planning_module_requests_stage_size', 'planning_module_requests_context_size', 'ideas_public_research_focus_length']
+  const workflowConstraints = await client`SELECT conname, convalidated FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace
+    WHERE n.nspname = 'public' AND conname = ANY(${requiredWorkflowConstraints})`
+  const missingWorkflowConstraints = requiredWorkflowConstraints.filter(name => !workflowConstraints.some(row => row.conname === name && row.convalidated))
+  if (missingWorkflowConstraints.length) { console.error('Missing or unvalidated feedback, saved-context, or retry constraints:', missingWorkflowConstraints.join(', ')); hasErrors = true }
 
   // 3. Verify all 4 enums
   console.log('\n--- 2. Enums Verification ---')

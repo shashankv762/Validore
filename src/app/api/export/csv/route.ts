@@ -9,6 +9,8 @@ import { z } from 'zod'
 import { STARTUP_WEIGHTS as W } from '@/lib/scoring'
 import { rateLimitCheck } from '@/lib/rate-limit'
 import { loadExportDocument } from '@/lib/exports/load-document'
+import { buildReportDocument } from '@/lib/exports/document'
+import { savedExportIdea } from '@/lib/exports/idea-context'
 
 const QuerySchema = z.object({
   reportId: z.string().uuid().optional().nullable(),
@@ -75,10 +77,23 @@ export async function GET(request: NextRequest) {
 
     if (!(await rateLimitCheck(user.id, 'export')).success) return NextResponse.json({ error: 'Please wait a minute before downloading another report.' }, { status: 429 })
 
+    if (documentKind === 'canvas' || canvasId) {
+      const loaded = await loadExportDocument(searchParams, user.id)
+      if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
+      return new NextResponse(['Category,Metric,Score_Or_Value,Details',
+        csvRow('Document', 'Title', loaded.document.title, loaded.document.subtitle),
+        ...(loaded.canvasFields ?? []).map(field => csvRow('Lean Canvas', field.name, field.content, 'Saved block content')),
+        ...loaded.document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, ''))),
+      ].join('\r\n'), { headers: {
+        'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'private, no-store',
+        'Content-Disposition': `attachment; filename="${loaded.filename}.csv"`, 'X-Content-Type-Options': 'nosniff',
+      } })
+    }
+
     if (['pitch', 'pricing', 'crowdfunding'].includes(documentKind || '') || parsedQuery.data.deckId || parsedQuery.data.simulationId || parsedQuery.data.analysisId) {
       const loaded = await loadExportDocument(searchParams, user.id)
       if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
-      return new NextResponse(['Category,Metric,Score_Or_Value,Details', ...loaded.document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, '')))].join('\r\n'), {
+      return new NextResponse(['Category,Metric,Score_Or_Value,Details', csvRow('Document', 'Title', loaded.document.title, loaded.document.subtitle), ...loaded.document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, '')))].join('\r\n'), {
         headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Cache-Control': 'private, no-store', 'Content-Disposition': `attachment; filename="${loaded.filename}.csv"` },
       })
     }
@@ -108,16 +123,17 @@ export async function GET(request: NextRequest) {
         })
 
         if (cfAnalysis) {
-          const cfData = (cfAnalysis.reportData as Record<string, unknown>) || {}
-          const computed = (cfData.computedMetrics as Record<string, unknown>) || {}
+          const data = (cfAnalysis.reportData ?? {}) as Record<string, unknown>
+          const inputs = (data.inputs ?? {}) as Record<string, unknown>
+          const assumptions = (data.calculationAssumptions ?? {}) as Record<string, unknown>
+          const currency = assumptions.currency ?? inputs.currency
+          const document = buildReportDocument(cfAnalysis, savedExportIdea(cfAnalysis, null), 'crowdfunding')
           const rows = [
             'Category,Metric,Score_Or_Value,Details',
-            csvRow('Overview', 'Performance Score', String(cfAnalysis.performanceScore || 0), cfAnalysis.classificationBand || ''),
-            csvRow('Overview', 'Expected Funding', String(cfAnalysis.expectedFunding || 0), 'USD'),
-            csvRow('Overview', 'Expected Backers', String(cfAnalysis.expectedBackers || 0), ''),
-            csvRow('Overview', 'Required Backers', String((computed as any).requiredBackers || 0), 'PROJECTION'),
-            csvRow('Overview', 'Conversion Rate', cfAnalysis.conversionRate || 'N/A', ''),
-            csvRow('Recommendation', 'Summary', cfAnalysis.recommendation || '', 'AI_ESTIMATE_UNVERIFIED'),
+            csvRow('Overview', 'Performance Score', cfAnalysis.performanceScore ?? 'Not available', cfAnalysis.classificationBand || ''),
+            csvRow('Overview', 'Expected Funding', cfAnalysis.expectedFunding ?? 'Not available', typeof currency === 'string' ? currency : 'Currency not recorded'),
+            csvRow('Overview', 'Expected Backers', cfAnalysis.expectedBackers ?? 'Not available', 'ASSUMPTION'),
+            ...document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, ''))),
           ]
           return new NextResponse(rows.join('\r\n'), {
             status: 200,
@@ -150,24 +166,16 @@ export async function GET(request: NextRequest) {
           })
         }
 
-        const leanCanvas = documentKind && documentKind !== 'canvas' ? null : await db.query.leanCanvases.findFirst({
+        const leanCanvas = documentKind ? null : await db.query.leanCanvases.findFirst({
           where: and(eq(leanCanvases.ideaId, ideaId), eq(leanCanvases.userId, dbUser.id), canvasId ? eq(leanCanvases.id, canvasId) : undefined),
           orderBy: [descOrder(leanCanvases.createdAt)],
         })
 
         if (leanCanvas) {
-          const rows = [
-            'Category,Block,Content,Badge',
-            csvRow('Canvas', 'Problem', (leanCanvas.problem as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Solution', (leanCanvas.solution as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'UVP', (leanCanvas.uvp as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Customer Segments', (leanCanvas.customerSegments as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Channels', (leanCanvas.channels as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Revenue Streams', (leanCanvas.revenueStreams as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Cost Structure', (leanCanvas.costStructure as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Key Metrics', (leanCanvas.keyMetrics as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Canvas', 'Unfair Advantage', (leanCanvas.unfairAdvantage as any)?.content || '', 'ASSUMPTION'),
-            csvRow('Scores', 'Validation Score', String(leanCanvas.validationScore || 0), 'AI_ESTIMATE_UNVERIFIED'),
+          const document = buildReportDocument(leanCanvas, savedExportIdea(leanCanvas, null), 'canvas')
+          const rows = ['Category,Metric,Score_Or_Value,Details',
+            csvRow('Document', 'Title', document.title, document.subtitle),
+            ...document.sections.flatMap(section => section.lines.map(line => csvRow(section.title, line.kind, line.text, ''))),
           ]
           return new NextResponse(rows.join('\r\n'), {
             status: 200,
@@ -191,16 +199,16 @@ export async function GET(request: NextRequest) {
     })
 
     const reportData = (report.reportData || {}) as Record<string, unknown>
-    const ideaData = (reportData.idea || {}) as Record<string, unknown>
+    const exportIdea = savedExportIdea(report, idea ?? null)
 
-    const startupName = String(idea?.name ?? ideaData.name ?? 'Not available')
-    const industry = String(idea?.industry ?? ideaData.industry ?? 'Not available')
-    const product = String(idea?.product ?? ideaData.product ?? 'Not available')
-    const location = String(idea?.location ?? ideaData.location ?? 'Not available')
-    const businessModel = String(idea?.businessModel ?? ideaData.businessModel ?? 'Not available')
-    const coreProblem = String(idea?.coreProblem ?? ideaData.coreProblem ?? 'Not available')
-    const proposedSolution = String(idea?.proposedSolution ?? ideaData.proposedSolution ?? 'Not available')
-    const targetCustomer = String(idea?.targetCustomer ?? ideaData.targetCustomer ?? 'Not available')
+    const startupName = String(exportIdea?.name ?? 'Not available')
+    const industry = String(exportIdea?.industry ?? 'Not available')
+    const product = String(exportIdea?.product ?? 'Not available')
+    const location = String(exportIdea?.location ?? 'Not available')
+    const businessModel = String(exportIdea?.businessModel ?? 'Not available')
+    const coreProblem = String(exportIdea?.coreProblem ?? 'Not available')
+    const proposedSolution = String(exportIdea?.proposedSolution ?? 'Not available')
+    const targetCustomer = String(exportIdea?.targetCustomer ?? 'Not available')
 
     const overallScore = report.overallScore ?? 'Not available'
     const decision = report.decision ?? 'PENDING'
@@ -320,6 +328,15 @@ export async function GET(request: NextRequest) {
       rows.push(csvRow('Strategic', 'Recommended Next Steps', rec, rationale))
     }
 
+    // Preserve the complete selected saved result alongside the comparison rows.
+    // This shared representation retains evidence excerpts and experiment criteria
+    // while excluding provider, authentication and internal request fields.
+    const document = buildReportDocument(report, exportIdea, 'validation')
+    if (document.partial) rows.splice(1, 0, csvRow('Metadata', 'Research coverage', 'Partial analysis',
+      'Some research remains incomplete. Review missing evidence before relying on the overall score.'))
+    for (const section of document.sections) {
+      for (const line of section.lines) rows.push(csvRow('Saved analysis', section.title, line.text, ''))
+    }
     const csvContent = rows.join('\r\n')
 
     return new NextResponse(csvContent, {

@@ -3,13 +3,63 @@ import { z } from 'zod'
 import { createGatewayRouter, parseGatewayOutput } from '../src/lib/ai/gateways'
 
 const environment = () => ({
-  KIOS_API_KEY: 'kios-test-key', KIOS_BASE_URL: 'https://kios.example/v1', KIOS_MODELS: 'missing,flash,other', KIOS_FREE_MODELS: 'flash',
-  SEEKAI_API_KEY: 'seek-test-key', SEEKAI_BASE_URL: 'https://seek.example/v1', SEEKAI_MODELS: 'reasoner,free', SEEKAI_FREE_MODELS: 'free',
+  KIOS_API_KEY: 'kios-test-key', KIOS_BASE_URL: 'https://kiosapi.com/v1', KIOS_MODELS: 'missing,flash,other', KIOS_FREE_MODELS: 'flash',
+  SEEKAI_API_KEY: 'seek-test-key', SEEKAI_BASE_URL: 'https://seekai.cc/v1', SEEKAI_MODELS: 'reasoner,free', SEEKAI_FREE_MODELS: 'free',
   AI_GATEWAY_ORDER: 'kios,seekai',
 })
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 
 describe('configured gateway routing', () => {
+  it.each([
+    ['freegg', 'FREEGG', 'https://freegg.app/v1', 'responses'],
+    ['utim', 'UTIM', 'https://api.utim.dev/v1', 'openai'],
+    ['artbloom', 'ARTBLOOM', 'https://api.artbloom.tech/v1', 'openai'],
+  ])('keeps %s aliases literal, host-bound and out of free-only routing without a free declaration', async (id, prefix, baseURL, protocol) => {
+    const fetcher: typeof fetch = vi.fn(async () => json({ data: [{ id: 'gpt-6.1-sol' }, { id: 'gpt-6-luna' }] }))
+    const env = { [prefix + '_API_KEY']: 'synthetic-' + id + '-key', [prefix + '_MODELS']: 'gpt-6.1-sol,gpt-6-luna', AI_GATEWAY_ENABLED: id }
+    const router = createGatewayRouter({ environment: () => env, fetcher })
+    expect(await router.candidates({ freeOnly: true })).toEqual([])
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(await router.candidates({ freeOnly: false })).toEqual([expect.objectContaining({ id, baseURL, protocol, modelId: 'gpt-6.1-sol' })])
+    expect(fetcher).toHaveBeenCalledWith(baseURL + '/models', expect.objectContaining({ headers: { Authorization: 'Bearer synthetic-' + id + '-key' }, redirect: 'error' }))
+    const hostile = createGatewayRouter({ environment: () => ({ ...env, [prefix + '_BASE_URL']: 'https://unrelated.example/v1' }), fetcher })
+    expect(await hostile.candidates()).toEqual([])
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+  it.each(['api_key', 'bearer'] as const)('normalizes the Qronos Anthropic root and uses only the selected %s credential header', async anthropicAuthMode => {
+    const fetcher: typeof fetch = vi.fn(async () => json({ data: [{ id: 'operator-model' }, { id: 'gpt-6-luna' }] }))
+    const env = { QRONOS_API_KEY: 'synthetic-qronos-key', QRONOS_BASE_URL: 'https://qronos.me', QRONOS_MODELS: 'operator-model,gpt-6-luna', QRONOS_ANTHROPIC_AUTH_MODE: anthropicAuthMode }
+    const router = createGatewayRouter({ environment: () => env, fetcher })
+    expect(await router.candidates()).toEqual([expect.objectContaining({ id: 'qronos', baseURL: 'https://qronos.me/v1', protocol: 'anthropic', anthropicAuthMode, modelId: 'operator-model' })])
+    expect(fetcher).toHaveBeenCalledWith('https://qronos.me/v1/models', expect.objectContaining({ headers: {
+      'anthropic-version': '2023-06-01', ...(anthropicAuthMode === 'api_key' ? { 'x-api-key': 'synthetic-qronos-key' } : { Authorization: 'Bearer synthetic-qronos-key' }),
+    } }))
+  })
+  it('supports an explicit Anthropic protocol switch only on declared compatible profiles', async () => {
+    const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
+    const approved = createGatewayRouter({ environment: () => ({ ARTBLOOM_API_KEY: 'synthetic', ARTBLOOM_BASE_URL: 'https://api.artbloom.tech', ARTBLOOM_MODELS: 'literal-model', ARTBLOOM_PROTOCOL: 'anthropic' }), fetcher })
+    expect(await approved.candidates()).toEqual([expect.objectContaining({ protocol: 'anthropic', baseURL: 'https://api.artbloom.tech/v1', modelId: 'literal-model' })])
+    const invalid = createGatewayRouter({ environment: () => ({ UTIM_API_KEY: 'synthetic', UTIM_MODELS: 'literal-model', UTIM_PROTOCOL: 'anthropic' }), fetcher })
+    expect(await invalid.candidates()).toEqual([])
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+  it.each(['openai', 'anthropic'])('rejects the retired FreeGG %s protocol before sending credentials', async protocol => {
+    const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
+    const router = createGatewayRouter({ environment: () => ({ FREEGG_API_KEY: 'synthetic', FREEGG_MODELS: 'gpt-6.1-sol', FREEGG_PROTOCOL: protocol }), fetcher })
+    expect(await router.candidates()).toEqual([])
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+  it('does not treat an incomplete Anthropic catalog as proof that a configured alias is unavailable', async () => {
+    const fetcher: typeof fetch = vi.fn(async () => json({ data: [{ id: 'first-page-model' }], has_more: true, last_id: 'first-page-model' }))
+    const router = createGatewayRouter({ environment: () => ({ QRONOS_API_KEY: 'synthetic', QRONOS_MODELS: 'operator-model' }), fetcher })
+    expect((await router.candidates()).map(candidate => candidate.modelId)).toEqual(['operator-model'])
+  })
+  it('never sends Kios or SeekAI credentials to a replacement origin', async () => {
+    const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
+    const router = createGatewayRouter({ environment: () => ({ ...environment(), KIOS_BASE_URL: 'https://unrelated.example/v1', SEEKAI_BASE_URL: 'https://kiosapi.com/v1' }), fetcher })
+    expect(await router.candidates()).toEqual([])
+    expect(fetcher).not.toHaveBeenCalled()
+  })
   it('uses explicitly enabled installed Ollama models over loopback without a paid API key', async () => {
     const fetcher: typeof fetch = vi.fn(async () => json({ data: [{ id: 'local-tool-model' }] }))
     const env = { OLLAMA_ENABLED: 'true', OLLAMA_MODELS: 'local-tool-model', OLLAMA_FREE_MODELS: 'local-tool-model', AI_GATEWAY_ENABLED: 'ollama' }
@@ -55,9 +105,50 @@ describe('configured gateway routing', () => {
     expect(candidates.map(model => model.modelId)).toEqual(['flash', 'reasoner', 'other', 'free'])
     await router.candidates()
     expect(fetcher).toHaveBeenCalledTimes(2)
-    expect(fetcher).toHaveBeenCalledWith('https://kios.example/v1/models', expect.objectContaining({
+    expect(fetcher).toHaveBeenCalledWith('https://kiosapi.com/v1/models', expect.objectContaining({
       headers: { Authorization: 'Bearer kios-test-key' }, redirect: 'error', cache: 'no-store',
     }))
+  })
+  it.each([[401, 'authentication_rejected'], [429, 'rate_limited'], [503, 'upstream_unavailable']] as const)(
+    'reports safe catalog HTTP %i diagnostics without response bodies or headers', async (status, state) => {
+      const now = 1_000_000
+      const fetcher: typeof fetch = vi.fn(async () => new Response('private provider body', {
+        status, headers: status === 429 ? { 'retry-after': '45', 'x-private-upstream': 'must-not-be-recorded' } : {},
+      }))
+      const router = createGatewayRouter({ environment: () => ({ FREEGG_API_KEY: 'synthetic', FREEGG_MODELS: 'gpt-6.1-sol', AI_GATEWAY_ENABLED: 'freegg' }),
+        fetcher, now: () => now })
+      const diagnostics: import('../src/lib/ai/gateways').GatewayDiagnostic[] = []
+      expect(await router.candidates({ onDiagnostic: item => diagnostics.push(item) })).toEqual([])
+      expect(diagnostics).toEqual([expect.objectContaining({ provider: 'freegg', model: 'gpt-6.1-sol', state,
+        ...(status === 429 ? { retryAt: new Date(now + 45_000).toISOString() } : { httpStatus: status }),
+      })])
+      const serialized = JSON.stringify(diagnostics)
+      expect(serialized).not.toContain('private provider body')
+      expect(serialized).not.toContain('must-not-be-recorded')
+    })
+  it('reports catalog network failures as retryable-safe metadata only', async () => {
+    const router = createGatewayRouter({ environment: () => ({ FREEGG_API_KEY: 'synthetic', FREEGG_MODELS: 'gpt-6.1-sol', AI_GATEWAY_ENABLED: 'freegg' }),
+      fetcher: vi.fn(async () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error('private response'), { code: 'ECONNRESET' }) }) }) })
+    const diagnostics: import('../src/lib/ai/gateways').GatewayDiagnostic[] = []
+    expect(await router.candidates({ onDiagnostic: item => diagnostics.push(item) })).toEqual([])
+    expect(diagnostics[0].state).toBe('network_unavailable')
+    expect(diagnostics[0].retryAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    expect(JSON.stringify(diagnostics)).not.toContain('private response')
+  })
+  it('reports catalog timeouts separately from network failures', async () => {
+    const router = createGatewayRouter({ environment: () => ({ FREEGG_API_KEY: 'synthetic', FREEGG_MODELS: 'gpt-6.1-sol', AI_GATEWAY_ENABLED: 'freegg' }),
+      fetcher: vi.fn(async () => { throw Object.assign(new Error('upstream wait'), { name: 'TimeoutError' }) }) })
+    const diagnostics: import('../src/lib/ai/gateways').GatewayDiagnostic[] = []
+    expect(await router.candidates({ onDiagnostic: item => diagnostics.push(item) })).toEqual([])
+    expect(diagnostics[0].state).toBe('request_timeout')
+    expect(diagnostics[0].retryAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+  })
+  it('reports a configured alias missing from a verified catalog without attempting generation', async () => {
+    const router = createGatewayRouter({ environment: () => ({ FREEGG_API_KEY: 'synthetic', FREEGG_MODELS: 'configured-alias', AI_GATEWAY_ENABLED: 'freegg' }),
+      fetcher: vi.fn(async () => json({ data: [{ id: 'different-model' }] })) })
+    const diagnostics: import('../src/lib/ai/gateways').GatewayDiagnostic[] = []
+    expect(await router.candidates({ onDiagnostic: item => diagnostics.push(item) })).toEqual([])
+    expect(diagnostics).toEqual([{ provider: 'freegg', model: 'configured-alias', state: 'model_not_listed' }])
   })
   it('uses only declared free models and respects an agent model preference', async () => {
     const fetcher: typeof fetch = vi.fn(async () => json({}, 404))
@@ -92,11 +183,11 @@ describe('configured gateway routing', () => {
     const router = createGatewayRouter({ environment: () => ({ ...environment(), AI_GATEWAY_ENABLED: 'kios' }), fetcher })
     expect((await router.candidates()).every(model => model.id === 'kios')).toBe(true)
     expect(fetcher).toHaveBeenCalledTimes(1)
-    expect(fetcher).toHaveBeenCalledWith('https://kios.example/v1/models', expect.anything())
+    expect(fetcher).toHaveBeenCalledWith('https://kiosapi.com/v1/models', expect.anything())
   })
   it('rejects unsafe URLs without sending the configured key', async () => {
     const fetcher: typeof fetch = vi.fn(async () => json({ data: [] }))
-    for (const baseURL of ['http://kios.example/v1', 'https://name:password@kios.example/v1', 'https://kios.example/v1?token=private']) {
+    for (const baseURL of ['http://kiosapi.com/v1', 'https://name:password@kiosapi.com/v1', 'https://kiosapi.com/v1?token=private']) {
       const router = createGatewayRouter({ environment: () => ({ KIOS_API_KEY: 'private', KIOS_BASE_URL: baseURL, KIOS_MODELS: 'flash' }), fetcher })
       expect(await router.candidates()).toEqual([])
     }
@@ -105,7 +196,7 @@ describe('configured gateway routing', () => {
   it('deduplicates simultaneous catalog requests and isolates refreshed credentials', async () => {
     let key = 'first'
     const fetcher: typeof fetch = vi.fn(async () => json({ data: [{ id: 'flash' }] }))
-    const router = createGatewayRouter({ environment: () => ({ KIOS_API_KEY: key, KIOS_BASE_URL: 'https://kios.example/v1', KIOS_MODELS: 'flash' }), fetcher })
+    const router = createGatewayRouter({ environment: () => ({ KIOS_API_KEY: key, KIOS_BASE_URL: 'https://kiosapi.com/v1', KIOS_MODELS: 'flash' }), fetcher })
     await Promise.all([router.candidates(), router.candidates()])
     expect(fetcher).toHaveBeenCalledTimes(1)
     key = 'second'

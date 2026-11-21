@@ -98,4 +98,4 @@ Ollama's runtime is [MIT licensed](https://github.com/ollama/ollama/blob/main/LI
 
 Credits, Usage, Settings and planning tabs share `/api/me` account state. Balances refresh after analyses, on focus/navigation, and periodically while visible. The Usage page reads authenticated, owner-scoped database aggregates and displays recorded validation tokens separately from app credits. Unreported/failed provider requests and other modules are not included in that token number. No token-to-dollar estimate is invented.
 
-Plan prices are defined in `src/lib/plans.ts`, action costs in `src/lib/credit-costs.ts`, and add-on prices in `src/lib/credit-packages.ts`. New subscription checkout verifies the configured Stripe monthly USD amount against the advertised plan. Existing subscribers can still reach the billing portal.
+Plan prices are defined in `src/lib/plans.ts`, action costs in `src/lib/credit-costs.ts`, and add-on prices in `src/lib/credit-packages.ts`. Subscription checkout verifies that the Stripe price matches the advertised monthly amount in the chosen billing currency, USD or INR. Existing subscribers can reach the billing portal.

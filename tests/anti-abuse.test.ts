@@ -4,7 +4,7 @@ import { POST as signupRoute } from '@/app/api/auth/signup/route'
 import { createClient } from '@/lib/supabase/server'
 import { db } from '@/db'
 import { rateLimitCheck } from '@/lib/rate-limit'
-import { checkCredits } from '@/lib/credits'
+import { admitValidation, ValidationAdmissionError } from '@/lib/validation-admission'
 import { NextRequest } from 'next/server'
 import { LEGAL } from '@/lib/legal'
 
@@ -32,14 +32,10 @@ vi.mock('@/lib/rate-limit', () => ({
   decrementConcurrency: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/credits', () => ({
-  checkCredits: vi.fn(),
-  deductCredits: vi.fn(),
-}))
-
-vi.mock('@/lib/tier-gate', () => ({
-  checkValidationLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 10 }),
-}))
+vi.mock('@/lib/validation-admission', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/validation-admission')>('@/lib/validation-admission')
+  return { ...actual, admitValidation: vi.fn() }
+})
 
 describe('Anti-abuse and Credit limits', () => {
   beforeEach(() => {
@@ -79,7 +75,7 @@ describe('Anti-abuse and Credit limits', () => {
 
   it('402 test: returns 402 when out of credits', async () => {
     ;(rateLimitCheck as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true })
-    ;(checkCredits as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ allowed: false, remaining: 0, required: 100 })
+    ;(admitValidation as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new ValidationAdmissionError('Insufficient credits.', 402))
 
     const req = new NextRequest('http://localhost/api/validate', {
       method: 'POST',
@@ -89,7 +85,11 @@ describe('Anti-abuse and Credit limits', () => {
     const res = await validateRoute(req)
     expect(res.status).toBe(402)
     const json = await res.json()
-    expect(json.error).toBe('Insufficient credits')
+    expect(json.error).toBe('Insufficient credits.')
+    expect(admitValidation).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'db-user-id', supabaseId: 'test-user-id',
+      ideaId: '11111111-1111-4111-8111-111111111111', emailVerified: true,
+    }))
   })
 
   it('Disposable email test: blocks disposable emails', async () => {

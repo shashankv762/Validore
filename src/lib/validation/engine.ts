@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { generateWithFallback } from '../ai/generate'
+import { generateWithFallback, type GenerateOptions } from '../ai/generate'
 import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
 import { webSearch, deduplicateSources, type SearchResult } from '../ai/search'
 import { STARTUP_WEIGHTS, clampScore, getCampaignClassificationBand } from '../scoring'
@@ -8,13 +8,23 @@ import { db } from '@/db'
 import { validationJobs } from '@/db/schema'
 import { eq, and, sql } from 'drizzle-orm'
 import { runInlineStep, type RunValidationStep } from './steps'
-import { auditEvidence, auditMarketSizing, auditFounderAssumptions, DESK_RESEARCH_NOTE } from './agents/quality-auditor'
+import { auditEvidence, auditMarketSizing, auditFounderAssumptions, reconcileDecision, validateCustomerSignals, validateSynthesisHandoffClaims, DESK_RESEARCH_NOTE, type DecisionAudit } from './agents/quality-auditor'
+import { buildAgentHandoff, serializeHandoffs, buildScoreSummary, auditHandoffCoverage, type HandoffAudit, type ScoreSummary } from './agents/handoffs'
+import { CustomerAgentSchema, GrowthAgentSchema, SynthesisAgentSchema, PriceSensitivitySchema } from './schemas'
 import { runMultiAgentValidation, type MultiAgentResult, type AgentTrail } from './agents/orchestrator'
 import { runMarketAgent } from './agents/market'
 import { runCustomerAgent } from './agents/customer'
 import { FULL_AGENT_COUNT } from '@/lib/ai/roles'
 import { retrieveMarketMemory } from '@/lib/ai/market-memory'
 import { randomUUID } from 'node:crypto'
+import { effectiveAiPreference,freeModelsOnly } from '@/lib/ai/model-policy'
+import { runSpecialistPhase,specialistConcurrency } from './agents/specialist-scheduler'
+import { compactPrivateContext } from '@/lib/ai/private-context'
+import { liteReportStepId } from './lite-step'
+import { researchContextStepId } from './agents/derived-step'
+import { isRetryableGenerationFailure } from '@/lib/ai/generation-failure'
+import { validationContentIssues, validateFullValidationOutput } from './delivery-quality'
+import { validationManifest, validationModelPolicy, VALIDATION_METHOD_VERSION } from './provenance'
 
 // ─── Shared schemas (single source of truth: ./schemas) ──────────────────────
 
@@ -23,7 +33,7 @@ import { EvidenceItemSchema, FullReportSchema, type IdeaInput, type FullReport }
 
 // ─── Lite validation (Free tier) ──────────────────────────────────────────────
 
-const LiteReportSchema = z.object({
+export const LiteReportSchema = z.object({
   problemScore: z.number().min(0).max(STARTUP_WEIGHTS.problemValidation),
   customerScore: z.number().min(0).max(STARTUP_WEIGHTS.customerValidation),
   marketScore: z.number().min(0).max(STARTUP_WEIGHTS.marketOpportunity),
@@ -36,9 +46,7 @@ const LiteReportSchema = z.object({
   decisionReasons: z.array(z.string()).min(2).max(5),
   keyEvidence: z.array(EvidenceItemSchema).max(5),
   keyRisks: z.array(z.string()).min(2).max(5),
-  actionPlan: z.array(
-    z.object({ week: z.string(), action: z.string(), kpi: z.string() })
-  ).max(4),
+  actionPlan: z.array(SynthesisAgentSchema.shape.actionPlan.element.partial({ owner: true })).min(3).max(4),
   persona: z.object({
     name: z.string(),
     ageRange: z.string(),
@@ -46,7 +54,7 @@ const LiteReportSchema = z.object({
     incomeRange: z.string(),
     goals: z.array(z.string()),
     problems: z.array(z.string()),
-    priceSensitivity: z.enum(['low', 'medium', 'high']),
+    priceSensitivity: PriceSensitivitySchema,
   }),
   competitors: z.array(
     z.object({
@@ -60,17 +68,39 @@ const LiteReportSchema = z.object({
   samEstimate: z.string(),
   somEstimate: z.string(),
   integrityNote: z.string(),
+  nextStepRecommendation: SynthesisAgentSchema.shape.nextStepRecommendation.optional(),
+  nextStepRationale: z.string().optional(),
+  customerSignals: CustomerAgentSchema.shape.customerSignals,
 })
 
 export type LiteReport = z.infer<typeof LiteReportSchema>
 
+// Older saved Lite reports remain readable. New generation must provide the
+// same explicit learning/decision criteria as the full growth specialist.
+const LiteGenerationSchema = LiteReportSchema.extend({
+  actionPlan: z.array(GrowthAgentSchema.shape.actionPlan.element).min(3).max(4),
+  nextStepRecommendation: SynthesisAgentSchema.shape.nextStepRecommendation,
+  nextStepRationale: z.string().trim().min(1),
+})
+// Successful specialists already own these fields. The final model spends its
+// bounded output on judgment and next experiments, not retyping their results.
+const LiteSynthesisSchema = LiteGenerationSchema.omit({
+  problemScore: true, customerScore: true, wtpScore: true, marketScore: true,
+  persona: true, tamEstimate: true, samEstimate: true, somEstimate: true, customerSignals: true,
+})
+type LiteSynthesisOutput = z.infer<typeof LiteSynthesisSchema>
+
 function buildLitePrompt(
   idea: IdeaInput,
   searchResults: SearchResult[],
-  degraded: boolean
+  degraded: boolean,
+  reuseSpecialists = false,
+  asOfDate?: string,
 ): string {
-  const today = new Date().toISOString().split('T')[0]
-  const searchCtx = searchResults.length === 0
+  const today = asOfDate ?? new Date().toISOString().split('T')[0]
+  const searchCtx = reuseSpecialists
+    ? '\nCompleted market/customer findings and the retrieved source register are supplied separately. Reuse them.'
+    : searchResults.length === 0
     ? `\nNo sources have been retrieved yet. Use research tools for material evidence gaps. Mark unsupported market data AI_ESTIMATE_UNVERIFIED with strength:WEAK. Never invent URLs.`
     : `\nRetrieved source excerpts (${degraded ? 'limited public indexes' : 'public web search'}; WEAK until the original source is read, include fetchedAt):\n${searchResults
         .map((r) => `- "${r.title}": ${r.content.slice(0, 300)} [source:${r.source}, url:${r.url}, fetchedAt:${r.fetchedAt}]`)
@@ -89,7 +119,9 @@ Core Problem: ${idea.coreProblem}
 Proposed Solution: ${idea.proposedSolution}
 ${searchCtx}
 
-TASK: Perform a LITE startup validation. Score each category within its max weight. Compute all 8 sub-scores individually.
+TASK: Perform a LITE startup validation. Preserve the provided specialist scores from the explicit score summary and estimate only the remaining categories within their max weights. Return nextStepRecommendation and a concrete nextStepRationale tied to the first decision-changing experiment.
+Give three or four proposed sequential experiments. Every actionPlan item needs owner, hypothesis, participantUnit, denominator, passCriterion and decisionOnFailure as well as week/action/kpi. Keep each field concise. Interviews and email signups measure learning or interest, not payment. State the actual paid commitment needed to pass a willingness-to-pay test and what changes if that threshold is missed. Do not confuse individual customers, organizations and cohorts or schedule scaling as an unconditional next step.
+Use persona.priceSensitivity: unknown when direct buyer pricing evidence is missing. Price sensitivity describes response to price changes, not willingness to pay. Do not infer low, medium or high sensitivity from nationality, income, occupation or an invented persona.
 
 WEIGHT TABLE (scores must NOT exceed max):
 - problemScore max: ${STARTUP_WEIGHTS.problemValidation}
@@ -102,24 +134,25 @@ WEIGHT TABLE (scores must NOT exceed max):
 - executionScore max: ${STARTUP_WEIGHTS.executionFeasibility}
 
 DECISION LOGIC:
-- GO: scores ≥ 75 total, strong evidence, clear WTP
-- MODIFY: 55-74 total, promising but gaps
-- TEST_FURTHER: 40-54 total, significant unknowns
-- NO_GO: <40 total, fundamental flaws
+Score bands (≥75, 55-74, 40-54 and <40) describe the concept/evidence rubric, not a commercial verdict.
+- TEST_FURTHER is appropriate at any score when demand, payment or other critical inputs are untested. Missing validation does not establish fundamental failure.
+- MODIFY identifies a supported, fixable concept gap.
+- A low score, an ordinary competitor page and losses under assumed inputs do not establish NO_GO. A blocking conclusion needs original-source review of an actual binding constraint or observed outcome; Lite should request that review when it is missing.
+- GO requires direct product-specific commercial validation, which desk research alone cannot establish.
 
 CRITICAL INTEGRITY RULES (NEVER violate):
 1. Never fabricate market statistics, competitor data, customer testimonials, or traction
-2. Never invent source URLs — leave source/link empty if no search result
+2. Never invent source URLs; use supplied sources or successful research results only. Add an exact evidenceExcerpt of at least 20 characters from the cited retrieved content for MODERATE; snippets and dated memory remain WEAK. Do not output STRONGER or VERIFIED.
 3. Label all AI-generated claims: ASSUMPTION, PROJECTION, or AI_ESTIMATE_UNVERIFIED
 4. Do NOT force a GO recommendation
 5. Do NOT automatically recommend fundraising
 6. Never present planned milestones as achieved
-7. In degraded mode: ALL evidence strength must be WEAK, label AI_ESTIMATE_UNVERIFIED
+7. Judge each source by its actual retrieval: snippets, bibliographic records, dated memory and unsupported claims remain WEAK, including after a degraded search. MODERATE requires an evidenceExcerpt of at least 20 characters copied exactly from the successfully read cited page or official dataset. The excerpt proves provenance, not that an inference exceeds its scope. Do not output strength STRONGER or label VERIFIED; a later successful original-source read can support MODERATE even when the initial search was degraded.
 8. Competitor dateChecked must be today's date: ${today}
 9. tamEstimate/samEstimate/somEstimate are PROJECTIONS, label accordingly
 10. Preserve the market specialist's methods and 'Not established' values. Missing segment counts and spending evidence are unknowns, not permission to invent market sizes or market-share percentages.
 
-The integrityNote field must summarise what is verified vs assumed in this report.`
+The integrityNote must distinguish retrieved observations, assumptions, projections and missing evidence. Source retrieval and AI interpretation are not independent verification.`
 }
 
 type EngineOptions = {
@@ -129,46 +162,94 @@ type EngineOptions = {
   maxTokensPerCall?: number
   runStep?: RunValidationStep
   researchBudgetId?: string
+  retryTransientFailures?: boolean
+  asOfDate?: string
   onProgress?: (completed: number, total: number) => void | Promise<void>
 }
 
 export async function runLiteValidation(
   idea: IdeaInput,
   opts?: EngineOptions
-): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number; researchSources?: SearchResult[]; agentTrail?: AgentTrail }> {
-  const executeStep = opts?.runStep ?? runInlineStep
+): Promise<LiteReport & { overallScore: number; provider: string; tokensUsed: number; researchSources?: SearchResult[]; agentTrail?: AgentTrail; decisionAudit?: DecisionAudit; handoffAudit?: HandoffAudit; scoreSummary?: ScoreSummary; runManifest?: ReturnType<typeof validationManifest> }> {
+  const stepIds: string[] = []
+  const executeStep: RunValidationStep = (id, work) => { stepIds.push(id); return (opts?.runStep ?? runInlineStep)(id, work) }
+  const asOfDate = await executeStep(researchContextStepId('lite-run-date', idea), async () => opts?.asOfDate ?? new Date().toISOString().slice(0, 10))
+  const freeOnly=freeModelsOnly()||effectiveAiPreference(opts?.preferredAiProvider)!=='paid_models'
+  const concurrency=specialistConcurrency(process.env.AI_SPECIALIST_CONCURRENCY,freeOnly)
   const researchBudgetId = opts?.researchBudgetId ?? randomUUID()
-  const initialSearch = await executeStep('lite-research-sources', () => webSearch(
-    publicResearchQuery(idea, 'market size startups'),
-    5
-  ))
-  const searchResp = { ...initialSearch, results: deduplicateSources([...initialSearch.results, ...retrieveMarketMemory(`${idea.industry} ${idea.targetCustomer} ${idea.location}`)]) }
-  const agentOptions = { ...opts, researchBudgetId, sources: searchResp.results }
-  const [market, customer] = await Promise.all([
-    executeStep('lite-agent-market', async () => { try { return await runMarketAgent(idea, searchResp, agentOptions) } catch { return null } }),
-    executeStep('lite-agent-customer', async () => { try { return await runCustomerAgent(idea, agentOptions) } catch { return null } }),
-  ])
+  const initialSearch = await executeStep(researchContextStepId('lite-research-sources', idea), async () => {
+    const search = await webSearch(publicResearchQuery(idea, 'market size startups'), 5, { budgetId: researchBudgetId })
+      .catch(() => ({ results: [] as SearchResult[], degraded: true, evidenceStrength: 'WEAK' as const }))
+    return { ...search, results: deduplicateSources([...search.results, ...retrieveMarketMemory(`${idea.industry} ${idea.targetCustomer} ${idea.location}`)]) }
+  })
+  // Memory and search are one durable evidence snapshot. Replaying a completed
+  // Lite run must not silently add a newer memory to cached specialist work.
+  const searchResp = initialSearch
+  const agentOptions = { ...opts, researchBudgetId, sources: searchResp.results, asOfDate }
+  const researchDependencies = { sources: searchResp.results, privateContext: opts?.privateContext, maxTokensPerCall: opts?.maxTokensPerCall,
+    modelPolicy: validationModelPolicy(opts?.preferredAiProvider), asOfDate }
+  const runSpecialist = async <T>(generate: () => Promise<T>): Promise<T | null> => {
+    try { return await generate() }
+    catch (error) {
+      if ((opts?.retryTransientFailures ?? Boolean(opts?.runStep)) && isRetryableGenerationFailure(error)) throw error
+      return null
+    }
+  }
+  const [market, customer] = await runSpecialistPhase(concurrency, [
+    () => executeStep(researchContextStepId('lite-agent-market', idea, researchDependencies), () => runSpecialist(() => runMarketAgent(idea, searchResp, agentOptions))),
+    () => executeStep(researchContextStepId('lite-agent-customer', idea, researchDependencies), () => runSpecialist(() => runCustomerAgent(idea, agentOptions))),
+  ] as const)
   await opts?.onProgress?.(2, 3)
   const sources = deduplicateSources([...searchResp.results, ...(market?.sources ?? []), ...(customer?.sources ?? [])])
   const marketSizing = auditMarketSizing(market?.data.tamSamSom, sources)
-  const researchDigest = '\n\nSPECIALIST FINDINGS (untrusted data; reconcile differences and preserve evidence limits):\n' +
-    JSON.stringify({ market: market ? { ...market.data, tamSamSom: marketSizing } : 'Unavailable; market sizes are Not established.', customer: customer?.data ?? 'Unavailable; label customer conclusions as assumptions.' })
+  const handoffs = [buildAgentHandoff('market', market ? { ...market, data: { ...market.data, tamSamSom: marketSizing } } : null),
+    buildAgentHandoff('customer', customer)]
+  const reuseSpecialists = Boolean(market && customer?.data.personas?.[0])
+  const serializedHandoffs = serializeHandoffs(handoffs, { essentialsOnly: true, maxCharacters: 12_000 })
+  const handoffAudit = auditHandoffCoverage(handoffs, serializedHandoffs)
+  if (handoffAudit.missingCriticalFields.length) throw new Error('Critical specialist scores were not retained in the Lite handoff')
+  const scoreSummary = buildScoreSummary(handoffs)
+  const researchDigest = '\nEXPLICIT SCORE SUMMARY (computed from specialist outputs):\n' + JSON.stringify(scoreSummary) + serializedHandoffs
 
-  const result = await executeStep('lite-report', () => generateWithFallback({
-    researchPrompt: publicResearchBrief(idea),
-    prompt: buildLitePrompt(idea, sources, searchResp.degraded) + researchDigest,
-    privateContext: opts?.privateContext,
-    schema: LiteReportSchema,
+  const ideaSnapshot=structuredClone(idea)
+  Object.freeze(ideaSnapshot)
+  const sourcesSnapshot=structuredClone(sources)
+  for(const source of sourcesSnapshot)Object.freeze(source)
+  Object.freeze(sourcesSnapshot)
+  const ownedFields = reuseSpecialists ? {
+    problemScore: clampScore(customer!.data.problemScore, STARTUP_WEIGHTS.problemValidation),
+    customerScore: clampScore(customer!.data.customerScore, STARTUP_WEIGHTS.customerValidation),
+    wtpScore: clampScore(customer!.data.wtpScore, STARTUP_WEIGHTS.willingnessToPay),
+    marketScore: clampScore(market!.data.marketScore, STARTUP_WEIGHTS.marketOpportunity),
+    persona: LiteReportSchema.shape.persona.parse(customer!.data.personas[0]),
+    tamEstimate: marketSizing.tam.value,
+    samEstimate: marketSizing.sam.value,
+    somEstimate: marketSizing.som.value,
+    customerSignals: customer!.data.customerSignals,
+  } : {}
+  const reportOptions: GenerateOptions<LiteSynthesisOutput> = {
+    researchPrompt: publicResearchBrief(ideaSnapshot),
+    prompt: buildLitePrompt(ideaSnapshot, sourcesSnapshot, searchResp.degraded, reuseSpecialists, asOfDate) +
+      (reuseSpecialists ? '\nThe coordinator attaches problemScore, customerScore, wtpScore, marketScore, the primary persona, market estimates and customer signals from completed specialists. Do not regenerate those fields. Return only the synthesis schema, with concise reasons and experiment fields.' : '') + researchDigest,
+    privateContext: compactPrivateContext(opts?.privateContext),
+    schema: reuseSpecialists ? LiteSynthesisSchema : LiteGenerationSchema,
+    validateOutput: (data, suppliedSources) => {
+      const assembled = LiteReportSchema.parse({ ...data, ...ownedFields })
+      return [...validationContentIssues(assembled, true), ...validateCustomerSignals(assembled, suppliedSources), ...validateSynthesisHandoffClaims(data, handoffAudit)]
+    },
     maxOutputTokens: 5000,
     maxTokensPerCall: opts?.maxTokensPerCall,
-    agentRole: 'synthesis',
-    researchMode: market || customer ? 'reuse' : 'auto',
-    sources,
+    agentRole: 'synthesis' as const,
+    researchMode: market || customer ? 'reuse' as const : 'auto' as const,
+    sources:sourcesSnapshot,
     temperature: 0,
     customOpenRouterKey: opts?.customOpenRouterKey,
     researchBudgetId,
     preferredAiProvider: opts?.preferredAiProvider,
-  }))
+  }
+  Object.freeze(reportOptions)
+  const reportStep=liteReportStepId(ideaSnapshot,reportOptions,VALIDATION_METHOD_VERSION,opts?.privateContext)
+  const result = await executeStep(reportStep, () => generateWithFallback(reportOptions))
   const tokensUsed = result.tokensUsed + (market?.tokensUsed ?? 0) + (customer?.tokensUsed ?? 0)
   const agentTrail: AgentTrail = {
     agents: { market: market ? 'ok' : 'failed', customer: customer ? 'ok' : 'failed', synthesis: 'ok' },
@@ -178,26 +259,36 @@ export async function runLiteValidation(
   }
   await opts?.onProgress?.(3, 3)
 
-  const d = result.data
+  const d = LiteReportSchema.parse({ ...result.data, ...ownedFields })
   // Clamp scores to their max weights
-  const ps = clampScore(d.problemScore, STARTUP_WEIGHTS.problemValidation)
-  const cs = clampScore(d.customerScore, STARTUP_WEIGHTS.customerValidation)
-  const ms = clampScore(d.marketScore, STARTUP_WEIGHTS.marketOpportunity)
+  const ps = clampScore(customer?.data.problemScore ?? d.problemScore, STARTUP_WEIGHTS.problemValidation)
+  const cs = clampScore(customer?.data.customerScore ?? d.customerScore, STARTUP_WEIGHTS.customerValidation)
+  const ms = clampScore(market?.data.marketScore ?? d.marketScore, STARTUP_WEIGHTS.marketOpportunity)
   const cds = clampScore(d.competitiveScore, STARTUP_WEIGHTS.competitiveDifferentiation)
-  const ws = clampScore(d.wtpScore, STARTUP_WEIGHTS.willingnessToPay)
+  const ws = clampScore(customer?.data.wtpScore ?? d.wtpScore, STARTUP_WEIGHTS.willingnessToPay)
   const bs = clampScore(d.businessModelScore, STARTUP_WEIGHTS.businessModel)
   const fs = clampScore(d.financialScore, STARTUP_WEIGHTS.financialFeasibility)
   const es = clampScore(d.executionScore, STARTUP_WEIGHTS.executionFeasibility)
 
   const overallScore = ps + cs + ms + cds + ws + bs + fs + es
+  const finalSources = deduplicateSources([...sources, ...(result.sources ?? [])])
+  const citations = auditEvidence(d.keyEvidence, finalSources)
+  const firstTest = d.actionPlan[0]
+  const decision = reconcileDecision({ ...d, nextStepRecommendation: d.nextStepRecommendation ?? 'MORE_VALIDATION' as const,
+    nextStepRationale: d.nextStepRationale || 'Start with this proposed test: ' + firstTest.action + ' Pass criterion: ' + (firstTest.passCriterion || firstTest.kpi) },
+    overallScore, { agents: agentTrail.agents, evidence: citations.keyEvidence, sources: finalSources })
 
-  return {
-    ...d,
+  const finalReport = {
+    ...decision,
+    customerSignals: customer?.data.customerSignals ?? d.customerSignals,
     tamEstimate: marketSizing.tam.value === 'Not established' ? 'Not established' : marketSizing.tam.value + ' [PROJECTION] — ' + marketSizing.tam.method,
     samEstimate: marketSizing.sam.value === 'Not established' ? 'Not established' : marketSizing.sam.value + ' [PROJECTION] — ' + marketSizing.sam.method,
     somEstimate: marketSizing.som.value === 'Not established' ? 'Not established' : marketSizing.som.value + ' [PROJECTION] — ' + marketSizing.som.method,
-    ...auditEvidence(d.keyEvidence, deduplicateSources([...sources, ...(result.sources ?? [])])),
-    researchSources: deduplicateSources([...sources, ...(result.sources ?? [])]),
+    ...citations,
+    researchSources: finalSources,
+    runManifest: validationManifest(ideaSnapshot, opts?.privateContext, finalSources, stepIds, opts?.preferredAiProvider),
+    handoffAudit,
+    scoreSummary,
     agentTrail,
     problemScore: ps,
     customerScore: cs,
@@ -211,6 +302,10 @@ export async function runLiteValidation(
     provider: result.provider,
     tokensUsed,
   }
+  // Validate after calibration as well: a policy note must never turn a valid
+  // five-reason model response into an invalid saved Lite report.
+  LiteReportSchema.parse(finalReport)
+  return finalReport
 }
 
 // ─── Full validation (Premium tier) ───────────────────────────────────────────
@@ -232,6 +327,7 @@ export async function runFullValidation(
   opts?: EngineOptions
 ): Promise<FullReportWithComputed | null> {
   const executeStep = opts?.runStep ?? runInlineStep
+  const durableStepFailures = new WeakSet<object>()
   let totalTokens = 0
   let provider = 'unknown'
 
@@ -246,25 +342,37 @@ export async function runFullValidation(
     })
 
     // ─── Primary path: multi-agent pipeline ──────────────────────────────────
+    const agentOptions = opts?.runStep ? { ...opts, runStep: async <T>(name: string, work: () => Promise<T>) => {
+      try { return await opts.runStep!(name, work) }
+      catch (error) {
+        if (error !== null && (typeof error === 'object' || typeof error === 'function')) durableStepFailures.add(error as object)
+        throw error
+      }
+    } } : opts
     const generateAgents = () => runMultiAgentValidation(idea, {
-      ...opts,
+      ...agentOptions,
       onProgress: async (completed: number, _total: number, _label?: string) => {
         await db
           .update(validationJobs)
-          .set({ completedSections: sql`greatest(${validationJobs.completedSections}, ${completed})`, updatedAt: new Date() })
+          .set({ completedSections: sql`greatest(${validationJobs.completedSections}, ${completed})` })
           .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
           .catch(() => {})
       },
     })
-    let agentReport: MultiAgentResult | null = opts?.runStep ? await generateAgents() : await generateAgents().catch((error) => {
-      console.error('[ENGINE] Multi-agent pipeline failed:', error)
-      return null
-    })
+    let agentReport: MultiAgentResult | null = null
+    try { agentReport = await generateAgents() }
+    catch (error) {
+      const cameFromDurableStep = error !== null && (typeof error === 'object' || typeof error === 'function') && durableStepFailures.has(error as object)
+      if (cameFromDurableStep || opts?.runStep && isRetryableGenerationFailure(error)) throw error
+      console.warn('[ENGINE] Multi-agent coordinator failed; trying monolithic fallback', { type: error instanceof Error ? error.name : 'UnknownError' })
+    }
 
     // Critical fallback: if the whole agent pipeline failed, use the monolith.
     if (!agentReport) {
       console.warn('[ENGINE] Multi-agent pipeline returned null — falling back to monolithic generation')
-      agentReport = await executeStep('fallback-report', () => runMonolithicFull(idea, jobId, opts))
+      // The fallback registers its own durable research/model steps. Wrapping
+      // the coordinator itself in a step would nest those registrations.
+      agentReport = await runMonolithicFull(idea, jobId, opts)
       if (!agentReport) return null
     }
 
@@ -298,9 +406,10 @@ export async function runFullValidation(
 function buildFullPrompt(
   idea: IdeaInput,
   searchResults: SearchResult[],
-  degraded: boolean
+  degraded: boolean,
+  asOfDate?: string,
 ): string {
-  const today = new Date().toISOString().split('T')[0]
+  const today = asOfDate ?? new Date().toISOString().split('T')[0]
   const searchCtx = searchResults.length === 0
     ? `\nNo sources have been retrieved yet. Use research tools for material evidence gaps. Mark unsupported market data AI_ESTIMATE_UNVERIFIED with strength:WEAK. Never invent URLs.`
     : `\nRetrieved source excerpts (${degraded ? 'limited public indexes' : 'public web search'}; treat as unverified):\n${searchResults
@@ -331,14 +440,14 @@ financialScore max: ${STARTUP_WEIGHTS.financialFeasibility}
 executionScore max: ${STARTUP_WEIGHTS.executionFeasibility}
 
 DECISION LOGIC:
-GO (≥75): clear evidence, real WTP signals, viable business model
-MODIFY (55-74): promising concept with fixable gaps
-TEST_FURTHER (40-54): significant unknowns, research needed
-NO_GO (<40): fundamental problems — market, WTP, or model viability
+The score bands ≥75, 55-74, 40-54 and <40 describe concept/evidence support, not an automatic commercial verdict.
+Use TEST_FURTHER at any score when important assumptions are untested. A low score, ordinary competitor pages or hypothetical financial losses do not prove customer rejection.
+MODIFY identifies a supported, fixable gap. A blocking NO_GO conclusion requires original-source specialist review of an actual binding constraint or observed outcome; request that review when it is missing. Desk research alone cannot establish the direct commercial validation needed for GO.
 
 INTEGRITY RULES (NEVER violate):
+Set personas.priceSensitivity to unknown without direct buyer pricing evidence. Price sensitivity is not willingness to pay; nationality, income and an assumed customer profile do not measure it.
 1. Never fabricate market stats, traction, competitor data, testimonials, or revenue
-2. Never invent source URLs — only use URLs from provided search results
+2. Never invent source URLs — only use supplied sources or successful research tool results. Snippets and dated memory remain WEAK; MODERATE requires exact supporting text from a successfully read page or official dataset. Do not output strength STRONGER or label VERIFIED.
 3. Label AI claims: ASSUMPTION, PROJECTION, AI_ESTIMATE_UNVERIFIED, PROPOSED_STRATEGY
 4. Do NOT force GO or positive framing
 5. Do NOT recommend fundraising by default — use nextStepRecommendation enum
@@ -347,7 +456,7 @@ INTEGRITY RULES (NEVER violate):
 8. TAM/SAM/SOM = PROJECTION label, not verified
 9. unitEconomicsAssumptions.assumptionLabel must be 'ASSUMPTION'
 10. tamSamSom entries must have label:'PROJECTION'
-11. The integrityNote must clearly list what is verified vs assumed
+11. The integrityNote must distinguish retrieved observations, assumptions, projections and missing evidence; a retrieved URL or AI interpretation is not independent verification.
 12. Generate the new Phase 1 fields: oneLineConcept, founderAssumptions, problemValidation5Factor, customerJPG, interviewQuestions, competitorPositioning, landingPageCopy, wtpSurveyQuestions, pestleAnalysis, portersFiveForces
 13. This is desk research, not customer testing. All founderAssumptions.validated values must be false; explain tentative research support and a direct test in postResearchFinding.
 14. Use 'Not established' for market sizes without sourced segment counts and annual spending. Never substitute an arbitrary share of a broad industry.`
@@ -359,49 +468,64 @@ async function runMonolithicFull(
   opts?: EngineOptions
 ): Promise<MultiAgentResult | null> {
   const partialFailures: string[] = []
-  const executeStep = opts?.runStep ?? runInlineStep
+  const optionsSnapshot = Object.freeze({ ...opts })
+  const ideaSnapshot = Object.freeze(structuredClone(idea))
+  const executeStep = optionsSnapshot.runStep ?? runInlineStep
+  const asOfDate = await executeStep(researchContextStepId('monolithic-run-date', ideaSnapshot), async () => optionsSnapshot.asOfDate ?? new Date().toISOString().slice(0, 10))
 
   // Step 1: Web search for market context
-  let allResults: SearchResult[] = []
-  let degraded = true
-  try {
-    const [marketSearch, competitorSearch] = await executeStep('monolithic-research-sources', () => Promise.all([
-      webSearch(publicResearchQuery(idea, 'market size'), 5),
-      webSearch(publicResearchQuery(idea, 'competitors alternatives pricing'), 5),
-    ]))
-    allResults = [...marketSearch.results, ...competitorSearch.results]
-    degraded = marketSearch.degraded && competitorSearch.degraded
-  } catch (err) {
-    console.error('[ENGINE] Web search failed, proceeding degraded:', err)
-    partialFailures.push('web_search')
-  }
+  // Catch external failures inside the step, so its degraded result is durable
+  // and scheduling/retry signals from the runner still propagate unchanged.
+  const searches = await executeStep(researchContextStepId('monolithic-research-sources', ideaSnapshot), async () => {
+    try {
+      return await Promise.all([
+        webSearch(publicResearchQuery(ideaSnapshot, 'market size'), 5, { budgetId: optionsSnapshot.researchBudgetId }),
+        webSearch(publicResearchQuery(ideaSnapshot, 'competitors alternatives pricing'), 5, { budgetId: optionsSnapshot.researchBudgetId }),
+      ])
+    } catch (err) {
+      console.error('[ENGINE] Web search failed, proceeding degraded:', err)
+      return null
+    }
+  })
+  if (!searches) partialFailures.push('web_search')
+  const allResults: SearchResult[] = structuredClone(searches ? [...searches[0].results, ...searches[1].results] : [])
+  for (const source of allResults) Object.freeze(source)
+  Object.freeze(allResults)
+  const degraded = searches ? searches[0].degraded && searches[1].degraded : true
 
-  await db
-    .update(validationJobs)
-    .set({ completedSections: 1 })
-    .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+  await executeStep('monolithic-research-progress', async () => {
+    await db.update(validationJobs)
+      .set({ completedSections: sql`greatest(${validationJobs.completedSections}, 1)` })
+      .where(and(eq(validationJobs.id, jobId), eq(validationJobs.status, 'running')))
+    return true
+  })
 
   // Step 2: Generate full report
-  let result
-  try {
-    result = await executeStep('monolithic-report', () => generateWithFallback({
-    researchPrompt: publicResearchBrief(idea),
-      prompt: buildFullPrompt(idea, allResults, degraded),
-      privateContext: opts?.privateContext,
-      schema: FullReportSchema,
-      agentRole: 'synthesis',
-      sources: allResults,
-      temperature: 0,
-      customOpenRouterKey: opts?.customOpenRouterKey,
-    researchBudgetId: opts?.researchBudgetId,
-      preferredAiProvider: opts?.preferredAiProvider,
-      maxTokensPerCall: opts?.maxTokensPerCall,
-    }))
-  } catch (err) {
-    console.error('[ENGINE] Full report generation failed:', err)
-    partialFailures.push('full_report_generation')
-    return null
+  const reportOptions: GenerateOptions<FullReport> = {
+    researchPrompt: publicResearchBrief(ideaSnapshot),
+    prompt: buildFullPrompt(ideaSnapshot, allResults, degraded, asOfDate),
+    privateContext: optionsSnapshot.privateContext,
+    schema: FullReportSchema,
+    validateOutput: validateFullValidationOutput,
+    agentRole: 'synthesis',
+    sources: allResults,
+    temperature: 0,
+    customOpenRouterKey: optionsSnapshot.customOpenRouterKey,
+    researchBudgetId: optionsSnapshot.researchBudgetId,
+    preferredAiProvider: optionsSnapshot.preferredAiProvider,
+    maxTokensPerCall: optionsSnapshot.maxTokensPerCall,
   }
+  Object.freeze(reportOptions)
+  const monolithicStep = liteReportStepId(ideaSnapshot, reportOptions, VALIDATION_METHOD_VERSION + ':monolithic', optionsSnapshot.privateContext).replace(/^lite-report-/, 'monolithic-report-')
+  const result = await executeStep(monolithicStep, async () => {
+    try { return await generateWithFallback(reportOptions) }
+    catch (err) {
+      if ((optionsSnapshot.retryTransientFailures ?? Boolean(optionsSnapshot.runStep)) && isRetryableGenerationFailure(err)) throw err
+      console.error('[ENGINE] Full report generation failed')
+      return null
+    }
+  })
+  if (!result) return null
 
   const totalTokens = result.tokensUsed
   const provider = result.provider
@@ -438,14 +562,19 @@ async function runMonolithicFull(
     tools: result.toolCalls ?? [],
   }
 
+  const citations = auditEvidence(d.keyEvidence, deduplicateSources([...allResults, ...(result.sources ?? [])]))
+  const decision = reconcileDecision(d, overallScore, { agents: agentTrail.agents, evidence: citations.keyEvidence,
+    sources: deduplicateSources([...allResults, ...(result.sources ?? [])]) })
+
   return {
     report: {
-      ...d,
+      ...decision,
       tamSamSom: auditMarketSizing(d.tamSamSom, deduplicateSources([...allResults, ...(result.sources ?? [])])),
       founderAssumptions: auditFounderAssumptions(d.founderAssumptions),
       integrityNote: DESK_RESEARCH_NOTE + ' ' + d.integrityNote,
-      ...auditEvidence(d.keyEvidence, deduplicateSources([...allResults, ...(result.sources ?? [])])),
+      ...citations,
       researchSources: deduplicateSources([...allResults, ...(result.sources ?? [])]),
+      runManifest: validationManifest(ideaSnapshot, optionsSnapshot.privateContext, deduplicateSources([...allResults, ...(result.sources ?? [])]), [monolithicStep], optionsSnapshot.preferredAiProvider),
       problemScore: ps,
       customerScore: cs,
       marketScore: ms,

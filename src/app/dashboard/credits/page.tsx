@@ -7,9 +7,11 @@ import { ArrowUpRight, Check, Coins, Loader2, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAccount, notifyAccountUpdated } from '@/components/AccountProvider'
 import { CREDIT_PACKAGES, type CreditPackageType } from '@/lib/credit-packages'
-import { CREDIT_ACTIONS, PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { CREDIT_ACTIONS, PLAN_CATALOG } from '@/lib/plans'
 import { actionAllowance, creditEntryDescription, creditOverview } from '@/lib/account-usage'
 import { RewardedCredits } from '@/components/RewardedCredits'
+import { DailyCredits } from '@/components/DailyCredits'
+import { CurrencyDisclosure, useCurrency } from '@/components/CurrencyProvider'
 
 type LedgerItem = { id: string; createdAt: string; transactionType: string; amount: number; description: string | null }
 type Purchase = { id: string; creditType: string; quantity: number; status: string; createdAt: string }
@@ -20,6 +22,7 @@ const PACK_ORDER: CreditPackageType[] = ['credit_topup', 'crowdfunding', 'pitch_
 
 function CreditsContent() {
   const account = useAccount()
+  const { formatUsd: displayPrice, formatPlanPrice } = useCurrency()
   const router = useRouter()
   const params = useSearchParams()
   const user = account.data?.user
@@ -94,17 +97,18 @@ function CreditsContent() {
     {user && overview && <>
       <section className="card-angular grid gap-8 bg-[#FBF8F0] p-6 sm:p-8 md:grid-cols-2">
         <div><p className="text-sm text-[#53616A]">{user.unlimited ? 'Owner research allowance' : 'Credits available'}</p><p className="mt-2 text-5xl font-light tabular-nums">{user.unlimited ? 'Unlimited' : overview.total.toLocaleString()}</p>
-          <p className="mt-4 text-sm">{user.unlimited ? 'Owner plan · all research tools included' : `${plan?.name} · ${formatUsd(plan?.monthlyPriceUsd ?? 0)}${user.tier === 'free' ? '' : '/month'}`}</p>
+          <p className="mt-4 text-sm">{user.unlimited ? 'Owner plan · all research tools included' : user.manualPlan ? `${plan?.name} · owner assigned · no automatic payment` : plan && (user.tier === 'free' ? `${plan.name} · ${formatPlanPrice(plan)}` : `${plan.name} · listed at ${formatPlanPrice(plan)}/month`)}</p>
           <Link href="/dashboard/settings" className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Manage plan<ArrowUpRight size={14} aria-hidden="true" /></Link></div>
         {user.unlimited ? <div className="space-y-4"><h2 className="font-medium">Your owner access</h2><p className="text-sm text-[#53616A]">Research runs use your unlimited allowance. No credit top-ups or monthly renewal are needed.</p><p className="text-sm text-[#53616A]">Saved credit balances remain recorded separately for account history.</p>{user.isAdmin && <Link href="/admin" className="inline-flex min-h-11 items-center gap-2 text-sm underline underline-offset-4">Open command center<ArrowUpRight size={14} aria-hidden="true" /></Link>}</div> : <div className="space-y-4"><div className="flex items-baseline justify-between gap-3 text-sm"><span>Plan credits remaining</span><strong className="tabular-nums">{overview.monthlyRemaining.toLocaleString()} / {overview.allocation.toLocaleString()}</strong></div>
-          <progress max={overview.allocation} value={overview.monthlySpent} aria-label="Plan credits used" className="h-2 w-full accent-[#89620B]" />
-          <p className="text-xs text-[#53616A]">Renews {date(user.creditResetAt)}. Unused plan credits reset each cycle.</p>
-          <div className="border-t border-[#E4DECF] pt-4 text-sm"><strong className="tabular-nums">{overview.purchasedRemaining.toLocaleString()}</strong> general credits · purchases and grants · carry forward</div>
-          <div className="text-sm"><strong className="tabular-nums">{overview.rewardRemaining.toLocaleString()}</strong> earned ad credits · carry forward</div>
+          {overview.allocation > 0 && <progress max={overview.allocation} value={overview.monthlySpent} aria-label="Plan credits used" className="h-2 w-full accent-[#89620B]" />}
+          <p className="text-xs text-[#53616A]">{overview.allocation > 0 ? `Renews ${date(user.creditResetAt)}. Unused plan credits reset each cycle.` : 'Free has no automatic monthly credit refill. Starting and daily credits carry forward.'}{user.manualPlan && ' Your plan is assigned by the owner; no automatic payment is attached.'}</p>
+          <div className="border-t border-[#E4DECF] pt-4 text-sm"><strong className="tabular-nums">{overview.purchasedRemaining.toLocaleString()}</strong> general credits · starting allowance, purchases and grants · carry forward</div>
+          <div className="text-sm"><strong className="tabular-nums">{overview.rewardRemaining.toLocaleString()}</strong> earned credits · daily claims and ads · carry forward</div>
           <p className="text-xs text-[#53616A]">Module credits: {user.crowdfundingCredits} crowdfunding · {user.pitchDeckCredits} pitch deck.</p></div>}
       </section>
+      <DailyCredits />
       {!user.unlimited && <RewardedCredits key={user.id} ownerId={user.id} emailVerified={user.emailVerified} />}
-      <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-medium">What you can run</h2><p className="mt-1 text-xs text-[#53616A]">Each row is a separate estimate using your current balance. Plan and validation limits apply.</p></div>
+      <section className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-medium">What you can run</h2><p className="mt-1 max-w-[70ch] text-xs text-[#53616A]">Each row is a separate estimate using your current balance. Plan and validation limits apply. Starting credits do not unlock every AI tool. Free includes manual Canvas, customer evidence recording and the Lite validation allowance shown below.</p></div>
         <Link href="/dashboard/usage" className="inline-flex min-h-11 items-center gap-2 text-sm">View usage<ArrowUpRight size={16} aria-hidden="true" /></Link></div>
         <div className="overflow-x-auto rounded border border-[#E5E7EB] bg-white"><table className="w-full min-w-[540px] text-left text-sm"><thead className="bg-[#F7F8FA] text-xs text-[#53616A]"><tr><th scope="col" className="p-4">Analysis</th><th scope="col" className="p-4">Cost per run</th><th scope="col" className="p-4">Access</th><th scope="col" className="p-4 text-right">Available runs</th></tr></thead>
           <tbody className="divide-y divide-[#E5E7EB]">{CREDIT_ACTIONS.map(item => { const allowance = actionAllowance(user, item.key, plan?.validationLimit, account.data?.plan); return <tr key={item.key}>
@@ -115,12 +119,13 @@ function CreditsContent() {
         <p className="text-xs text-[#53616A]">Plan credits are used first, then earned credits, then purchased credits. On the Free plan, each additional Lite validation beyond the included runs uses 50 earned credits only. Reopening a saved report and downloading it do not spend more credits.</p></>}
       </section>
     </>}
-    {!user?.unlimited && <section className="space-y-4"><div><h2 className="font-medium">Add to your workspace</h2><p className="mt-1 text-sm text-[#53616A]">One-time purchases in USD. Your plan stays the same.</p></div>
+    {!user?.unlimited && <section className="space-y-4"><div><h2 className="font-medium">Add to your workspace</h2><p className="mt-1 text-sm text-[#53616A]">One-time credit purchases. Your plan stays the same.</p></div>
+      <CurrencyDisclosure prices="credits" />
       {!account.loading && !available && <p role="status" className="rounded border border-[#E5E7EB] bg-white p-4 text-sm text-[#53616A]">Credit purchases are coming soon. You can use the credits already included in your plan.</p>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{PACK_ORDER.map(key => { const pack = CREDIT_PACKAGES[key]; return <article key={key} className="card-angular flex flex-col bg-white p-5">
-        <h3 className="font-medium">{pack.name}</h3><p className="mt-4 text-3xl font-light tabular-nums">{formatUsd(pack.amountUsd)}<span className="ml-2 text-xs text-[#53616A]">once</span></p>
+        <h3 className="font-medium">{pack.name}</h3><p className="mt-4 text-3xl font-light tabular-nums">{displayPrice(pack.amountUsd)}<span className="ml-2 text-xs text-[#53616A]">once</span></p>
         <p className="mb-5 mt-3 flex-1 text-sm leading-relaxed text-[#53616A]">{key === 'credit_topup' ? `${CREDIT_PACKAGES.credit_topup.credits.universalCredits.toLocaleString()} universal credits. Purchased credits carry forward; feature and validation limits still apply.` : key === 'bundle' ? 'One crowdfunding analysis and one pitch deck, with their included exports.' : key === 'crowdfunding' ? 'One campaign feasibility analysis, without a subscription upgrade.' : 'One investor pitch deck, with PPTX export.'}</p>
-        <button type="button" onClick={() => purchase(key)} disabled={Boolean(buying) || !available || !user} className="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-[#141923] px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50">{buying === key ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Check size={15} aria-hidden="true" />}{available ? 'Buy for ' + formatUsd(pack.amountUsd) : 'Coming soon'}</button>
+        <button type="button" onClick={() => purchase(key)} disabled={Boolean(buying) || !available || !user} className="inline-flex min-h-11 items-center justify-center gap-2 rounded bg-[#141923] px-3 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50">{buying === key ? <Loader2 size={16} aria-hidden="true" className="animate-spin" /> : <Check size={15} aria-hidden="true" />}{available ? 'Buy for ' + displayPrice(pack.amountUsd) : 'Coming soon'}</button>
       </article> })}</div>
     </section>}
     <section className="space-y-4"><h2 className="font-medium">Credit history</h2>

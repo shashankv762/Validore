@@ -2,14 +2,19 @@
 // Public HTTP only. This script never loads environment files, an AI SDK, or a database.
 import { mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import JSZip from 'jszip';
+import { createMarketBundle, validMarketBundle } from '../src/lib/ai/market-bundle.mjs';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const output = join(root, 'src', 'data', 'market');
 const runStartedAt = new Date().toISOString();
 const endYear = new Date(runStartedAt).getUTCFullYear();
-const startYear = endYear - 7;
+const startYear = endYear - 8;
+const requestAttempts = [];
+const requestTimeoutMs = 8000;
+const maximumAttempts = 3;
 const countries = [
   { code: 'IN', iso3: 'IND', apiId: 'IN', name: 'India' },
   { code: 'US', iso3: 'USA', apiId: 'US', name: 'United States' },
@@ -50,14 +55,18 @@ function checkedUrl(value, hosts) {
   return url;
 }
 
-async function fetchPublic(value, { hosts, format = 'html', maxBytes = 2_000_000 } = {}) {
+class PublicFetchError extends Error {
+  constructor(message, retryable = false) { super(message); this.retryable = retryable; }
+}
+
+async function fetchPublicOnce(value, { hosts, format = 'html', maxBytes = 2_000_000 } = {}) {
   let url = checkedUrl(value, hosts);
   // One deadline covers redirects and streaming the response body.
-  const signal = AbortSignal.timeout(25_000);
+  const signal = AbortSignal.timeout(requestTimeoutMs);
   for (let redirects = 0; redirects <= 3; redirects++) {
     const response = await fetch(url, {
       redirect: 'manual', signal,
-      headers: { Accept: format === 'json' ? 'application/json' : format === 'xml' ? 'application/xml,text/xml,application/vnd.sdmx.structure+xml' : 'text/html', 'User-Agent': 'Validore-Public-Market-Snapshot/1.0' },
+      headers: { Accept: format === 'json' ? 'application/json' : format === 'xml' ? 'application/xml,text/xml,application/vnd.sdmx.structure+xml' : format === 'zip' ? 'application/zip,application/octet-stream' : 'text/html', 'User-Agent': 'Validore-Public-Market-Snapshot/1.0' },
     });
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get('location');
@@ -66,9 +75,9 @@ async function fetchPublic(value, { hosts, format = 'html', maxBytes = 2_000_000
       url = checkedUrl(new URL(location, url).href, hosts);
       continue;
     }
-    if (!response.ok) { await response.body?.cancel(); throw new Error(`HTTP ${response.status} at ${url.href}`); }
+    if (!response.ok) { await response.body?.cancel(); throw new PublicFetchError(`HTTP ${response.status} at ${url.href}`, response.status === 408 || response.status === 429 || response.status >= 500); }
     const contentType = response.headers.get('content-type') || '';
-    const expected = format === 'json' ? /\bapplication\/json\b/i : format === 'xml' ? /(?:application|text)\/(?:[\w.+-]*\+)?xml\b/i : /\btext\/html\b/i;
+    const expected = format === 'json' ? /\bapplication\/json\b/i : format === 'xml' ? /(?:application|text)\/(?:[\w.+-]*\+)?xml\b/i : format === 'zip' ? /\bapplication\/(?:zip|x-zip-compressed|octet-stream)\b/i : /\btext\/html\b/i;
     if (!expected.test(contentType)) { await response.body?.cancel(); throw new Error(`Unexpected content type ${contentType}`); }
     const declared = Number(response.headers.get('content-length'));
     if (Number.isFinite(declared) && declared > maxBytes) { await response.body?.cancel(); throw new Error(`Response exceeds ${maxBytes} bytes`); }
@@ -85,10 +94,40 @@ async function fetchPublic(value, { hosts, format = 'html', maxBytes = 2_000_000
         chunks.push(chunk);
       }
     } catch (error) { await reader.cancel().catch(() => {}); throw error; }
-    const text = Buffer.concat(chunks).toString('utf8');
-    return { text, url: url.href, fetchedAt: new Date().toISOString(), contentType, bytes: size };
+    finally { reader.releaseLock(); }
+    const buffer = Buffer.concat(chunks);
+    const text = format === 'zip' ? '' : buffer.toString('utf8');
+    return { text, buffer: format === 'zip' ? buffer : null, url: url.href, fetchedAt: new Date().toISOString(), contentType, bytes: size, httpStatus: response.status };
   }
   throw new Error('Redirect limit exceeded');
+}
+
+export async function fetchPublic(value, options = {}) {
+  checkedUrl(value, options.hosts);
+  const attempts = [];
+  for (let attempt = 1; attempt <= maximumAttempts; attempt++) {
+    const startedAt = new Date().toISOString();
+    const started = Date.now();
+    try {
+      const result = await fetchPublicOnce(value, options);
+      const entry = { url: value, kind: options.kind ?? 'public-reference', indicator: options.indicator ?? null,
+        country: options.country ?? null, attempt, status: 'complete', startedAt, completedAt: result.fetchedAt,
+        durationMs: Date.now() - started, finalUrl: result.url, httpStatus: result.httpStatus, bytes: result.bytes };
+      attempts.push(entry); requestAttempts.push(entry);
+      return { ...result, attempts };
+    } catch (error) {
+      const retryable = error instanceof PublicFetchError ? error.retryable
+        : error?.name === 'TimeoutError' || error?.name === 'AbortError' || error?.name === 'TypeError';
+      const entry = { url: value, kind: options.kind ?? 'public-reference', indicator: options.indicator ?? null,
+        country: options.country ?? null, attempt, status: 'failed', startedAt, completedAt: new Date().toISOString(),
+        durationMs: Date.now() - started, error: error instanceof Error ? error.message : String(error), retryable };
+      attempts.push(entry); requestAttempts.push(entry);
+      if (!retryable || attempt === maximumAttempts) throw error;
+      console.warn(`Retry ${attempt + 1}/${maximumAttempts}: ${value} (${entry.error})`);
+      await new Promise(done => setTimeout(done, attempt * 250));
+    }
+  }
+  throw new Error('Request retry limit exceeded');
 }
 
 async function mapBounded(items, run, concurrency = 3) {
@@ -116,37 +155,221 @@ function envelope(text, description) {
   return data;
 }
 
+function boundedArchive(buffer) {
+  let footer = -1;
+  for (let index = buffer.length - 22; index >= Math.max(0, buffer.length - 65557); index--) {
+    if (buffer.readUInt32LE(index) === 0x06054b50) { footer = index; break; }
+  }
+  if (footer < 0) throw new Error('Archive has no ZIP directory');
+  const entries = buffer.readUInt16LE(footer + 10);
+  if (entries < 1 || entries > 8) throw new Error('Archive has an unsupported entry count');
+  let offset = buffer.readUInt32LE(footer + 16);
+  let expandedBytes = 0;
+  for (let index = 0; index < entries; index++) {
+    if (offset + 46 > footer || buffer.readUInt32LE(offset) !== 0x02014b50) throw new Error('Invalid archive directory');
+    const size = buffer.readUInt32LE(offset + 24);
+    if (size === 0xffffffff || size > 2_000_000) throw new Error('Archive entry is too large');
+    expandedBytes += size;
+    if (expandedBytes > 4_000_000) throw new Error('Expanded archive is too large');
+    offset += 46 + buffer.readUInt16LE(offset + 28) + buffer.readUInt16LE(offset + 30) + buffer.readUInt16LE(offset + 32);
+  }
+}
+
+function csvRows(text) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  const input = text.replace(/^\uFEFF/, '');
+  for (let index = 0; index < input.length; index++) {
+    const character = input[index];
+    if (character === '"') {
+      if (quoted && input[index + 1] === '"') { field += '"'; index++; }
+      else quoted = !quoted;
+    } else if (!quoted && character === ',') { row.push(field); field = ''; }
+    else if (!quoted && character === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+    else if (character !== '\r' || quoted) field += character;
+  }
+  if (quoted) throw new Error('Archive CSV has an unfinished quoted field');
+  if (row.length || field) { row.push(field); rows.push(row); }
+  return rows;
+}
+
+async function archiveRows(raw, indicator) {
+  boundedArchive(raw.buffer);
+  const zip = await JSZip.loadAsync(raw.buffer, { checkCRC32: true });
+  const candidates = Object.values(zip.files).filter(file => !file.dir && file.name.startsWith(`API_${indicator.id}_DS2_`) && file.name.endsWith('.csv'));
+  if (candidates.length !== 1) throw new Error('Archive does not identify the requested WDI source-2 indicator');
+  const bytes = await candidates[0].async('uint8array');
+  if (bytes.length > 2_000_000) throw new Error('Archive CSV is too large');
+  const rows = csvRows(Buffer.from(bytes).toString('utf8'));
+  if (!rows.some(row => row[0] === 'Data Source' && row[1] === 'World Development Indicators')) throw new Error('Archive is not World Development Indicators');
+  const revision = rows.find(row => row[0] === 'Last Updated Date')?.[1];
+  if (!dateOnly(revision)) throw new Error('Archive lacks a valid revision date');
+  const headerIndex = rows.findIndex(row => row[0] === 'Country Name' && row[1] === 'Country Code' && row[3] === 'Indicator Code');
+  if (headerIndex < 0) throw new Error('Archive observation columns are missing');
+  const header = rows[headerIndex];
+  const years = Array.from({ length: 8 }, (_, index) => endYear - 1 - index);
+  const columns = years.map(year => header.indexOf(String(year)));
+  if (columns.some(column => column < 4)) throw new Error('Archive lacks the eight completed-year columns');
+  const selected = new Map();
+  for (const row of rows.slice(headerIndex + 1)) {
+    const country = countries.find(value => value.iso3 === row[1]);
+    if (!country) continue;
+    if (selected.has(country.code) || row[3] !== indicator.id) throw new Error('Duplicate country or mismatched archive indicator');
+    const annualRows = years.map((year, index) => {
+      const value = row[columns[index]];
+      if (value === undefined || (value !== '' && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value))) throw new Error('Invalid archive numeric cell');
+      const number = value === '' ? null : Number(value);
+      if (number !== null && (!Number.isFinite(number) || number < indicator.bounds[0] || number > indicator.bounds[1] || (indicator.integer && !Number.isInteger(number)))) throw new Error('Archive numeric value is outside its domain');
+      return { date: String(year), value: number, obs_status: null };
+    });
+    selected.set(country.code, annualRows);
+  }
+  if (selected.size !== countries.length) throw new Error('Archive does not cover every selected geography');
+  return { selected, release: { sourceid: '2', lastupdated: revision }, file: candidates[0].name, expandedBytes: bytes.length };
+}
+
 async function fetchIndicator(indicator) {
-  const queryUrl = `https://api.worldbank.org/v2/country/${countries.map(c => c.code).join(';')}/indicator/${indicator.id}?format=json&date=${startYear}:${endYear}&per_page=1000`;
   const metadataUrl = `https://api.worldbank.org/v2/indicator/${indicator.id}?format=json`;
-  // Sequential within each worker keeps total public requests bounded to three.
-  const raw = await fetchPublic(queryUrl, { hosts: ['api.worldbank.org'], format: 'json' });
-  const [release, rows] = envelope(raw.text, 'observations');
-  if (String(release.sourceid) !== '2' || !dateOnly(release.lastupdated)) throw new Error('Invalid WDI source or metadata revision date');
-  const rawMetadata = await fetchPublic(metadataUrl, { hosts: ['api.worldbank.org'], format: 'json' });
+  // Small, explicit latest-year pages are substantially more reliable than the
+  // upstream multi-country/date-range route. Each page intentionally covers the
+  // latest eight annual rows, not the entire historical series. Validate its
+  // pagination and each year; exclude the incomplete current calendar year.
+  // Sequential reads in each of three workers keep concurrency bounded.
+  const rawMetadata = await fetchPublic(metadataUrl, { hosts: ['api.worldbank.org'], format: 'json', kind: 'indicator-metadata', indicator: indicator.id });
   const [, metadataRows] = envelope(rawMetadata.text, 'indicator metadata');
   const metadata = metadataRows.find(row => row.id === indicator.id && String(row.source?.id) === '2');
   if (!metadata || typeof metadata.name !== 'string' || typeof metadata.sourceNote !== 'string') throw new Error('Indicator metadata is missing or mismatched');
   const perCountry = new Map(countries.map(c => [c.code, []]));
+  const provenance = new Map();
+  const requests = [];
+  const failures = [];
+  const fallbackRequests = [];
   const seen = new Set();
   let excludedCurrentYear = 0;
-  for (const row of rows) {
-    const country = countries.find(c => c.apiId === row.country?.id && c.iso3 === row.countryiso3code);
-    if (!country || row.indicator?.id !== indicator.id || !/^\d{4}$/.test(row.date)) throw new Error('Unexpected country, indicator, or observation year');
-    const year = Number(row.date);
-    if (year < startYear || year > endYear) throw new Error('Observation outside requested date range');
-    const key = `${country.code}:${year}`;
-    if (seen.has(key)) throw new Error(`Duplicate observation ${key}`);
-    seen.add(key);
-    if (row.value === null) continue;
-    if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < indicator.bounds[0] || row.value > indicator.bounds[1] || (indicator.integer && !Number.isInteger(row.value))) throw new Error(`Invalid numeric observation ${key}`);
-    // Only completed calendar-year observations are saved; no current-year projections.
-    if (year === endYear) { excludedCurrentYear++; continue; }
-    perCountry.get(country.code).push(row);
+  for (const country of countries) {
+    const queryUrl = `https://api.worldbank.org/v2/country/${country.code}/indicator/${indicator.id}?format=json&per_page=8`;
+    try {
+    const raw = await fetchPublic(queryUrl, { hosts: ['api.worldbank.org'], format: 'json', kind: 'annual-observations', indicator: indicator.id, country: country.code });
+    const payload = JSON.parse(raw.text);
+    if (!Array.isArray(payload) || payload.length !== 2 || !Array.isArray(payload[1])) throw new Error('Invalid WDI latest-year response');
+    const [release, rows] = payload;
+    if (String(release.sourceid) !== '2' || !dateOnly(release.lastupdated) || Number(release.page) !== 1 || Number(release.per_page) !== 8 ||
+      !Number.isSafeInteger(Number(release.total)) || Number(release.total) < 8 || Number(release.pages) !== Math.ceil(Number(release.total) / 8) || rows.length !== 8) throw new Error('Invalid WDI pagination, source or revision date');
+    const years = [];
+    for (const row of rows) {
+      if (row.country?.id !== country.apiId || row.countryiso3code !== country.iso3 || row.indicator?.id !== indicator.id || !/^\d{4}$/.test(row.date)) throw new Error('Unexpected country, indicator, or observation year');
+      const year = Number(row.date); years.push(year);
+      if (year < startYear || year > endYear) throw new Error('Observation outside the latest eight annual-row window');
+      const key = `${country.code}:${year}`;
+      if (seen.has(key)) throw new Error(`Duplicate observation ${key}`);
+      seen.add(key);
+      if (row.value === null) continue;
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < indicator.bounds[0] || row.value > indicator.bounds[1] || (indicator.integer && !Number.isInteger(row.value))) throw new Error(`Invalid numeric observation ${key}`);
+      if (year === endYear) { excludedCurrentYear++; continue; }
+      if (year >= startYear) perCountry.get(country.code).push(row);
+    }
+    if (years.some((year, index) => index > 0 && year !== years[index - 1] - 1) || years[0] < endYear - 1) throw new Error('The returned page does not cover the expected latest calendar-year window');
+    provenance.set(country.code, { raw, release, queryUrl });
+    requests.push({ url: raw.url, indicator: indicator.id, country: country.code, status: 'complete', fetchedAt: raw.fetchedAt,
+      bytes: raw.bytes, metadataUpdatedAt: release.lastupdated, responseYears: years, returnedRows: rows.length, attempts: raw.attempts.length });
+    console.log(`WDI ${country.code}/${indicator.id}: ${years.at(-1)}–${years[0]}, revised ${release.lastupdated}, ${raw.attempts.length} attempt(s).`);
+    } catch (error) {
+      const failure = { country: country.code, indicator: indicator.id, url: queryUrl, error: error instanceof Error ? error.message : String(error) };
+      failures.push(failure);
+      requests.push({ ...failure, status: 'failed', attempts: requestAttempts.filter(row => row.url === queryUrl).length });
+      console.error(`WDI ${country.code}/${indicator.id}: ${failure.error}`);
+    }
+  }
+  // Missing country routes may still be available from a bounded all-country
+  // window. This is another real retrieval, never a re-dating of retained data.
+  if (failures.length) {
+    const fallbackUrl = `https://api.worldbank.org/v2/country/all/indicator/${indicator.id}?format=json&date=${startYear}:${endYear - 1}&per_page=20000`;
+    try {
+      const raw = await fetchPublic(fallbackUrl, { hosts: ['api.worldbank.org'], format: 'json', kind: 'completed-year-window-fallback', indicator: indicator.id });
+      const [release, rows] = envelope(raw.text, 'completed-year fallback');
+      if (String(release.sourceid) !== '2' || !dateOnly(release.lastupdated) || Number(release.per_page) !== 20000) throw new Error('Invalid fallback source, page size or revision date');
+      const selected = new Map(countries.map(country => [country.code, []]));
+      const selectedKeys = new Set();
+      for (const row of rows) {
+        const country = countries.find(value => value.iso3 === row.countryiso3code);
+        if (!country) continue;
+        if (row.country?.id !== country.apiId || row.indicator?.id !== indicator.id || !/^\d{4}$/.test(row.date)) throw new Error('Mismatched fallback country, indicator or year');
+        const year = Number(row.date);
+        const key = `${country.code}:${year}`;
+        if (year < startYear || year >= endYear || selectedKeys.has(key)) throw new Error('Fallback contains a future, out-of-window or duplicate year');
+        selectedKeys.add(key);
+        if (row.value !== null && (typeof row.value !== 'number' || !Number.isFinite(row.value) || row.value < indicator.bounds[0] || row.value > indicator.bounds[1] || (indicator.integer && !Number.isInteger(row.value)))) throw new Error('Invalid fallback numeric observation');
+        selected.get(country.code).push(row);
+      }
+      for (const country of countries) {
+        const annualRows = selected.get(country.code).sort((a, b) => Number(b.date) - Number(a.date));
+        if (annualRows.length !== 8 || annualRows.some((row, index) => Number(row.date) !== endYear - 1 - index)) throw new Error(`Incomplete completed-year fallback for ${country.code}`);
+      }
+      const recovered = [];
+      for (const failure of failures) {
+        const annualRows = selected.get(failure.country);
+        const available = annualRows.filter(row => row.value !== null);
+        if (!available.length) continue;
+        perCountry.set(failure.country, available);
+        provenance.set(failure.country, { raw, release, queryUrl: fallbackUrl });
+        failure.recovered = true; failure.recoveryUrl = fallbackUrl;
+        const request = requests.find(row => row.country === failure.country);
+        Object.assign(request, { status: 'recovered', primaryStatus: 'failed', recoveredVia: 'all-country-completed-year-window',
+          fallbackUrl, fetchedAt: raw.fetchedAt, metadataUpdatedAt: release.lastupdated, responseYears: annualRows.map(row => Number(row.date)), returnedRows: annualRows.length, fallbackAttempts: raw.attempts.length });
+        recovered.push(failure.country);
+      }
+      fallbackRequests.push({ url: raw.url, indicator: indicator.id, status: 'complete', fetchedAt: raw.fetchedAt, bytes: raw.bytes,
+        returnedRows: rows.length, selectedRows: selectedKeys.size, recoveredCountries: recovered, metadataUpdatedAt: release.lastupdated, attempts: raw.attempts.length });
+      console.log(`WDI ${indicator.id}: completed-year fallback recovered ${recovered.join(', ') || 'no missing pairs'} (${rows.length} upstream rows, ${selectedKeys.size} selected).`);
+    } catch (error) {
+      const failure = { indicator: indicator.id, country: null, url: fallbackUrl, error: error instanceof Error ? error.message : String(error), stage: 'completed-year-window-fallback' };
+      failures.push(failure); fallbackRequests.push({ ...failure, status: 'failed', attempts: requestAttempts.filter(row => row.url === fallbackUrl).length });
+      console.error(`WDI ${indicator.id}: fallback failed (${failure.error}).`);
+    }
+  }
+  // The publisher also offers the same WDI series as a checked CSV archive.
+  // Keep failed API requests in the audit; only extracted real archive values
+  // may recover a missing pair, with the archive's own revision/provenance.
+  if (failures.some(row => row.country && !row.recovered)) {
+    const archiveUrl = `https://api.worldbank.org/v2/en/indicator/${indicator.id}?downloadformat=csv`;
+    try {
+      const raw = await fetchPublic(archiveUrl, { hosts: ['api.worldbank.org'], format: 'zip', kind: 'official-csv-archive-fallback', indicator: indicator.id });
+      const { selected, release, file, expandedBytes } = await archiveRows(raw, indicator);
+      const recovered = [];
+      for (const failure of failures.filter(row => row.country && !row.recovered)) {
+        const annualRows = selected.get(failure.country);
+        const available = annualRows.filter(row => row.value !== null);
+        if (!available.length) continue;
+        perCountry.set(failure.country, available);
+        provenance.set(failure.country, { raw, release, queryUrl: archiveUrl });
+        failure.recovered = true; failure.recoveryUrl = archiveUrl;
+        Object.assign(requests.find(row => row.country === failure.country), {
+          status: 'recovered', primaryStatus: 'failed', recoveredVia: 'official-wdi-csv-archive', fallbackUrl: archiveUrl,
+          archiveFile: file, fetchedAt: raw.fetchedAt, metadataUpdatedAt: release.lastupdated,
+          responseYears: annualRows.map(row => Number(row.date)), returnedRows: annualRows.length, fallbackAttempts: raw.attempts.length,
+        });
+        recovered.push(failure.country);
+      }
+      if (!failures.some(row => row.country && !row.recovered)) {
+        for (const failure of failures.filter(row => !row.country)) { failure.recovered = true; failure.recoveryUrl = archiveUrl; }
+      }
+      fallbackRequests.push({ url: raw.url, kind: 'official-wdi-csv-archive', indicator: indicator.id, status: 'complete',
+        fetchedAt: raw.fetchedAt, bytes: raw.bytes, expandedCsvBytes: expandedBytes, archiveFile: file,
+        selectedCountries: selected.size, selectedAnnualRows: selected.size * 8, recoveredCountries: recovered,
+        metadataUpdatedAt: release.lastupdated, attempts: raw.attempts.length });
+      console.log(`WDI ${indicator.id}: official CSV archive recovered ${recovered.join(', ') || 'no missing pairs'} (revision ${release.lastupdated}).`);
+    } catch (error) {
+      const failure = { indicator: indicator.id, country: null, url: archiveUrl, error: error instanceof Error ? error.message : String(error), stage: 'official-csv-archive-fallback' };
+      failures.push(failure); fallbackRequests.push({ ...failure, status: 'failed', attempts: requestAttempts.filter(row => row.url === archiveUrl).length });
+      console.error(`WDI ${indicator.id}: archive fallback failed (${failure.error}).`);
+    }
   }
   const records = [];
+  const trends = [];
   const missing = [];
   for (const country of countries) {
+    if (!provenance.has(country.code)) { missing.push(`${country.code}/${indicator.id}`); continue; }
+    const { raw, release, queryUrl } = provenance.get(country.code);
     const available = perCountry.get(country.code).sort((a, b) => Number(b.date) - Number(a.date));
     if (!available.length) { missing.push(`${country.code}/${indicator.id}`); continue; }
     const latest = available[0];
@@ -155,11 +378,30 @@ async function fetchIndicator(indicator) {
     const title = `${country.name}: ${clean(metadata.name, 180)} (${latest.date})`;
     const content = clean(`${country.name} — ${metadata.name}: ${latest.value} ${indicator.unit}. Observation year: ${latest.date}. ${previous ? `Previous year (${previous.date}): ${previous.value} ${indicator.unit}. ` : ''}Source: World Bank World Development Indicators, indicator ${indicator.id}; upstream: ${clean(metadata.sourceOrganization, 280)}. WDI revision date: ${release.lastupdated}; fetched: ${raw.fetchedAt}. ${indicator.limit} Annual historical context, not live transaction data or a verified startup market size. World aggregates may follow indicator-specific aggregation methods.`, 1600);
     records.push({ title, url: sourceUrl, content, source: 'api.worldbank.org', fetchedAt: raw.fetchedAt, retrievalKind: 'open-data', dataPeriod: latest.date, publishedAt: null, expiresAt: new Date(Date.parse(raw.fetchedAt) + 30 * 86_400_000).toISOString(), datasetId: 'world-bank-wdi', country: country.code, countryName: country.name, indicator: indicator.id, value: latest.value, unit: indicator.unit, observationYear: Number(latest.date), metadataUpdatedAt: release.lastupdated, observationStatus: latest.obs_status || null, previousObservation: previous ? { year: Number(previous.date), value: previous.value, unit: indicator.unit } : null, queryUrl, licenseUrl: 'https://data.worldbank.org/summary-terms-of-use' });
+    trends.push({ country: country.code, countryName: country.name, indicator: indicator.id, title: clean(metadata.name, 180), unit: indicator.unit,
+      observations: available.slice().reverse().map(row => ({ year: Number(row.date), value: row.value })),
+      fetchedAt: raw.fetchedAt, expiresAt: new Date(Date.parse(raw.fetchedAt) + 30 * 86_400_000).toISOString(),
+      metadataUpdatedAt: release.lastupdated, sourceUrl: raw.url, sourceOrganization: clean(metadata.sourceOrganization, 500),
+      limitation: indicator.limit, licenseUrl: 'https://data.worldbank.org/summary-terms-of-use' });
   }
-  return { indicator: indicator.id, records, missing, excludedCurrentYear, request: { url: raw.url, fetchedAt: raw.fetchedAt, bytes: raw.bytes, metadataUpdatedAt: release.lastupdated }, metadata: { ...metadata, unit: indicator.unit, metadataUrl: rawMetadata.url, fetchedAt: rawMetadata.fetchedAt, metadataUpdatedAt: release.lastupdated } };
+  return { indicator: indicator.id, records, trends, missing, failures, excludedCurrentYear, requests, fallbackRequests,
+    metadata: { ...metadata, unit: indicator.unit, metadataUrl: rawMetadata.url, fetchedAt: rawMetadata.fetchedAt,
+      metadataUpdatedAt: requests.find(row => row.status === 'complete' || row.status === 'recovered')?.metadataUpdatedAt ?? null } };
 }
 
 async function atomicJson(path, value) { await atomicText(path, JSON.stringify(value, null, 2) + '\n'); }
+export async function publishMarketBundle(path, data, createdAt = new Date().toISOString()) {
+  const bundle = createMarketBundle(data, createdAt);
+  // Preserve one complete accepted generation before the only publication
+  // switch. A failed validation or backup write never replaces active evidence.
+  try {
+    const previous = JSON.parse(await readFile(path, 'utf8'));
+    if (!validMarketBundle(previous)) throw new Error('Refusing to replace a corrupt prior market bundle without operator review');
+    if (previous.manifest.id !== bundle.manifest.id) await atomicJson(path + '.previous.json', previous);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  await atomicJson(path, bundle);
+  return bundle;
+}
 async function atomicText(path, text) {
   await mkdir(dirname(path), { recursive: true });
   const temporary = `${path}.${randomUUID()}.tmp`;
@@ -171,49 +413,96 @@ async function readExisting(path) {
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 }
 
-console.log(`Fetching WDI ${startYear}:${endYear}; completed years only. No AI APIs, environment files, or database access.`);
-const outcomes = await mapBounded(indicators, fetchIndicator);
-const successes = outcomes.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
-const failures = outcomes.flatMap((result, index) => result.status === 'rejected' ? [{ indicator: indicators[index].id, error: result.reason }] : []);
-const snapshot = successes.flatMap(result => result.records).sort((a, b) => countries.findIndex(c => c.code === a.country) - countries.findIndex(c => c.code === b.country) || a.indicator.localeCompare(b.indicator));
-const missing = indicators.flatMap(indicator => countries.map(country => `${country.code}/${indicator.id}`)).filter(key => !snapshot.some(row => `${row.country}/${row.indicator}` === key));
-const snapshotPath = join(output, 'seed-sources.json');
-const previousSnapshot = await readExisting(snapshotPath);
-const previousKeys = previousSnapshot.map(row => `${row.country}/${row.indicator}`);
-const regressedKeys = previousKeys.filter(key => !snapshot.some(row => `${row.country}/${row.indicator}` === key));
-const canReplace = failures.length === 0 && snapshot.length >= 30 && countries.every(country => snapshot.some(row => row.country === country.code)) && regressedKeys.length === 0;
-if (canReplace) {
-  // The application snapshot is a single atomically replaced array.
-  await atomicJson(join(output, 'world-bank-metadata.json'), successes.map(result => result.metadata));
-  await atomicJson(snapshotPath, snapshot);
+export async function main() {
+  requestAttempts.length = 0;
+  console.log(`Fetching the first 8 annual WDI rows per country/indicator; only completed years ${startYear}-${endYear - 1} are stored. Public HTTP only.`);
+  const outcomes = await mapBounded(indicators, fetchIndicator);
+  const successes = outcomes.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+  const failures = [...successes.flatMap(result => result.failures), ...outcomes.flatMap((result, index) => result.status === 'rejected'
+    ? [{ indicator: indicators[index].id, country: null, url: `https://api.worldbank.org/v2/indicator/${indicators[index].id}?format=json`, error: result.reason }] : [])];
+  const snapshot = successes.flatMap(result => result.records).sort((a, b) => countries.findIndex(c => c.code === a.country) - countries.findIndex(c => c.code === b.country) || a.indicator.localeCompare(b.indicator));
+  const trends = successes.flatMap(result => result.trends).sort((a, b) => countries.findIndex(c => c.code === a.country) - countries.findIndex(c => c.code === b.country) || a.indicator.localeCompare(b.indicator));
+  const expectedPairs = indicators.flatMap(indicator => countries.map(country => `${country.code}/${indicator.id}`));
+  const missing = expectedPairs.filter(key => !snapshot.some(row => `${row.country}/${row.indicator}` === key));
+  const missingTrends = expectedPairs.filter(key => !trends.some(row => `${row.country}/${row.indicator}` === key && row.observations.length >= 2));
+  const snapshotPath = join(output, 'seed-sources.json');
+  const trendPath = join(output, 'trend-series.json');
+  const previousSnapshot = await readExisting(snapshotPath);
+  const previousTrends = await readExisting(trendPath);
+  const regressedKeys = previousSnapshot.map(row => `${row.country}/${row.indicator}`).filter(key => !snapshot.some(row => `${row.country}/${row.indicator}` === key));
+  const regressedTrendKeys = previousTrends.map(row => `${row.country}/${row.indicator}`).filter(key => !trends.some(row => `${row.country}/${row.indicator}` === key && row.observations.length >= 2));
+  const unresolvedFailures = failures.filter(row => !row.recovered);
+  const canReplace = unresolvedFailures.length === 0 && snapshot.length === expectedPairs.length && missing.length === 0 && missingTrends.length === 0 && regressedKeys.length === 0 && regressedTrendKeys.length === 0;
+  console.log(`WDI: ${snapshot.length}/48 latest observations, ${trends.length}/48 series, ${trends.reduce((sum, row) => sum + row.observations.length, 0)} historical values; snapshot ${canReplace ? 'updated' : 'retained with original timestamps'}.`);
+  for (const failure of failures) {
+    const label = `${failure.country ?? failure.stage ?? 'Metadata'}/${failure.indicator}`;
+    if (failure.recovered) console.warn(`Recovered ${label} via ${failure.recoveryUrl}; original failure: ${failure.error}`);
+    else console.error(`${label}: ${failure.error}`);
+  }
+
+  const catalogOutcomes = await mapBounded(catalogDefinitions, async definition => {
+    const result = await fetchPublic(definition.url, { ...definition, kind: 'catalog-reference' });
+    if (!definition.marker.test(result.text) || /<title[^>]*>\s*(?:Just a moment|Page Not Found)/i.test(result.text)) throw new Error('Expected official page identity was not verified');
+    const pageTitle = result.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+    const metadataText = result.text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
+    return { id: definition.id, title: definition.title, url: result.url, source: definition.source, recordType: 'reference', geography: definition.geography, updateCadence: definition.cadence || null, intendedUses: definition.uses, limitations: definition.limitations, licenseUrl: definition.licenseUrl || null, licenseNote: definition.licenseUrl ? 'Consult linked source terms, including any third-party restrictions.' : 'Not established by this fetch; public accessibility does not itself grant reuse rights.', verifiedAt: result.fetchedAt, verification: { httpStatus: 200, contentType: result.contentType, bytes: result.bytes, pageTitle: pageTitle ? clean(pageTitle, 250) : null, metadataExcerpt: clean(metadataText, 500), scope: 'Accessible official metadata or directory only; this entry is not numerical market evidence.' } };
+  });
+  const catalog = catalogOutcomes.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+  const catalogFailures = catalogOutcomes.flatMap((result, index) => result.status === 'rejected' ? [{ id: catalogDefinitions[index].id, url: catalogDefinitions[index].url, error: result.reason }] : []);
+  const previousCatalog = await readExisting(join(output, 'source-catalog.json'));
+  const retainedCatalog = previousCatalog.filter(row => !catalog.some(fresh => fresh.id === row.id));
+  const storedCatalog = [...catalog, ...retainedCatalog];
+  const bundlePath = join(output, 'bundle.json');
+  let publishedBundle = null;
+  if (canReplace) {
+    // Publish one coherent file first. Mirrors remain inspection/compatibility
+    // outputs; interruption between mirrors cannot mix app evidence revisions.
+    publishedBundle = await publishMarketBundle(bundlePath, { observations: snapshot, trends,
+      metadata: successes.map(result => result.metadata), catalog: storedCatalog });
+    await atomicJson(join(output, 'world-bank-metadata.json'), successes.map(result => result.metadata));
+    await atomicJson(trendPath, trends);
+    await atomicJson(snapshotPath, snapshot);
+  }
+  let retainedBundleId = null;
+  if (!publishedBundle) {
+    try { const retained = JSON.parse(await readFile(bundlePath, 'utf8')); if (validMarketBundle(retained)) retainedBundleId = retained.manifest.id; }
+    catch (error) { if (error.code !== 'ENOENT') console.warn('The retained market bundle could not be validated.'); }
+  }
+  if (catalog.length) await atomicJson(join(output, 'source-catalog.json'), storedCatalog);
+
+  const dataRequests = indicators.flatMap(indicator => countries.map(country => {
+    const url = `https://api.worldbank.org/v2/country/${country.code}/indicator/${indicator.id}?format=json&per_page=8`;
+    return successes.flatMap(result => result.requests).find(row => row.url === url)
+      ?? { url, indicator: indicator.id, country: country.code, status: 'not-attempted', reason: 'Indicator metadata could not be validated.', attempts: 0 };
+  }));
+  const metadataRequests = indicators.map(indicator => {
+    const url = `https://api.worldbank.org/v2/indicator/${indicator.id}?format=json`;
+    const attempts = requestAttempts.filter(row => row.url === url);
+    const last = attempts.at(-1);
+    const validated = successes.some(row => row.indicator === indicator.id);
+    return { url, indicator: indicator.id, status: validated ? 'complete' : last?.status === 'complete' ? 'invalid' : 'failed',
+      validated, attempts: attempts.length, fetchedAt: validated ? last.completedAt : null,
+      error: validated ? null : failures.find(row => row.indicator === indicator.id && row.country === null)?.error ?? last?.error ?? 'Metadata was not retrieved.' };
+  });
+  const stored = canReplace ? snapshot : previousSnapshot;
+  const storedTrends = canReplace ? trends : previousTrends;
+  const trendYears = storedTrends.flatMap(row => row.observations.map(point => point.year));
+  const status = { runStartedAt, completedAt: new Date().toISOString(), queryMode: 'first-eight-annual-rows-per-country', requestedPeriod: 'latest 8 annual rows per country/indicator', completedYearWindow: `${startYear}:${endYear - 1}`, completedYearOnly: true,
+    requestTimeoutMs, maximumAttempts, maxConcurrentRequests: 3, expectedObservationCount: expectedPairs.length,
+    fetchedObservationCount: snapshot.length, storedObservationCount: stored.length, snapshotUpdated: canReplace,
+    dataBundleId: publishedBundle?.manifest.id ?? retainedBundleId, dataBundlePublished: Boolean(publishedBundle),
+    fetchedTrendSeriesCount: trends.length, fetchedTrendObservationCount: trends.reduce((sum, row) => sum + row.observations.length, 0),
+    storedTrendSeriesCount: storedTrends.length, storedTrendObservationCount: trendYears.length,
+    storedTrendPeriod: trendYears.length ? { from: Math.min(...trendYears), to: Math.max(...trendYears) } : null,
+    missing, missingTrends, failures, unresolvedFailureCount: unresolvedFailures.length, regressedKeys, regressedTrendKeys,
+    excludedCurrentYearObservations: successes.reduce((sum, result) => sum + result.excludedCurrentYear, 0),
+    dataRequests, successfulRequests: dataRequests.filter(row => row.status === 'complete' || row.status === 'recovered'), metadataRequests, requestAttempts,
+    fallbackRequests: successes.flatMap(row => row.fallbackRequests), recoveredCountryRequestCount: dataRequests.filter(row => row.status === 'recovered').length,
+    catalogVerifiedCount: catalog.length, catalogRetainedCount: retainedCatalog.length, catalogFailures };
+  await atomicJson(join(output, 'refresh-status.json'), status);
+
+  console.log(`Catalog: ${catalog.length} verified, ${retainedCatalog.length} retained, ${catalogFailures.length} failures. Request outcomes and source attribution remain in the data records.`);
+  if (!canReplace) process.exitCode = 1;
 }
-console.log(`WDI: ${successes.length}/${indicators.length} indicators, ${snapshot.length}/48 observations; snapshot ${canReplace ? 'updated' : 'retained unchanged'}.`);
-for (const failure of failures) console.error(`${failure.indicator}: ${failure.error}`);
-if (missing.length) console.log(`Missing: ${missing.join(', ')}`);
-if (regressedKeys.length) console.error(`Refusing to remove existing coverage: ${regressedKeys.join(', ')}`);
 
-const catalogOutcomes = await mapBounded(catalogDefinitions, async definition => {
-  const result = await fetchPublic(definition.url, definition);
-  if (!definition.marker.test(result.text) || /<title[^>]*>\s*(?:Just a moment|Page Not Found)/i.test(result.text)) throw new Error('Expected official page identity was not verified');
-  const pageTitle = result.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
-  const metadataText = result.text.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ');
-  return { id: definition.id, title: definition.title, url: result.url, source: definition.source, recordType: 'reference', geography: definition.geography, updateCadence: definition.cadence || null, intendedUses: definition.uses, limitations: definition.limitations, licenseUrl: definition.licenseUrl || null, licenseNote: definition.licenseUrl ? 'Consult linked source terms, including any third-party restrictions.' : 'Not established by this fetch; public accessibility does not itself grant reuse rights.', verifiedAt: result.fetchedAt, verification: { httpStatus: 200, contentType: result.contentType, bytes: result.bytes, pageTitle: pageTitle ? clean(pageTitle, 250) : null, metadataExcerpt: clean(metadataText, 500), scope: 'Accessible official metadata or directory only; this entry is not numerical market evidence.' } };
-});
-const catalog = catalogOutcomes.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
-const catalogFailures = catalogOutcomes.flatMap((result, index) => result.status === 'rejected' ? [{ id: catalogDefinitions[index].id, url: catalogDefinitions[index].url, error: result.reason }] : []);
-const previousCatalog = await readExisting(join(output, 'source-catalog.json'));
-const catalogKeys = new Set(catalog.map(row => row.id));
-const retainedCatalog = previousCatalog.filter(row => !catalogKeys.has(row.id));
-if (catalog.length) await atomicJson(join(output, 'source-catalog.json'), [...catalog, ...retainedCatalog]);
-const status = { runStartedAt, completedAt: new Date().toISOString(), requestedPeriod: `${startYear}:${endYear}`, completedYearOnly: true, expectedObservationCount: 48, fetchedObservationCount: snapshot.length, storedObservationCount: canReplace ? snapshot.length : previousSnapshot.length, snapshotUpdated: canReplace, missing, failures, regressedKeys, excludedCurrentYearObservations: successes.reduce((sum, result) => sum + result.excludedCurrentYear, 0), successfulRequests: successes.map(result => result.request), metadataRequests: successes.map(result => ({ url: result.metadata.metadataUrl, fetchedAt: result.metadata.fetchedAt })), catalogVerifiedCount: catalog.length, catalogRetainedCount: retainedCatalog.length, catalogFailures };
-await atomicJson(join(output, 'refresh-status.json'), status);
-
-const stored = canReplace ? snapshot : previousSnapshot;
-const periods = [...new Set(stored.map(row => row.dataPeriod))].sort();
-const countrySummary = countries.map(country => `| ${country.name} (${country.code}) | ${stored.filter(row => row.country === country.code).length} / 8 | ${[...new Set(stored.filter(row => row.country === country.code).map(row => row.dataPeriod))].sort().join(', ') || 'None'} |`).join('\n');
-const documentation = `# Public market data\n\nLast refresh attempt: ${status.completedAt}. Snapshot ${canReplace ? 'updated successfully' : 'retained; this refresh did not replace it'}. Stored ${stored.length} verified observations; observation years: ${periods.join(', ') || 'none'}.\n\nRun from the repository root:\n\n\`\`\`sh\nnode scripts/refresh-market-snapshot.mjs\n\`\`\`\n\nThis uses Node's built-in fetch and direct public HTTPS requests. It never reads .env, imports an AI provider SDK, invokes a model, accesses a database, or deploys anything. No application AI tokens or paid data APIs are used. This is an on-demand local refresh, not a scheduled job.\n\n## What is stored\n\n- src/data/market/seed-sources.json: a flat array compatible with SearchResult. Every record contains title, unique observation URL, content (at most 1,600 characters), source, fetchedAt, retrievalKind: open-data, dataPeriod, publishedAt: null, and expiresAt (30 days after fetch). Additional fields preserve country, indicator, numeric value, unit, observationYear, WDI metadataUpdatedAt, source query, license reference, and the previous calendar-year observation when available.\n- src/data/market/world-bank-metadata.json: official indicator definitions, source organizations, and metadata retrieval timestamps.\n- src/data/market/source-catalog.json: verified official directories or metadata references. These are explicitly references, not numerical evidence or independently retrieved series.\n- src/data/market/refresh-status.json: request URLs, coverage, missing combinations and failures from the latest attempt.\n\nCoverage: India, United States, United Kingdom, Singapore, Brazil and World. Indicators: total population; GDP in current USD; GDP per capita in current USD; internet use; annual CPI inflation; annual real GDP growth; urban population share; modeled ILO unemployment. All are macroeconomic context. They do not establish sector revenue, customer willingness to pay, business survival, or a startup's addressable market.\n\n| Geography | Observations | Observation years |\n| --- | --- | --- |\n${countrySummary}\n\nThe requested API window is ${startYear}:${endYear}. Only the latest non-null observation from a completed calendar year is saved for each country/indicator. Current-year projections are excluded. Negative real growth and inflation remain valid values. A fetchedAt timestamp is the actual UTC retrieval time; it must never be presented as the observation period. WDI lastupdated is a dataset revision date, not the indicator's publication date; publishedAt remains null. Values can be estimates and can be revised. National definitions and World aggregation methods differ by indicator.\n\n## Successful data requests in this attempt\n\n${successes.map(result => `- [${result.indicator}](${result.request.url}) — ${result.records.length} observations; WDI revision ${result.request.metadataUpdatedAt}; retrieved ${result.request.fetchedAt}.`).join('\n') || 'None.'}\n\nMetadata requests:\n\n${successes.map(result => `- [${result.indicator} definition](${result.metadata.metadataUrl})`).join('\n') || 'None.'}\n\n## Verified official references\n\n${catalog.map(row => `- [${row.title}](${row.url}) — verified ${row.verifiedAt}. ${row.limitations}`).join('\n') || 'No references verified in this attempt.'}\n\nUpdate cadence is null when the retrieved metadata does not establish it. Dynamic application shells are identified as entry points and supply no numbers. The RBI, NPCI, MoSPI, data.gov.in, Udyam, Startup India, ILO, UN and OECD entries are discovery references only. The saved quantitative observations all come from WDI, whose metadata identifies original agencies.\n\n## Coverage gaps and failures\n\nMissing country/indicator pairs in this attempt: ${missing.length ? missing.join(', ') : 'none'}.\n\nWorld Bank fetch failures: ${failures.length ? failures.map(row => `${row.indicator}: ${row.error}`).join('; ') : 'none'}.\n\nCatalog fetch failures: ${catalogFailures.length ? catalogFailures.map(row => `${row.url}: ${row.error}`).join('; ') : 'none'}. Retained older catalog entries: ${retainedCatalog.length}.\n\nDuring initial source discovery, the ILO main data and concepts pages and the OECD website data page returned HTTP 403; their alternate official explorer / SDMX metadata endpoints were used. The CIMS RBI DBIE path returned HTTP 404. The guessed data.gov.in Government Open Data License path redirected to Page Not Found, so no license is inferred for that catalog. No numbers were scraped from these failed pages.\n\n## Attribution, freshness and safe refresh behavior\n\nAttribute quantitative records to World Bank, World Development Indicators, the indicator code, observation year and retrieval date, with the linked underlying source organization where appropriate. See [World Bank summary terms](https://data.worldbank.org/summary-terms-of-use). Dataset-specific or third-party restrictions may apply; a public URL alone is not a license. Other catalog licenses are left unknown unless independently established.\n\nThe 30-day expiresAt is the application's retrieval freshness window, not a claim that annual data becomes false after 30 days. Refresh regularly when using the snapshot for new reports and always display the actual observation year. Registration and payment figures, when fetched separately in future, require their own period, units and definitions.\n\nRequests use a fixed HTTPS hostname allowlist, at most three concurrent requests, manual bounded redirects, a 25-second deadline per request, response type checks and streaming size limits. WDI responses must be a complete single page with correct country, indicator, source and year; numbers must be finite and within applicable domains. A failed indicator fetch, less than 30 observations, missing geography or loss of previous coverage preserves the existing numerical snapshot unchanged. Each JSON/text file is written to a temporary sibling and atomically renamed; the seed array is the application's snapshot boundary. Catalog refresh failures preserve older verified entries with their original timestamps. Review refresh-status.json and process exit status after refreshing.\n`;
-await atomicText(join(root, 'docs', 'DATA_SOURCES.md'), documentation);
-console.log(`Catalog: ${catalog.length} verified references, ${retainedCatalog.length} retained, ${catalogFailures.length} failures.`);
-for (const failure of catalogFailures) console.error(`${failure.id}: ${failure.error}`);
-console.log(`Wrote status and documentation. Stored observations: ${status.storedObservationCount}.`);
-if (!canReplace) process.exitCode = 1;
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();

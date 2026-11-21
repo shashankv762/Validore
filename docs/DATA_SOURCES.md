@@ -1,6 +1,6 @@
 # Public market data
 
-Last refresh attempt: 2026-10-31T19:11:29.372Z. Snapshot updated successfully. Stored 48 verified observations; observation years: 2024, 2025.
+Last refresh attempt: 2026-11-20T03:05:43.842Z. Snapshot updated successfully. Stored 48 verified observations across 48 trend series and 379 annual values; coverage window: 2018–2025.
 
 Run from the repository root:
 
@@ -12,7 +12,8 @@ This uses Node's built-in fetch and direct public HTTPS requests. It never reads
 
 ## What is stored
 
-- src/data/market/seed-sources.json: a flat array compatible with SearchResult. Every record contains title, unique observation URL, content (at most 1,600 characters), source, fetchedAt, retrievalKind: open-data, dataPeriod, publishedAt: null, and expiresAt (30 days after fetch). Additional fields preserve country, indicator, numeric value, unit, observationYear, WDI metadataUpdatedAt, source query, license reference, and the previous calendar-year observation when available.
+- src/data/market/bundle.json: the canonical dated market-context publication consumed by the runtime. It contains the complete validated series, source metadata, coverage and publication hash. The refresh script publishes this file atomically before updating mirrors.
+- src/data/market/seed-sources.json: a flat SearchResult-compatible mirror of the bundle for source inspection and compatibility. It is not the publication boundary. Every record contains title, unique observation URL, content (at most 1,600 characters), source, fetchedAt, retrievalKind: open-data, dataPeriod, publishedAt: null, and expiresAt (30 days after fetch). Additional fields preserve country, indicator, numeric value, unit, observationYear, WDI metadataUpdatedAt, source query, license reference, and the previous calendar-year observation when available.
 - src/data/market/world-bank-metadata.json: official indicator definitions, source organizations, and metadata retrieval timestamps.
 - src/data/market/source-catalog.json: verified official directories or metadata references. These are explicitly references, not numerical evidence or independently retrieved series.
 - src/data/market/refresh-status.json: request URLs, coverage, missing combinations and failures from the latest attempt.
@@ -28,7 +29,7 @@ Coverage: India, United States, United Kingdom, Singapore, Brazil and World. Ind
 | Brazil (BR) | 8 / 8 | 2024, 2025 |
 | World (WLD) | 8 / 8 | 2025 |
 
-The requested API window is 2019:2026. Only the latest non-null observation from a completed calendar year is saved for each country/indicator. Current-year projections are excluded. Negative real growth and inflation remain valid values. A fetchedAt timestamp is the actual UTC retrieval time; it must never be presented as the observation period. WDI lastupdated is a dataset revision date, not the indicator's publication date; publishedAt remains null. Values can be estimates and can be revised. National definitions and World aggregation methods differ by indicator.
+The current refresh stores the latest eight non-null annual observations available from completed calendar years for each country/indicator, currently 2018–2025. Current-year projections are excluded. Negative real growth and inflation remain valid values. A fetchedAt timestamp is the actual UTC retrieval time; it must never be presented as the observation period. WDI lastupdated is a dataset revision date, not the indicator's publication date; publishedAt remains null. Values can be estimates and can be revised. National definitions and World aggregation methods differ by indicator.
 
 ## Successful data requests in this attempt
 
@@ -83,4 +84,4 @@ Attribute quantitative records to World Bank, World Development Indicators, the 
 
 The 30-day expiresAt is the application's retrieval freshness window, not a claim that annual data becomes false after 30 days. Refresh regularly when using the snapshot for new reports and always display the actual observation year. Registration and payment figures, when fetched separately in future, require their own period, units and definitions.
 
-Requests use a fixed HTTPS hostname allowlist, at most three concurrent requests, manual bounded redirects, a 25-second deadline per request, response type checks and streaming size limits. WDI responses must be a complete single page with correct country, indicator, source and year; numbers must be finite and within applicable domains. A failed indicator fetch, less than 30 observations, missing geography or loss of previous coverage preserves the existing numerical snapshot unchanged. Each JSON/text file is written to a temporary sibling and atomically renamed; the seed array is the application's snapshot boundary. Catalog refresh failures preserve older verified entries with their original timestamps. Review refresh-status.json and process exit status after refreshing.
+Requests use a fixed HTTPS hostname allowlist, at most three concurrent requests, manual bounded redirects, a 25-second deadline per request, response type checks and streaming size limits. WDI responses must be a complete single page with correct country, indicator, source and year; numbers must be finite and within applicable domains. A failed indicator fetch, less than 30 observations, missing geography or loss of previous coverage preserves the existing numerical snapshot unchanged. Each JSON/text file is written to a temporary sibling and atomically renamed; the bundle is the application's publication boundary and flat files are mirrors. Catalog refresh failures preserve older verified entries with their original timestamps. Review refresh-status.json and process exit status after refreshing.

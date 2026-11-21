@@ -17,13 +17,18 @@ const report = {
 
 describe('complete report documents', () => {
   it('includes saved evidence and final sections without technical identifiers', () => {
-    const document = buildReportDocument(report, { name: 'Launch research sample' }, 'validation')
+    const document = buildReportDocument({ ...report, reportData: { ...report.reportData, planningContext: { privateFinding: 'PRIVATE-PLANNING-CONTEXT-DO-NOT-EXPORT' }, runManifest: { stepId: 'PRIVATE-RUNTIME-IDENTIFIER' } } }, { name: 'Launch research sample', coreProblem: 'Founders need to distinguish assumptions from customer evidence.' }, 'validation')
     const text = JSON.stringify(document)
     expect(document.partial).toBe(true)
     expect(text).toContain('FINAL FINDING')
     expect(text).toContain('https://example.org/evidence')
     expect(text).not.toContain('private-owner-id')
     expect(text).not.toContain('private-provider')
+    expect(text).not.toContain('PRIVATE-PLANNING-CONTEXT-DO-NOT-EXPORT')
+    expect(text).not.toContain('PRIVATE-RUNTIME-IDENTIFIER')
+    expect(document.sections[0].title).toBe('Decision brief')
+    expect(document.sections[1].title).toBe('Your idea')
+    expect(document.sections[1].lines.some(line => line.text.includes('distinguish assumptions from customer evidence'))).toBe(true)
   })
   it('creates a real multi-page PDF with embedded font assets', async () => {
     const buffer = await renderReportPdf(buildReportDocument(report, { name: 'Launch research sample' }, 'validation'))

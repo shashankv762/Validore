@@ -3,10 +3,11 @@ import { eq, sql } from 'drizzle-orm'
 import type Stripe from 'stripe'
 import { db } from '@/db'
 import { tierConfig } from '@/db/schema'
-import { PLAN_CATALOG, type PlanTier } from './plans'
+import { PLAN_CATALOG, type PlanTier, type SubscriptionCurrency } from './plans'
 import type { AdminPlan } from './admin-types'
 import type { SettingsExecutor } from './platform-settings'
 import { billingAvailability } from './billing-availability'
+import { DAILY_LOGIN_CREDITS, STARTING_CREDITS } from './credit-costs'
 
 export const PLAN_TIERS = ['free', 'premium', 'max_premium'] as const
 const featureFields = ['canExportPdf', 'canExportCsv', 'canExportPptx', 'canWhitelabelPdf', 'canPortfolioExport', 'canLeanCanvas', 'canAiLeanCanvas', 'canPricingSimulator', 'canCrowdfunding', 'canPitchDeck'] as const
@@ -29,7 +30,7 @@ const defaultFeatures = {
   max_premium: { maxConcurrentRequests: 10, maxTokensPerCall: 16000, canExportPdf: true, canExportCsv: true, canExportPptx: true, canWhitelabelPdf: true, canPortfolioExport: true, canLeanCanvas: true, canAiLeanCanvas: true, canPricingSimulator: true, canCrowdfunding: true, canPitchDeck: true },
 }
 export type RuntimePlan = AdminPlan & {
-  monthlyPriceCents: number; monthlyValidationLimit: number; maxActiveIdeas: number; stripePriceHistory: string[]; advertised: boolean
+  monthlyPriceCents: number; monthlyPriceInr: number; monthlyValidationLimit: number; maxActiveIdeas: number; stripePriceHistory: string[]; advertised: boolean
 }
 export type RuntimePlanCatalog = Record<PlanTier, RuntimePlan>
 
@@ -40,13 +41,16 @@ function environmentPrice(tier: PlanTier) {
 
 export function resolvePlan(tier: PlanTier, row?: Partial<typeof tierConfig.$inferSelect> | null): RuntimePlan {
   const defaults = PLAN_CATALOG[tier]
-  const monthlyPriceCents = row?.monthlyPriceCents ?? defaults.monthlyPriceUsd * 100
+  const monthlyPriceCents = defaults.monthlyPriceUsd * 100
   const features = { ...defaultFeatures[tier] }
   for (const key of featureFields) features[key] = row?.[key] ?? features[key]
   const monthlyCredits = row?.monthlyCredits ?? defaults.monthlyCredits
   const validationLimit = row?.monthlyValidationLimit ?? defaults.validationLimit
   const activeIdeaLimit = row?.maxActiveIdeas ?? defaults.activeIdeaLimit
-  const benefits = [`${monthlyCredits.toLocaleString('en-US')} monthly credits`, `${validationLimit} validations per month`, `${activeIdeaLimit} active ${activeIdeaLimit === 1 ? 'idea' : 'ideas'}`]
+  const benefits = [
+    ...(tier === 'free' ? [`${STARTING_CREDITS} starting credits · carry forward`, `Claim ${DAILY_LOGIN_CREDITS} daily login credits`] : []),
+    ...(monthlyCredits > 0 ? [`${monthlyCredits.toLocaleString('en-US')} monthly credits`] : []),
+    `${validationLimit} validations per month`, `${activeIdeaLimit} active ${activeIdeaLimit === 1 ? 'idea' : 'ideas'}`]
   if (features.canLeanCanvas) benefits.push('Manual Lean Canvas')
   if (features.canAiLeanCanvas) benefits.push('AI Lean Canvas')
   if (features.canPricingSimulator) benefits.push('Pricing simulator')
@@ -58,7 +62,7 @@ export function resolvePlan(tier: PlanTier, row?: Partial<typeof tierConfig.$inf
   if (features.canExportPptx) benefits.push('PPTX exports')
   if (features.canWhitelabelPdf) benefits.push('White-label PDF')
   if (features.canPortfolioExport) benefits.push('Portfolio ZIP export')
-  return { tier, name: row?.name ?? defaults.name, monthlyPriceCents, monthlyPriceUsd: monthlyPriceCents / 100,
+  return { tier, name: row?.name ?? defaults.name, monthlyPriceCents, monthlyPriceUsd: monthlyPriceCents / 100, monthlyPriceInr: defaults.monthlyPriceInr,
     monthlyCredits, validationLimit, monthlyValidationLimit: validationLimit, activeIdeaLimit, maxActiveIdeas: activeIdeaLimit,
     ...features, maxConcurrentRequests: row?.maxConcurrentRequests ?? features.maxConcurrentRequests,
     // Legacy token columns were never enforced by generation. Preserve its role
@@ -80,8 +84,8 @@ export async function getPlan(tier: PlanTier, executor: SettingsExecutor = db) {
 }
 
 export function toAdminPlan(plan: RuntimePlan): AdminPlan {
-  const { monthlyPriceCents: _price, monthlyValidationLimit: _validation, maxActiveIdeas: _ideas, stripePriceHistory: _history, ...admin } = plan
-  void _price; void _validation; void _ideas; void _history
+  const { monthlyPriceCents: _price, monthlyPriceInr: _inr, monthlyValidationLimit: _validation, maxActiveIdeas: _ideas, stripePriceHistory: _history, ...admin } = plan
+  void _price; void _inr; void _validation; void _ideas; void _history
   return admin
 }
 
@@ -89,30 +93,47 @@ export function getPublicPlanCatalog(catalog: RuntimePlanCatalog) {
   return Object.fromEntries(PLAN_TIERS.map(tier => {
     const { stripePriceId: _price, ...plan } = toAdminPlan(catalog[tier])
     void _price
-    return [tier, plan]
-  })) as Record<PlanTier, Omit<AdminPlan, 'stripePriceId'>>
+    return [tier, { ...plan, monthlyPriceInr: catalog[tier].monthlyPriceInr }]
+  })) as Record<PlanTier, Omit<AdminPlan, 'stripePriceId'> & Pick<RuntimePlan, 'monthlyPriceInr'>>
 }
 
-export function assertMonthlyStripePrice(price: Pick<Stripe.Price, 'active' | 'currency' | 'unit_amount' | 'recurring' | 'billing_scheme'>, expectedAmount: number) {
-  if (!price.active || price.currency !== 'usd' || price.unit_amount !== expectedAmount ||
-      (price.billing_scheme && price.billing_scheme !== 'per_unit') || price.recurring?.interval !== 'month' ||
-      price.recurring.interval_count !== 1 || price.recurring.usage_type === 'metered') {
+type RecurringStripePrice = Pick<Stripe.Price, 'active' | 'currency' | 'unit_amount' | 'currency_options' | 'recurring' | 'billing_scheme'>
+
+export function planPriceMinor(plan: RuntimePlan, currency: SubscriptionCurrency) {
+  return currency === 'INR' ? plan.monthlyPriceInr * 100 : plan.monthlyPriceCents
+}
+
+function matchesMonthlyStripePrice(price: RecurringStripePrice, expectedAmount: number, currency: SubscriptionCurrency) {
+  const amount = currency === 'INR' ? price.currency_options?.inr?.unit_amount : price.unit_amount
+  return expectedAmount > 0 && price.active && price.currency === 'usd' && amount === expectedAmount &&
+    (!price.billing_scheme || price.billing_scheme === 'per_unit') && price.recurring?.interval === 'month' &&
+    price.recurring.interval_count === 1 && price.recurring.usage_type !== 'metered'
+}
+
+export function assertMonthlyStripePrice(price: RecurringStripePrice, expectedAmount: number, currency: SubscriptionCurrency = 'USD') {
+  if (!matchesMonthlyStripePrice(price, expectedAmount, currency)) {
     throw new Error('The configured subscription price does not match the advertised monthly plan')
   }
 }
 
 export async function getPlanBillingAvailability(catalog: RuntimePlanCatalog) {
   const base = billingAvailability()
-  if (!base.credits) return { credits: false, premium: false, maxPremium: false }
+  if (!base.credits) return { credits: false, premium: false, maxPremium: false, premiumInr: false, maxPremiumInr: false, portal: base.portal }
   const { stripeBillingClient } = await import('./stripe-client')
   const stripe = stripeBillingClient()
   const check = async (plan: RuntimePlan) => {
-    if (!plan.advertised || !plan.stripePriceId || plan.monthlyPriceCents <= 0) return false
-    try { assertMonthlyStripePrice(await stripe.prices.retrieve(plan.stripePriceId), plan.monthlyPriceCents); return true }
-    catch { return false }
+    if (plan.advertised && plan.stripePriceId) {
+      try {
+        const price = await stripe.prices.retrieve(plan.stripePriceId, { expand: ['currency_options'] })
+        return { usd: matchesMonthlyStripePrice(price, planPriceMinor(plan, 'USD'), 'USD'),
+          inr: matchesMonthlyStripePrice(price, planPriceMinor(plan, 'INR'), 'INR') }
+      } catch { /* An unavailable Stripe price cannot be sold. */ }
+    }
+    return { usd: false, inr: false }
   }
   const [premium, maxPremium] = await Promise.all([check(catalog.premium), check(catalog.max_premium)])
-  return { credits: base.credits, premium, maxPremium }
+  return { credits: base.credits, premium: premium.usd, maxPremium: maxPremium.usd,
+    premiumInr: premium.inr, maxPremiumInr: maxPremium.inr, portal: base.portal }
 }
 
 /** Use the same lock in checkout and updates so a new checkout cannot race a plan change. */
@@ -125,6 +146,9 @@ export async function lockPlan(tx: SettingsExecutor, tier: PlanTier) {
 export async function updatePlan(tx: SettingsExecutor, tier: PlanTier, input: unknown) {
   const value = PlanUpdateSchema.parse(input)
   if (value.tier && value.tier !== tier) throw new Error('Plan tier mismatch')
+  if (tier !== 'free' && Math.round(value.monthlyPriceUsd * 100) !== PLAN_CATALOG[tier].monthlyPriceUsd * 100) {
+    throw new Error('Paid subscription prices are fixed. Use the advertised catalog amount.')
+  }
   if (tier === 'free' && (value.monthlyPriceUsd !== 0 || value.stripePriceId !== null)) throw new Error('The free plan must remain free')
   if (tier !== 'free' && value.monthlyPriceUsd <= 0) throw new Error('Paid plans need a positive monthly price')
   await lockPlan(tx, tier)

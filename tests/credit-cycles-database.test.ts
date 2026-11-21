@@ -19,6 +19,7 @@ import { db } from '@/db'
 import { creditLedger, users, tierConfig } from '@/db/schema'
 import { checkCredits, deductCredits, refundValidationCredits, topUpMonthlyCredits } from '@/lib/credits'
 import { reconcileStripeCredits } from '@/lib/subscription-credits'
+import { reconcileRazorpayCredits, type RazorpayCreditSubscription } from '@/lib/razorpay-subscription-credits'
 
 const owner = '11111111-1111-4111-8111-111111111111'
 const account = async () => (await db.query.users.findFirst({ where: eq(users.id, owner) }))!
@@ -30,6 +31,11 @@ const period = (start: string, end: string, status = 'active') => ({
 const apply = (subscription: Stripe.Subscription) => db.transaction(async tx => {
   const [user] = await tx.select().from(users).where(eq(users.id, owner)).for('update')
   return reconcileStripeCredits(tx, user, subscription)
+})
+const applyRazorpay = (start: string, end: string, tier: 'premium' | 'max_premium' = 'premium', patch: Partial<RazorpayCreditSubscription> = {}) => db.transaction(async tx => {
+  const [user] = await tx.select().from(users).where(eq(users.id, owner)).for('update')
+  return reconcileRazorpayCredits(tx, user, { id: 'sub_razorpay', status: 'active',
+    current_start: new Date(start).getTime() / 1000, current_end: new Date(end).getTime() / 1000, ...patch }, tier)
 })
 beforeAll(async () => {
   await state.client.exec(`CREATE TYPE tier AS ENUM ('free', 'premium', 'max_premium');
@@ -61,6 +67,54 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs() })
 afterAll(() => state.client.close())
 
 describe('Exact billing cycles with PostgreSQL transactions', () => {
+  it('keeps manual access and its balances unchanged after a delayed Razorpay activation', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-14T01:00:00Z'))
+    await db.update(users).set({ tier: 'max_premium', subscriptionStatus: 'manual', subscriptionId: null,
+      creditCycleAllowance: 4500, creditBalance: 3800, creditsUsedThisCycle: 700, monthlyCreditsUsedThisCycle: 700,
+      creditCycleStartedAt: new Date('2026-11-01'), creditResetAt: new Date('2026-12-01') }).where(eq(users.id, owner))
+    const before = await account()
+    await applyRazorpay('2026-11-01', '2026-12-01')
+    expect(await account()).toEqual(before)
+  })
+  it('preserves Razorpay same-cycle debits, edited allowances and tier-change consumption across replays', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-14T01:00:00Z'))
+    await applyRazorpay('2026-11-01', '2026-12-01')
+    await deductCredits(owner, 300, 'PRICING_SIMULATION')
+    await db.insert(tierConfig).values({ tier: 'premium', monthlyCredits: 2500, monthlyValidationLimit: 15, maxActiveIdeas: 10, maxConcurrentRequests: 3, maxTokensPerCall: 8000 })
+    await applyRazorpay('2026-11-01', '2026-12-01'); await applyRazorpay('2026-11-01', '2026-12-01')
+    expect(await account()).toMatchObject({ tier: 'premium', creditCycleAllowance: 1500, creditBalance: 1200,
+      creditsUsedThisCycle: 300, monthlyCreditsUsedThisCycle: 300, purchasedCredits: 40, rewardCredits: 30 })
+    await applyRazorpay('2026-11-01', '2026-12-01', 'max_premium')
+    expect(await account()).toMatchObject({ tier: 'max_premium', creditCycleAllowance: 4500, creditBalance: 4200,
+      creditsUsedThisCycle: 300, monthlyCreditsUsedThisCycle: 300 })
+  })
+  it('grants one new Razorpay cycle and ignores expired, older and obsolete subscription activations', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-14T01:00:00Z'))
+    await applyRazorpay('2026-11-01', '2026-12-01')
+    await deductCredits(owner, 300, 'PRICING_SIMULATION')
+    const before = await account()
+    await applyRazorpay('2026-10-01', '2026-11-01')
+    await applyRazorpay('2026-11-01', '2026-12-01', 'premium', { id: 'sub_obsolete' })
+    expect(await account()).toEqual(before)
+    vi.setSystemTime(new Date('2026-12-01T01:00:00Z'))
+    await applyRazorpay('2026-12-01', '2027-01-01')
+    await deductCredits(owner, 250, 'PRICING_SIMULATION')
+    await applyRazorpay('2026-12-01', '2027-01-01')
+    expect(await account()).toMatchObject({ creditBalance: 1250, creditCycleAllowance: 1500,
+      creditsUsedThisCycle: 250, monthlyCreditsUsedThisCycle: 250 })
+  })
+  it('hydrates a legacy Razorpay cycle without regranting spent credits or inventing a missing paid period', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-14T01:00:00Z'))
+    await db.update(users).set({ tier: 'premium', subscriptionId: 'sub_razorpay', subscriptionStatus: 'active',
+      creditBalance: 1200, creditsUsedThisCycle: 300, creditCycleStartedAt: null,
+      creditResetAt: new Date('2026-12-01') }).where(eq(users.id, owner))
+    await applyRazorpay('2026-11-01', '2026-12-01')
+    expect(await account()).toMatchObject({ creditBalance: 1200, monthlyCreditsUsedThisCycle: 300,
+      creditCycleStartedAt: new Date('2026-11-01') })
+    const before = await account()
+    await expect(applyRazorpay('2026-12-01', '2027-01-01', 'premium', { current_start: null })).rejects.toThrow('period unavailable')
+    expect(await account()).toEqual(before)
+  })
   it('applies an edited allowance only at renewal and refunds against the current allocation', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-10-01T01:00:00Z'))
     const subscription = period('2026-10-01', '2026-11-01')
@@ -128,7 +182,7 @@ describe('Exact billing cycles with PostgreSQL transactions', () => {
     await apply(period('2026-10-01', '2026-11-01'))
     await apply(period('2026-10-01', '2026-11-01', 'canceled'))
     const cancelled = await account()
-    expect(cancelled).toMatchObject({ tier: 'free', creditBalance: 100, purchasedCredits: 40, rewardCredits: 30,
+    expect(cancelled).toMatchObject({ tier: 'free', creditBalance: 0, purchasedCredits: 40, rewardCredits: 30,
       creditCycleStartedAt: new Date('2026-10-01T01:00:00Z') })
     await apply(period('2026-10-01', '2026-11-01', 'canceled'))
     expect((await account()).creditResetAt).toEqual(cancelled.creditResetAt)
@@ -140,6 +194,21 @@ describe('Exact billing cycles with PostgreSQL transactions', () => {
     state.retrieve.mockResolvedValue(period('2026-11-01', '2026-12-01'))
     expect(await checkCredits(owner, 300)).toEqual({ allowed: false, balance: 70 })
     expect(await account()).toMatchObject({ creditBalance: 0, purchasedCredits: 40, rewardCredits: 30 })
+  })
+  it('restores a payment-recovered subscription in the same provider period after a retryable failure', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-30T12:00:00Z'))
+    await apply(period('2026-11-01', '2026-12-01'))
+    await deductCredits(owner, 300, 'PRICING_SIMULATION')
+    await apply(period('2026-11-01', '2026-12-01', 'past_due'))
+    expect(await account()).toMatchObject({ tier: 'free', subscriptionStatus: 'past_due', creditBalance: 0,
+      monthlyCreditsUsedThisCycle: 300, creditCycleStartedAt: new Date('2026-11-01'), creditResetAt: new Date('2026-12-01') })
+
+    vi.setSystemTime(new Date('2026-11-30T12:05:00Z'))
+    await apply(period('2026-11-01', '2026-12-01', 'active'))
+
+    expect(await account()).toMatchObject({ tier: 'premium', subscriptionStatus: 'active',
+      creditCycleStartedAt: new Date('2026-11-01'), creditResetAt: new Date('2026-12-01'), creditBalance: 1200,
+      monthlyCreditsUsedThisCycle: 300 })
   })
   it('does not restore expired monthly credits while the provider still reports the old period', async () => {
     vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date('2026-11-30T23:59:00Z'))

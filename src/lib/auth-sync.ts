@@ -1,9 +1,10 @@
 import { db } from '@/db'
-import { users } from '@/db/schema'
+import { users, creditLedger } from '@/db/schema'
 import { and, eq, sql } from 'drizzle-orm'
 import { isActiveAccount, isVerifiedOwnerIdentity } from './admin-access'
 import { getPlan } from './plan-catalog'
 import { getPlatformSettings } from './platform-settings'
+import { STARTING_CREDITS } from './credit-costs'
 
 export interface SupabaseAuthUser {
   id: string
@@ -65,22 +66,27 @@ export async function syncUserToDatabase(supabaseUser: SupabaseAuthUser, options
     if (!(await getPlatformSettings()).signupEnabled && !isVerifiedOwnerIdentity(supabaseUser)) return null
     const allowance = (await getPlan('free')).monthlyCredits
     const now = new Date()
-    const [inserted] = await db
-      .insert(users)
-      .values({
-        email,
-        supabaseId: supabaseUser.id,
-        isAdmin: options?.promoteOwner !== false && isVerifiedOwnerIdentity(supabaseUser),
-        tier: 'free',
-        creditBalance: allowance,
-        creditCycleAllowance: allowance,
-        creditCycleStartedAt: now,
-        creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
-      })
-      .onConflictDoNothing()
-      .returning()
-
-    return inserted ?? await db.query.users.findFirst({ where: eq(users.supabaseId, supabaseUser.id) })
+    return await db.transaction(async tx => {
+      const [inserted] = await tx.insert(users)
+        .values({
+          email,
+          supabaseId: supabaseUser.id,
+          isAdmin: options?.promoteOwner !== false && isVerifiedOwnerIdentity(supabaseUser),
+          tier: 'free',
+          creditBalance: allowance,
+          purchasedCredits: STARTING_CREDITS,
+          creditCycleAllowance: allowance,
+          creditCycleStartedAt: now,
+          creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        })
+        .onConflictDoNothing()
+        .returning()
+      if (inserted) {
+        await tx.insert(creditLedger).values({ userId: inserted.id, amount: STARTING_CREDITS,
+          transactionType: 'SIGNUP_GRANT', description: 'Starting credits · carry forward' })
+      }
+      return inserted ?? await tx.query.users.findFirst({ where: eq(users.supabaseId, supabaseUser.id) })
+    })
   } catch (error) {
     // Preserve a successful concurrent signup; surface genuine database failures.
     const fallback = await db.query.users.findFirst({

@@ -2,15 +2,17 @@ import { z } from 'zod'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { users, ideas, validationReports, leanCanvases, pricingSimulations, crowdfundingAnalyses, pitchDecks } from '@/db/schema'
-import { buildReportDocument, type ReportDocument } from './document'
+import { buildReportDocument, humanize, type ReportDocument } from './document'
 import { isActiveAccount } from '../admin-access'
+import { savedExportIdea } from './idea-context'
 
 const Query = z.object({
   reportId: z.uuid().optional(), ideaId: z.uuid().optional(), canvasId: z.uuid().optional(), deckId: z.uuid().optional(),
   simulationId: z.uuid().optional(), analysisId: z.uuid().optional(),
   module: z.enum(['validation', 'canvas', 'pricing', 'crowdfunding', 'pitch']).optional(),
 })
-type Loaded = { document: ReportDocument; filename: string } | { error: string; status: number }
+type Loaded = { document: ReportDocument; filename: string; canvasFields?: Array<{ name: string; content: string }> } | { error: string; status: number }
+const CANVAS_FIELDS = ['problem', 'solution', 'uvp', 'unfairAdvantage', 'customerSegments', 'keyMetrics', 'channels', 'costStructure', 'revenueStreams'] as const
 
 export async function loadExportDocument(search: URLSearchParams, supabaseId: string): Promise<Loaded> {
   const parsed = Query.safeParse(Object.fromEntries(search))
@@ -39,8 +41,15 @@ export async function loadExportDocument(search: URLSearchParams, supabaseId: st
   else if (kind === 'pitch') record = await db.query.pitchDecks.findFirst({
     where: and(eq(pitchDecks.userId, owner.id), deckId ? eq(pitchDecks.id, deckId) : eq(pitchDecks.ideaId, ideaId!)), orderBy: [desc(pitchDecks.createdAt)],
   })
-  if (!record || record.userId !== owner.id) return { error: 'This document was not found in your workspace.', status: 404 }
+  if (!record || record.userId !== owner.id || ideaId && record.ideaId !== ideaId) return { error: 'This document was not found in your workspace.', status: 404 }
   const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, String(record.ideaId)), eq(ideas.userId, owner.id)) })
   const prefix = kind === 'canvas' ? 'lean-canvas' : 'validore-' + kind
-  return { document: buildReportDocument(record, idea ?? null, kind), filename: prefix + '-' + String(record.id).replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64) }
+  // Preserve scalar Canvas content for CSV. A display line such as
+  // "Content: =1+1" is not a substitute for the founder's original value.
+  const canvasFields = kind === 'canvas' ? CANVAS_FIELDS.flatMap(key => {
+    const value = record[key]
+    const content = value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>).content : value
+    return typeof content === 'string' ? [{ name: humanize(key), content }] : []
+  }) : undefined
+  return { document: buildReportDocument(record, savedExportIdea(record, idea ?? null), kind), filename: prefix + '-' + String(record.id).replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64), canvasFields }
 }

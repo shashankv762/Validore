@@ -2,9 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import type { PlanTier } from '@/lib/plans'
+import type { MonthlyPlanPrice, PlanTier, SubscriptionAvailability } from '@/lib/plans'
 import type { AccountStatus, AdminPlan } from '@/lib/admin-types'
 import { registrationRecoveryPath } from '@/lib/registration-recovery'
+import type { WorkspaceModelPolicy } from '@/lib/workspace-model-copy'
 
 export type AccountUser = {
   id: string
@@ -22,6 +23,7 @@ export type AccountUser = {
   creditResetAt: string | null
   currentPeriodEnd: string | null
   subscriptionStatus: string | null
+  manualPlan?: boolean
   cancelAtPeriodEnd: boolean
   createdAt: string | null
   emailVerified: boolean
@@ -31,13 +33,13 @@ export type AccountUser = {
   unlimited?: boolean
   accountStatus?: AccountStatus
 }
-export type AccountPlan = { name: string; monthlyPriceUsd: number; monthlyCredits: number; validationLimit: number; activeIdeaLimit: number; benefits?: string[] } & Partial<Omit<AdminPlan, 'stripePriceId'>>
+export type AccountPlan = MonthlyPlanPrice & { name: string; monthlyCredits: number; validationLimit: number; activeIdeaLimit: number; benefits?: string[] } & Partial<Omit<AdminPlan, 'stripePriceId'>>
 export type AccountData = {
   user: AccountUser
   plan?: AccountPlan
   plans?: Record<PlanTier, AccountPlan>
-  billing: { credits: boolean; premium: boolean; maxPremium: boolean }
-  ai: { freeOnly: boolean; researchTools: boolean }
+  billing: SubscriptionAvailability & { credits: boolean; portal?: boolean }
+  ai: { freeOnly: boolean; researchTools: boolean; workspaceModelPolicy?: WorkspaceModelPolicy }
 }
 type AccountState = {
   data: AccountData | null

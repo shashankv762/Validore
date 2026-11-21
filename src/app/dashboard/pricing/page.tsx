@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useId } from 'react'
+import { PlanningDraftNotice, usePlanningDraft } from '@/components/planning/PlanningDraft'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import {
@@ -16,34 +17,38 @@ import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { totalCredits } from '@/lib/credit-allocation'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
 import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
-import { calculateLTVCACRatio } from '@/lib/financial'
+import { calculatePricing, planningCalculationIssues, type PricingInputs } from '@/lib/planning/economics'
+import { PlanningEvidence } from '@/components/planning/PlanningEvidence'
+import { usePlanningRunIdentity } from '@/components/planning/usePlanningRunIdentity'
+import { pricingEconomicScores } from '@/lib/planning/pricing-scores'
+import { SourceReportSelector } from '@/components/planning/SourceReportSelector'
+import { SourceReportSummary } from '@/components/planning/SourceReportSummary'
+import { PlanningArtifactSelector } from '@/components/planning/PlanningArtifactSelector'
 
 const PricingReport = dynamic(() => import('./PricingReport').then(module => module.PricingReport), {
   loading: () => <p role="status" className="p-6 text-sm">Loading your pricing report…</p>,
 })
 
-// Inline financial formulas (pure functions — no server imports)
-const cm = (p: number, vc: number) => p - vc
-const breakEven = (fc: number, p: number, vc: number) => vc < p ? fc / (p - vc) : Infinity
-const gm = (p: number, vc: number) => p > 0 ? ((p - vc) / p) * 100 : 0
-const muPct = (p: number, c: number) => c > 0 ? ((p - c) / c) * 100 : 0
-const ltvFn = (margin: number, months: number) => margin * months
-const ltvCacFn = calculateLTVCACRatio
-const cacPaybackFn = (cac: number, margin: number) => margin > 0 ? cac / margin : Infinity
-const fmt = (n: number) => n > 1e6 ? `₹${(n / 1e6).toFixed(1)}M` : n > 1e3 ? `₹${(n / 1e3).toFixed(0)}K` : `₹${n.toFixed(0)}`
+const moneyFormat = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 })
+const fmt = (amount: number) => amount !== 0 && Math.abs(amount) < 0.01
+  ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumSignificantDigits: 8 }).format(amount)
+  : moneyFormat.format(amount)
 
 const SliderRow = ({ label, value, min, max, step = 1, unit = '', onChange }: {
   label: string; value: number; min: number; max: number; step?: number; unit?: string
   onChange: (v: number) => void
 }) => {
   const id = useId()
+  const display = unit === '%' ? `${value.toLocaleString()}%` : `${unit}${value.toLocaleString()}`
   return (
   <div className="mb-4">
     <div className="flex justify-between mb-1">
       <label htmlFor={id} className="text-xs font-medium text-[#141923]">{label}</label>
-      <span className="text-xs font-semibold text-[#89620B]">{unit}{value.toLocaleString()}</span>
+      <input id={id} type="number" min={min} max={max} step="any" value={value}
+        onChange={event => { const next = Number(event.target.value); if (Number.isFinite(next) && next >= min && next <= max) onChange(next) }}
+        className="w-28 max-w-[50%] rounded border border-[#E5E7EB] bg-white px-2 py-1 text-right text-xs font-semibold tabular-nums text-[#89620B]" />
     </div>
-    <input id={id} type="range" min={min} max={max} step={step} value={value} aria-valuetext={`${value.toLocaleString()} ${unit}`.trim()}
+    <input id={id + '-range'} aria-label={label + ' slider'} type="range" min={min} max={max} step={step} value={value} aria-valuetext={display}
       onChange={e => onChange(Number(e.target.value))}
       className="w-full h-8 cursor-pointer accent-[#E0A526]"
     />
@@ -107,7 +112,9 @@ interface PricingAiAnalysis {
 }
 
 interface PricingResult {
-  inputs?: unknown
+  inputs?: Partial<PricingInputs>
+  researchSources?: Array<{ title: string; url: string; fetchedAt: string; retrievalKind: string }>
+  evidenceGaps?: string[]
   computedMetrics?: {
     contributionMargin?: number
     contributionMarginPct?: number
@@ -143,7 +150,10 @@ interface PricingResult {
 export default function PricingPage() {
   const resources = useWorkspaceResources()
   const { ideas, user } = resources
+  const runIdentity = usePlanningRunIdentity('pricing', user?.id)
   const [selectedIdeaId, setSelectedIdeaId] = useState('')
+  const [sourceReportId,setSourceReportId] = useState('')
+  const [sourceCanvasId,setSourceCanvasId] = useState('')
   const isPremium = user?.unlimited || (resources.plan?.canPricingSimulator ?? (user?.tier === 'premium' || user?.tier === 'max_premium'))
   const balance = user ? totalCredits(user) : 0
   const [analyzing, setAnalyzing] = useState(false)
@@ -157,91 +167,87 @@ export default function PricingPage() {
   const [discount, setDiscount] = useState(10)
   const [cac, setCac] = useState(500)
   const [retention, setRetention] = useState(18)
+  const [elasticity, setElasticity] = useState(1.5)
+  const [conversion, setConversion] = useState(3.5)
+  const [paymentFee, setPaymentFee] = useState(0)
+  const [billingModel, setBillingModel] = useState<PricingInputs['billingModel']>('recurring')
   const [showPowerBIGuide, setShowPowerBIGuide] = useState(false)
+  const restoreSavedInputs = () => {
+    const inputs = aiResult?.inputs
+    if (!inputs) return
+    setPrice(inputs.sellingPrice ?? 1000); setCustomers(inputs.expectedCustomers ?? 100); setVc(inputs.variableCostPerUnit ?? 300)
+    setFc(inputs.fixedCostMonthly ?? 50000); setDiscount(inputs.discountPercent ?? 10); setCac(inputs.estimatedCac ?? 500)
+    setRetention(inputs.retentionMonths ?? 18); setElasticity(inputs.demandElasticity ?? 1.5); setConversion(inputs.conversionRatePercent ?? 3.5)
+    setPaymentFee(inputs.paymentFeePercent ?? 0); setBillingModel(inputs.billingModel ?? 'recurring')
+    setSourceReportId(inputs.sourceReportId ?? ''); setSourceCanvasId(inputs.sourceCanvasId ?? '')
+  }
+  const pricingDraftValue = { sourceReportId, sourceCanvasId, price, customers, vc, fc, discount, cac, retention, elasticity, conversion, paymentFee, billingModel }
+  const restorePricing = (value: typeof pricingDraftValue) => {
+    setSourceReportId(value.sourceReportId); setSourceCanvasId(value.sourceCanvasId); setPrice(value.price); setCustomers(value.customers); setVc(value.vc); setFc(value.fc)
+    setDiscount(value.discount); setCac(value.cac); setRetention(value.retention); setElasticity(value.elasticity); setConversion(value.conversion)
+    setPaymentFee(value.paymentFee); setBillingModel(value.billingModel)
+  }
+  const draft = usePlanningDraft({ module: 'pricing', ownerId: user?.id, ideaId: selectedIdeaId, ideas, value: pricingDraftValue,
+    onRestore: (value, ideaId) => { restorePricing(value); setSelectedIdeaId(ideaId) },
+  })
   const history = useSavedModuleHistory('pricing', record => {
     const inputs = record.reportData?.inputs
     if (inputs) {
       setPrice(inputs.sellingPrice); setCustomers(inputs.expectedCustomers); setVc(inputs.variableCostPerUnit)
       setFc(inputs.fixedCostMonthly); setDiscount(inputs.discountPercent); setCac(inputs.estimatedCac); setRetention(inputs.retentionMonths)
+      setElasticity(inputs.demandElasticity ?? 1.5); setConversion(inputs.conversionRatePercent ?? 3.5)
+      setPaymentFee(inputs.paymentFeePercent ?? 0); setBillingModel(inputs.billingModel ?? 'recurring')
     }
-    setSelectedIdeaId(record.ideaId); setSimulationId(record.id); setAiResult(record.reportData)
+    setSelectedIdeaId(record.ideaId);setSourceReportId(inputs?.sourceReportId ?? ''); setSourceCanvasId(inputs?.sourceCanvasId ?? ''); setSimulationId(record.id); setAiResult(record.reportData)
   })
 
-  const updateInput = (set: (value: number) => void, value: number) => { set(value); setAiResult(null); setSimulationId(null); history.clear() }
+  const updateInput = (set: (value: number) => void, value: number) => { draft.markEdited(); set(value) }
 
-  const metrics = useMemo(() => {
-    const margin = cm(price, vc)
-    const be = breakEven(fc, price, vc)
-    const grossMargin = gm(price, vc)
-    const markup = muPct(price, vc)
-    const ltv = ltvFn(margin, retention)
-    const ratio = ltvCacFn(ltv, cac)
-    const payback = cacPaybackFn(cac, margin)
-    const revenue = price * customers
-    const profit = revenue - vc * customers - fc
-    const discountedCm = cm(price * (1 - discount / 100), vc)
-    const discountBreakEven = discountedCm > 0 ? (margin * customers) / discountedCm : Infinity
-    return { margin, be, grossMargin, markup, ltv, ratio, payback, revenue, profit, discountBreakEven }
-  }, [price, customers, vc, fc, discount, cac, retention])
-
-  const priceRangeData = useMemo(() =>
-    [0.5, 0.65, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0].map(m => {
-      const p = Math.round(price * m)
-      const est = Math.round(customers / Math.pow(m, 1.5))
-      const rev = p * est
-      const prof = rev - vc * est - fc
-      return { price: p, revenue: Math.round(rev), profit: Math.round(prof), customers: est }
-    }), [price, customers, vc, fc])
-
-  const scenarios = useMemo(() => [
-    { label: 'Pessimistic (60%)', mult: 0.6 },
-    { label: 'Conservative (80%)', mult: 0.8 },
-    { label: 'Base (100%)', mult: 1.0 },
-    { label: 'Optimistic (120%)', mult: 1.2 },
-    { label: 'Best Case (150%)', mult: 1.5 },
-  ].map(s => {
-    const c2 = Math.round(customers * s.mult)
-    const rev = price * c2
-    const prof = rev - vc * c2 - fc
-    return { ...s, customers: c2, revenue: Math.round(rev), profit: Math.round(prof) }
-  }), [price, customers, vc, fc])
-
-  // 0E-1: Live 5x5 Sensitivity Analysis Matrix
-  const sensitivityMatrix: SensitivityCell[][] = useMemo(() => {
-    return [-20, -10, 0, 10, 20].map(priceChange => {
-      return [-20, -10, 0, 10, 20].map(volumeChange => {
-        const p = price * (1 + priceChange / 100)
-        const v = customers * (1 + volumeChange / 100)
-        const currentMargin = p - vc
-        const profit = currentMargin * v - fc
-        return { priceChange, volumeChange, profit: Math.round(profit) }
-      })
-    })
-  }, [price, customers, vc, fc])
+  const calculations = useMemo(() => calculatePricing({
+    ideaId: selectedIdeaId, sellingPrice: price, expectedCustomers: customers, variableCostPerUnit: vc,
+    fixedCostMonthly: fc, discountPercent: discount, estimatedCac: cac, retentionMonths: retention,
+    demandElasticity: elasticity, conversionRatePercent: conversion, paymentFeePercent: paymentFee, billingModel,
+  }), [selectedIdeaId, price, customers, vc, fc, discount, cac, retention, elasticity, conversion, paymentFee, billingModel])
+  const calculationError = planningCalculationIssues(calculations)[0]?.message
+  const computed = calculations.computedMetrics
+  const metrics = { margin: computed.contributionMargin, be: computed.breakEvenUnits ?? Infinity,
+    grossMargin: computed.grossMarginPct, markup: computed.markupPct, ltv: computed.ltv,
+    ratio: computed.ltvCacRatio ?? Infinity, payback: computed.cacPayback ?? Infinity,
+    revenue: computed.revenue, profit: computed.operatingProfit, discountBreakEven: computed.discountBreakEven ?? Infinity }
+  const priceRangeData = calculations.scenarios.map(row => ({ price: row.price, revenue: row.revenue, profit: row.profit, customers: row.estimatedCustomers }))
+  const scenarios = calculations.scenarios.map(row => ({ ...row, customers: row.estimatedCustomers }))
+  const sensitivityMatrix: SensitivityCell[][] = calculations.sensitivityMatrix
 
   async function runAi() {
+    if (calculationError) { toast.error(calculationError); return }
     if (!selectedIdeaId) {
       toast.error('Select an idea first')
       return
     }
     setAnalyzing(true)
     try {
+      const payload = {
+        ideaId: selectedIdeaId, sellingPrice: price, expectedCustomers: customers,
+        sourceReportId:sourceReportId || undefined, sourceCanvasId:sourceCanvasId || undefined,
+        variableCostPerUnit: vc, fixedCostMonthly: fc, discountPercent: discount,
+        conversionRatePercent: conversion, estimatedCac: cac, retentionMonths: retention,
+        demandElasticity: elasticity, paymentFeePercent: paymentFee, billingModel,
+      }
+      const requestKey = await runIdentity.keyFor(payload)
       const res = await fetch('/api/pricing', {
         method: 'POST',
         signal: AbortSignal.timeout(280_000),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ideaId: selectedIdeaId, sellingPrice: price, expectedCustomers: customers,
-          variableCostPerUnit: vc, fixedCostMonthly: fc, discountPercent: discount,
-          conversionRatePercent: 3.5, estimatedCac: cac, retentionMonths: retention,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': requestKey },
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (res.ok) {
+        runIdentity.confirmed(requestKey)
         setAiResult(data.result)
         setSimulationId(data.simulationId); history.open(data.simulationId); history.refresh()
         toast.success('AI pricing analysis complete!')
       } else {
+        if (data.code === 'planning_inputs_changed') runIdentity.confirmed(requestKey)
         toast.error(data.error ?? 'AI analysis failed')
       }
     } catch {
@@ -277,12 +283,7 @@ export default function PricingPage() {
   const beNum = isFinite(metrics.be) ? Math.ceil(metrics.be) : null
 
   // 0E-3: 9-Factor Pricing Scorecard Calculations
-  const cmPct = metrics.grossMargin
-  const cmScore = Math.max(0, Math.min(15, cmPct >= 60 ? 15 : Math.round((cmPct / 60) * 15)))
-  const beUnits = isFinite(metrics.be) ? metrics.be : Infinity
-  const beScore = Math.min(10, beUnits <= customers * 0.5 ? 10 : Math.max(0, Math.round((1 - beUnits / (customers * 2)) * 10)))
-  const ltvCac = metrics.ratio
-  const cacLtvScore = Number.isFinite(ltvCac) ? Math.min(10, ltvCac >= 3 ? 10 : Math.max(0, Math.round((ltvCac / 3) * 10))) : 0
+  const { cmScore, beScore, cacLtvScore } = pricingEconomicScores(computed, customers)
 
   const factorScores = [
     { label: 'Willingness to Pay', score: aiResult?.aiAnalysis?.customerWtpScore ?? 0, maxScore: 20 },
@@ -330,12 +331,12 @@ export default function PricingPage() {
             compact={true}
           />}
           <label htmlFor="pricing-idea" className="sr-only">Idea for pricing analysis</label>
-          <select id="pricing-idea" value={selectedIdeaId} disabled={analyzing} onChange={e => { setSelectedIdeaId(e.target.value); setAiResult(null); setSimulationId(null); history.clear() }}
+          <select id="pricing-idea" value={selectedIdeaId} disabled={analyzing || history.opening} onChange={e => { draft.markEdited(); setSelectedIdeaId(e.target.value); restorePricing({ sourceReportId:'', sourceCanvasId:'', price:1000, customers:100, vc:300, fc:50000, discount:10, cac:500, retention:18, elasticity:1.5, conversion:3.5, paymentFee:0, billingModel:'recurring' }); setAiResult(null); setSimulationId(null); history.clear() }}
             className="max-w-full px-3 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:border-[#E0A526] focus:outline-none">
             <option value="">— Idea for AI analysis —</option>
             {ideas.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
           </select>
-          <button onClick={runAi} disabled={analyzing || !isPremium || !selectedIdeaId || (!user?.unlimited && balance < CREDIT_COSTS.PRICING)}
+          <button onClick={runAi} disabled={analyzing || history.opening || !!calculationError || !isPremium || !selectedIdeaId || (!user?.unlimited && balance < CREDIT_COSTS.PRICING)}
             className="px-5 py-2 text-sm font-medium text-[#141923] disabled:opacity-40 cursor-pointer shadow-xs"
             style={{ background: 'linear-gradient(135deg, #D4AF37, #E0A526, #A4730C)', borderRadius: '2px 10px 2px 10px' }}>
             {analyzing ? 'Analysing…' : user?.unlimited ? 'AI analysis · owner allowance' : `AI analysis · ${CREDIT_COSTS.PRICING} credits`}
@@ -344,35 +345,49 @@ export default function PricingPage() {
       </div>
 
       {!user?.unlimited && balance < CREDIT_COSTS.PRICING && <p className="text-sm text-slate-600">Your balance is {balance.toLocaleString()} credits. <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a> to run AI analysis. The simulator is ready to use.</p>}
+      <PlanningDraftNotice draft={draft} disabled={analyzing || history.opening} />
+      <SourceReportSelector ideaId={selectedIdeaId} value={sourceReportId} onChange={id=>{draft.markEdited();setSourceReportId(id)}} disabled={analyzing} />
+      <PlanningArtifactSelector ideaId={selectedIdeaId} module="lean-canvas" value={sourceCanvasId} onChange={id=>{draft.markEdited();setSourceCanvasId(id)}} disabled={analyzing || history.opening} />
+      {aiResult && <p className="text-sm leading-relaxed text-[#657081]">The simulator shows your current local scenario. Research and downloads below belong to the saved analysis. <button type="button" className="min-h-11 underline underline-offset-4 text-[#141923]" onClick={restoreSavedInputs}>Restore saved inputs</button></p>}
       <div className="grid grid-cols-12 gap-6">
         {/* Sliders */}
-        <fieldset disabled={analyzing} className="col-span-12 lg:col-span-3 card-angular p-5 bg-[#FFFFFF] h-fit min-w-0">
+        <fieldset disabled={analyzing || history.opening || !!draft.pending} className="col-span-12 lg:col-span-3 card-angular p-5 bg-[#FFFFFF] h-fit min-w-0">
           <h2 className="text-xs font-semibold text-[#141923]  mb-4">
             Inputs <span className="text-amber-600 font-normal">ASSUMPTION</span>
           </h2>
-          <SliderRow label="Selling Price (₹)" value={price} min={100} max={10000} step={50} unit="₹" onChange={value => updateInput(setPrice, value)} />
-          <SliderRow label="Monthly Customers" value={customers} min={1} max={5000} onChange={value => updateInput(setCustomers, value)} />
-          <SliderRow label="Variable Cost/Unit (₹)" value={vc} min={0} max={10000} step={10} unit="₹" onChange={value => updateInput(setVc, value)} />
-          <SliderRow label="Fixed Cost/Month (₹)" value={fc} min={0} max={500000} step={5000} unit="₹" onChange={value => updateInput(setFc, value)} />
-          <SliderRow label="Discount %" value={discount} min={0} max={50} unit="%" onChange={value => updateInput(setDiscount, value)} />
+          <SliderRow label="Selling Price (₹)" value={price} min={0.01} max={1000000} step={50} unit="₹" onChange={value => updateInput(setPrice, value)} />
+          <SliderRow label="Monthly Customers" value={customers} min={0} max={1000000} onChange={value => updateInput(setCustomers, value)} />
+          <SliderRow label="Variable Cost/Unit (₹)" value={vc} min={0} max={1000000} step={10} unit="₹" onChange={value => updateInput(setVc, value)} />
+          <SliderRow label="Fixed Cost/Month (₹)" value={fc} min={0} max={10000000} step={5000} unit="₹" onChange={value => updateInput(setFc, value)} />
+          <SliderRow label="Discount stress scenario %" value={discount} min={0} max={100} unit="%" onChange={value => updateInput(setDiscount, value)} />
           <SliderRow label="Estimated CAC (₹)" value={cac} min={0} max={10000} step={100} unit="₹" onChange={value => updateInput(setCac, value)} />
-          <SliderRow label="Retention (months)" value={retention} min={1} max={60} onChange={value => updateInput(setRetention, value)} />
-          <p className="text-xs leading-relaxed text-slate-500">Changing inputs updates the projections. Run AI analysis again to refresh the research and downloads.</p>
+          <label htmlFor="pricing-billing-model" className="mb-2 block text-xs font-medium text-[#141923]">Billing model</label>
+          <select id="pricing-billing-model" value={billingModel} onChange={event => { draft.markEdited(); setBillingModel(event.target.value as PricingInputs['billingModel']) }} className="mb-4 w-full rounded border border-[#E5E7EB] bg-white px-3 py-2 text-xs">
+            <option value="recurring">Monthly recurring</option><option value="one_time">One-time purchase</option>
+          </select>
+          <SliderRow label="Payment fees %" value={paymentFee} min={0} max={50} step={0.1} unit="%" onChange={value => updateInput(setPaymentFee, value)} />
+          <SliderRow label="Demand elasticity" value={elasticity} min={0} max={5} step={0.1} onChange={value => updateInput(setElasticity, value)} />
+          <SliderRow label="Visitor conversion %" value={conversion} min={0} max={100} step={0.1} unit="%" onChange={value => updateInput(setConversion, value)} />
+          {billingModel === 'recurring' && <SliderRow label="Retention (months)" value={retention} min={1} max={60} onChange={value => updateInput(setRetention, value)} />}
+          <p className="text-xs leading-relaxed text-slate-500">Changing inputs updates this local scenario. Saved research and downloads keep their original inputs until another analysis is saved.</p>
         </fieldset>
 
         {/* Metrics + Charts */}
         <div className="col-span-12 lg:col-span-9 space-y-5">
+          {calculationError ? <p role="alert" className="rounded border border-[#E5E7EB] bg-white p-4 text-sm text-[#991B1B]">{calculationError}</p> : <>
           {/* 0E-7: KPI cards (9 Cards including Discount Break-Even Volume) */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { l: 'Contribution Margin', v: `₹${metrics.margin.toFixed(0)}`, s: `${metrics.grossMargin.toFixed(1)}% Gross Margin` },
               { l: 'Break-Even Customers', v: beNum !== null ? beNum.toLocaleString() : '∞', s: 'ASSUMPTION' },
               { l: 'Monthly Revenue', v: fmt(metrics.revenue), s: 'ASSUMPTION' },
-              { l: 'Monthly Profit', v: fmt(metrics.profit), s: metrics.profit >= 0 ? '✓ Profitable' : '✗ Loss', c: metrics.profit >= 0 ? '#22c55e' : '#ef4444' },
-              { l: 'LTV', v: fmt(metrics.ltv), s: `${retention} mo retention (ASSUMPTION)` },
+              { l: 'Operating Profit', v: fmt(metrics.profit), s: 'Before acquisition and tax', c: metrics.profit >= 0 ? '#22c55e' : '#ef4444' },
+              { l: 'LTV', v: fmt(metrics.ltv), s: billingModel === 'recurring' ? `${retention} mo retention (assumption)` : 'One purchase; no monthly retention revenue' },
               { l: 'LTV:CAC', v: Number.isFinite(metrics.ratio) ? metrics.ratio.toFixed(2) : 'Not available', s: !Number.isFinite(metrics.ratio) ? 'Enter acquisition cost to assess this ratio' : metrics.ratio >= 3 ? '✓ Healthy (≥3)' : '⚠ Low (<3)', c: !Number.isFinite(metrics.ratio) ? '#64748b' : metrics.ratio >= 3 ? '#22c55e' : '#f97316' },
-              { l: 'CAC Payback', v: isFinite(metrics.payback) ? `${metrics.payback.toFixed(1)} mo` : '∞', s: 'ASSUMPTION' },
-              { l: 'Markup %', v: `${metrics.markup.toFixed(1)}%`, s: '≠ Gross Margin %' },
+              billingModel === 'recurring'
+                ? { l: 'CAC payback', v: Number.isFinite(metrics.payback) ? `${metrics.payback.toFixed(1)} mo` : 'Unavailable', s: 'Assumes constant monthly contribution' }
+                : { l: 'Contribution after CAC', v: fmt(computed.contributionAfterAcquisition), s: 'One purchase, less entered acquisition cost' },
+              { l: 'Markup %', v: metrics.markup === null ? 'Unavailable' : `${metrics.markup.toFixed(1)}%`, s: '≠ Gross Margin %' },
               {
                 l: 'Discount Break-Even',
                 v: isFinite(metrics.discountBreakEven) ? `${Math.ceil(metrics.discountBreakEven).toLocaleString()} units` : '∞',
@@ -383,7 +398,7 @@ export default function PricingPage() {
               <div key={k.l} className="card-angular p-4 bg-[#FFFFFF]">
                 <div className="text-base font-medium mb-0.5" style={{ color: k.c ?? '#141923' }}>{k.v}</div>
                 <div className="text-xs font-semibold text-[#141923]">{k.l}</div>
-                <div className="text-[11px] opacity-60 truncate" style={{ color: k.c }}>{k.s}</div>
+                <div className="text-[11px] opacity-60 leading-relaxed" style={{ color: k.c }}>{k.s}</div>
               </div>
             ))}
           </div>
@@ -392,18 +407,21 @@ export default function PricingPage() {
           <div className="card-angular p-4 border-l-4 border-[#E0A526] bg-[#FFFFFF]">
             <p className="text-xs text-[#364152] leading-relaxed">
               <span className="font-semibold text-[#89620B]">Markup ≠ Margin — </span>
-              Markup ({metrics.markup.toFixed(1)}%) = (Price−Cost)/Cost × 100 <em>(calculated on cost)</em>.{' '}
+              Markup ({metrics.markup === null ? 'Unavailable' : metrics.markup.toFixed(1) + '%'}) = (Price−Cost)/Cost × 100 <em>(calculated on cost)</em>.{' '}
               Gross Margin ({metrics.grossMargin.toFixed(1)}%) = (Price−Cost)/Price × 100 <em>(calculated on revenue)</em>.{' '}
               Both are distinct figures — use Gross Margin with investors and Markup with procurement/suppliers.
             </p>
           </div>
 
+          <p className="px-1 text-xs leading-relaxed text-[#657081]">{computed.undefinedMetricsNote} Visitor forecast needed for {customers.toLocaleString()} payers: {computed.requiredVisitors === null ? 'unavailable at 0% conversion' : computed.requiredVisitors.toLocaleString()}.</p>
+          <section className="border-y border-[#E5E7EB] py-4 text-sm" aria-label="Discount and acquisition scenarios"><h3 className="font-medium">Discount and acquisition scenarios</h3><dl className="mt-3 grid gap-3 text-xs leading-relaxed"><div><dt className="font-medium">At a {discount}% discount</dt><dd className="mt-1 text-[#536172]">Price {fmt(computed.discountedPrice)} · revenue {fmt(computed.discountedRevenue)} · operating profit {fmt(computed.discountedOperatingProfit)} at {customers.toLocaleString()} customers.</dd></div><div><dt className="font-medium">If every base-case customer is newly acquired</dt><dd className="mt-1 text-[#536172]">First-month profit after the entered acquisition cost: {fmt(computed.firstMonthProfitAfterAcquisition)}. This scenario assumes all {customers.toLocaleString()} customers are new; it excludes tax, refunds and setup costs.</dd></div></dl></section>
+          {metrics.margin <= 0 && <p role="status" className="rounded border border-[#E5E7EB] bg-white p-4 text-sm text-[#991B1B]">Each sale has zero or negative contribution after the entered costs and fees. Increasing volume cannot cover fixed costs.</p>}
           {/* Price vs Revenue/Profit chart */}
           <div className="card-angular p-5 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold text-[#141923] mb-1">
               Price → Revenue &amp; Profit <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
             </h3>
-            <p className="text-xs text-[#364152] opacity-40 mb-4">Demand elasticity modelled at 1.5× — validate with real market data.</p>
+            <p className="text-xs text-[#364152] opacity-40 mb-4">Demand elasticity is set to {elasticity}. This is a hypothesis; validate the curve with comparable purchase tests.</p>
             <div tabIndex={0} aria-label="Data Chart" role="img" className="w-full">
               <ResponsiveContainer width="100%" height={200}>
                 <LineChart data={priceRangeData}>
@@ -423,13 +441,13 @@ export default function PricingPage() {
           {/* Scenarios table */}
           <div className="card-angular p-5 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold text-[#141923] mb-4">
-              5 Scenarios <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
+              Price scenarios <span className="text-[#141923] bg-amber-200 px-1 py-0.5 rounded font-bold text-[10px]" aria-label="This is an assumption">ASSUMPTION</span>
             </h3>
             <div className="overflow-x-auto" role="region" aria-label="Pricing scenarios" tabIndex={0}>
             <table className="w-full min-w-[460px] text-xs">
               <thead>
                 <tr className="border-b border-[#E5E7EB]">
-                  {['Scenario', 'Customers', 'Revenue', 'Profit', 'Breakeven?'].map(h => (
+                  {['Scenario', 'Price', 'Customers', 'Revenue', 'Profit', 'Breakeven?'].map(h => (
                     <th key={h} className={`py-2 font-medium ${h === 'Scenario' ? 'text-left text-[#89620B]' : 'text-right text-[#364152] opacity-60'}`}>{h}</th>
                   ))}
                 </tr>
@@ -438,13 +456,12 @@ export default function PricingPage() {
                 {scenarios.map((s, i) => (
                   <tr key={i} className={`border-b border-[#E5E7EB] ${i === 2 ? 'bg-[#E0A526]/5' : ''}`}>
                     <td className="py-2 font-medium text-[#141923]">{s.label}</td>
+                    <td className="py-2 text-right">{fmt(s.price)}</td>
                     <td className="py-2 text-right">{s.customers.toLocaleString()}</td>
                     <td className="py-2 text-right">{fmt(s.revenue)}</td>
                     <td className="py-2 text-right" style={{ color: s.profit >= 0 ? '#22c55e' : '#ef4444' }}>{fmt(s.profit)}</td>
                     <td className="py-2 text-right font-medium">
-                      {beNum !== null
-                        ? s.customers >= beNum ? '✓' : '✗'
-                        : '✗'}
+                      {s.breakEvenUnits !== null && s.customers >= s.breakEvenUnits ? 'Yes' : 'No'}
                     </td>
                   </tr>
                 ))}
@@ -564,7 +581,7 @@ export default function PricingPage() {
                     </span>
                   </div>
                   <p className="text-xs text-[#364152] opacity-60 mb-4">
-                    Psychological price barriers modelled from customer personas and competitive benchmarks.
+                    No customer survey was supplied. These questions describe the evidence to collect; there is no measured price corridor.
                   </p>
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
@@ -588,7 +605,7 @@ export default function PricingPage() {
 
                   <div className="p-3 bg-[#E0A526]/10 border border-[#E0A526]/30 rounded flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <span className="text-xs font-semibold text-[#89620B] block">Acceptable Price Corridor</span>
+                      <span className="text-xs font-semibold text-[#89620B] block">Price corridor evidence</span>
                       <span className="text-sm font-medium text-[#141923]">
                         {aiResult.aiAnalysis.vanWestendorpInsights.acceptableRange}
                       </span>
@@ -666,7 +683,9 @@ export default function PricingPage() {
               )}
 
               {/* 18-Section Pricing Narrative Report */}
-              <PricingReport data={aiResult.aiAnalysis} />
+              <SourceReportSummary value={aiResult.sourceReport} />
+              <PlanningEvidence sources={aiResult.researchSources} gaps={aiResult.evidenceGaps} />
+              <details className="border-t border-[#E5E7EB] pt-4"><summary className="min-h-11 cursor-pointer text-sm font-medium">Read the full pricing research</summary><PricingReport data={aiResult.aiAnalysis} /></details>
             </div>
           )}
 
@@ -768,12 +787,13 @@ export default function PricingPage() {
                     <li>Set data category to <em>None</em> on numeric columns to prevent aggregation errors</li>
                   </ol>
                   <div className="mt-3 p-3 bg-amber-50/70 border border-amber-200 rounded text-[11px] text-amber-800">
-                    <strong>ASSUMPTION:</strong> Sensitivity values use a simplified elasticity model (1.5×). Replace with actual price-demand data from A/B tests before publishing.
+                    <strong>ASSUMPTION:</strong> The heatmap varies price and volume independently; it does not use the elasticity curve. Replace assumptions with observed purchase data before publishing.
                   </div>
                 </div>
               </div>
             )}
           </div>
+          </>}
         </div>
       </div>
     </div>

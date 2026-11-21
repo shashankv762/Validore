@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { PlanningDraftNotice, usePlanningDraft } from '@/components/planning/PlanningDraft'
 import { totalCredits } from '@/lib/credit-allocation'
 import { toast } from 'sonner'
 import { ScorecardGrid } from '@/components/ui/ScorecardGrid'
@@ -8,9 +9,17 @@ import { ScatterPlot2x2 } from '@/components/ui/ScatterPlot2x2'
 import { useWorkspaceResources, WorkspaceResourceStatus } from '@/components/WorkspaceResources'
 import { CREDIT_COSTS } from '@/lib/credit-costs'
 import { notifyAccountUpdated } from '@/components/AccountProvider'
-import { PLAN_CATALOG, formatUsd } from '@/lib/plans'
+import { PLAN_CATALOG } from '@/lib/plans'
+import { CurrencyDisclosure, useCurrency } from '@/components/CurrencyProvider'
 import { CREDIT_PACKAGES } from '@/lib/credit-packages'
 import { SavedModuleHistory, useSavedModuleHistory } from '@/components/SavedModuleHistory'
+import { PlanningEvidence } from '@/components/planning/PlanningEvidence'
+import { usePlanningRunIdentity } from '@/components/planning/usePlanningRunIdentity'
+import { PitchRequestError, requestPitchDeck } from '@/lib/planning/pitch-client'
+import { pitchFundingCurrency } from '@/lib/planning/report-content'
+import { SourceReportSelector } from '@/components/planning/SourceReportSelector'
+import { SourceReportSummary } from '@/components/planning/SourceReportSummary'
+import { PlanningArtifactSelector } from '@/components/planning/PlanningArtifactSelector'
 
 type Slide = {
   slideNumber: number
@@ -19,6 +28,7 @@ type Slide = {
   keyPoints: string[]
   speakerNotes: string
   dataLabel?: string
+  sourceUrls?: string[]
 }
 
 type Milestone = {
@@ -94,6 +104,9 @@ type DeckResult = {
       inputs?: unknown
       ai?: PitchDeckAiData
       qualityScore?: number
+      researchSources?: Array<{ title: string; url: string; fetchedAt: string; retrievalKind: string }>
+      evidenceGaps?: string[]
+      sourceReport?: unknown
     }
     [key: string]: unknown
   }
@@ -113,21 +126,10 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'investor_prep', label: 'Investor Prep' },
 ]
 
-export default function PitchDeckPage() {
-  const resources = useWorkspaceResources()
-  const { ideas, user } = resources
-  const tier = user?.tier ?? 'free'
-  const included = Boolean(user?.unlimited || (resources.plan?.canPitchDeck ?? tier === 'max_premium'))
-  const hasAccess = included || (user?.pitchDeckCredits ?? 0) > 0
-  const usesPack = !included && (user?.pitchDeckCredits ?? 0) > 0
-  const balance = user ? totalCredits(user) : 0
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<DeckResult | null>(null)
-  const [activeTab, setActiveTab] = useState<Tab>('slides')
-  const [openQa, setOpenQa] = useState<number | null>(null)
-
-  const [form, setForm] = useState({
+const INITIAL_PITCH_FORM = {
     ideaId: '',
+    sourceReportId: '',
+    sourceCanvasId: '', sourcePricingId: '', sourceCampaignId: '',
     founderName: '',
     founderBackground: '',
     teamSize: 1,
@@ -135,9 +137,31 @@ export default function PitchDeckPage() {
     useOfFunds: '',
     currentTraction: '',
     milestones: [] as Milestone[],
+  }
+
+export default function PitchDeckPage() {
+  const { formatUsd, formatPlanPrice } = useCurrency()
+  const resources = useWorkspaceResources()
+  const { ideas, user } = resources
+  const runIdentity = usePlanningRunIdentity('pitch-deck', user?.id)
+  const tier = user?.tier ?? 'free'
+  const included = Boolean(user?.unlimited || (resources.plan?.canPitchDeck ?? tier === 'max_premium'))
+  const hasAccess = included || (user?.pitchDeckCredits ?? 0) > 0
+  const usesPack = !included && (user?.pitchDeckCredits ?? 0) > 0
+  const balance = user ? totalCredits(user) : 0
+  const [loading, setLoading] = useState(false)
+  const [completedStages, setCompletedStages] = useState<string[]>([])
+  const [result, setResult] = useState<DeckResult | null>(null)
+  const [activeTab, setActiveTab] = useState<Tab>('slides')
+  const [openQa, setOpenQa] = useState<number | null>(null)
+
+  const [form, setForm] = useState(INITIAL_PITCH_FORM)
+  const [runError, setRunError] = useState<string | null>(null)
+  const draft = usePlanningDraft({ module: 'pitch-deck', ownerId: user?.id, ideaId: form.ideaId, ideas, value: form,
+    onRestore: (value, ideaId) => setForm({ ...INITIAL_PITCH_FORM, ...value, ideaId }),
   })
   const history = useSavedModuleHistory('pitch-deck', record => {
-    setForm(current => ({ ...current, ...(record.reportData?.inputs ?? {}), ideaId: record.ideaId }))
+    setForm({ ...INITIAL_PITCH_FORM, ...(record.reportData?.inputs ?? {}), sourceReportId: record.reportData?.inputs?.sourceReportId ?? '', ideaId: record.ideaId })
     setResult({ deckId: record.id, qualityScore: record.qualityScore, founderReadinessScore: record.founderReadinessScore, result: record as DeckResult['result'] })
     setActiveTab('slides'); setOpenQa(null)
   })
@@ -166,23 +190,22 @@ export default function PitchDeckPage() {
       return
     }
     setLoading(true)
+    setRunError(null)
+    setCompletedStages([])
+    let requestKey: string | undefined
     try {
-      const res = await fetch('/api/pitch-deck', {
-        method: 'POST',
-        signal: AbortSignal.timeout(280_000),
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        setResult(data)
-        history.open(data.deckId); history.refresh()
-        toast.success('Pitch deck generated successfully!')
-      } else {
-        toast.error(data.error ?? 'Deck generation failed. Please try again.')
-      }
-    } catch {
-      toast.error('Network error. Failed to generate deck.')
+      const payload = { ...form,sourceReportId:form.sourceReportId || undefined,sourceCanvasId:form.sourceCanvasId || undefined,sourcePricingId:form.sourcePricingId || undefined,sourceCampaignId:form.sourceCampaignId || undefined }
+      requestKey = await runIdentity.keyFor(payload)
+      const data = await requestPitchDeck<DeckResult>(payload, requestKey, progress => setCompletedStages(progress.completedStages))
+      runIdentity.confirmed(requestKey)
+      setResult(data)
+      history.open(data.deckId); history.refresh()
+      toast.success('Pitch deck saved.')
+    } catch (error) {
+      if (error instanceof PitchRequestError && error.code === 'planning_inputs_changed' && requestKey) runIdentity.confirmed(requestKey)
+      const message = error instanceof PitchRequestError ? error.message : 'The connection was interrupted. Check saved results or retry the same run to resume safely.'
+      setRunError(message)
+      toast.error(message)
     } finally {
       notifyAccountUpdated()
       setLoading(false)
@@ -196,15 +219,15 @@ export default function PitchDeckPage() {
     return (
       <div className="max-w-2xl mx-auto mt-20">
         <SavedModuleHistory history={history} />
-        <div className="card-angular p-10 text-center">
+        <div className="card-angular p-5 sm:p-10 text-center">
           <span className="text-4xl block mb-4">🔒</span>
           <h2 className="text-xl font-light text-[#141923] mb-2">Pitch Deck Builder</h2>
           <p className="text-sm text-[#364152] opacity-60 mb-8">
             12-slide investor deck, 3-min pitch script, 20 investor Q&As, quality score /100, and PPTX export.
           </p>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div className="card-angular p-5">
-            <p className="text-lg font-light text-[#89620B] mb-1">{formatUsd(resources.plans?.max_premium.monthlyPriceUsd ?? PLAN_CATALOG.max_premium.monthlyPriceUsd)}<span className="text-sm opacity-60">/mo</span></p>
+            <p className="text-lg font-light text-[#89620B] mb-1">{formatPlanPrice(resources.plans?.max_premium ?? PLAN_CATALOG.max_premium)}<span className="text-sm opacity-60">/mo</span></p>
               <p className="text-sm font-medium text-[#141923] mb-3">Max Premium</p>
               <p className="text-xs text-[#364152] opacity-60 mb-4">Deck generation with plan credits, PDF, Word and PPTX downloads</p>
               <a
@@ -233,6 +256,7 @@ export default function PitchDeckPage() {
               You&apos;re on Premium. Buy a Pitch Deck Pack above or upgrade to Max Premium.
             </p>
           )}
+          <CurrencyDisclosure prices="both" />
         </div>
       </div>
     )
@@ -251,14 +275,15 @@ export default function PitchDeckPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="card-angular p-5 sm:p-8">
-          <fieldset disabled={loading} className="space-y-5 min-w-0">
+        <PlanningDraftNotice draft={draft} disabled={loading || history.opening} />
+        <form onChangeCapture={draft.markEdited} onSubmit={handleSubmit} className="card-angular p-5 sm:p-8">
+          <fieldset disabled={loading || history.opening} className="space-y-5 min-w-0">
           {/* Idea selector */}
           <div>
 <label htmlFor="pitch-deck-select-idea" className="block text-xs font-medium text-[#89620B]  mb-1">Select Idea *</label>
             <select id="pitch-deck-select-idea"
               value={form.ideaId}
-              onChange={e => setForm(f => ({ ...f, ideaId: e.target.value }))}
+              onChange={e => setForm({ ...INITIAL_PITCH_FORM, ideaId: e.target.value })}
               required
               className="w-full px-3 py-2 border border-[#E5E7EB] rounded bg-[#FFFFFF] text-sm focus:border-[#E0A526] focus:outline-none"
             >
@@ -267,6 +292,10 @@ export default function PitchDeckPage() {
             </select>
           </div>
 
+          <SourceReportSelector ideaId={form.ideaId} value={form.sourceReportId} onChange={sourceReportId=>setForm(current=>({...current,sourceReportId}))} disabled={loading} />
+          <PlanningArtifactSelector ideaId={form.ideaId} module="lean-canvas" value={form.sourceCanvasId} onChange={sourceCanvasId=>setForm(current=>({...current,sourceCanvasId}))} disabled={loading} />
+          <PlanningArtifactSelector ideaId={form.ideaId} module="pricing" value={form.sourcePricingId} onChange={sourcePricingId=>setForm(current=>({...current,sourcePricingId}))} disabled={loading} />
+          <PlanningArtifactSelector ideaId={form.ideaId} module="crowdfunding" value={form.sourceCampaignId} onChange={sourceCampaignId=>setForm(current=>({...current,sourceCampaignId}))} disabled={loading} />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
 <label htmlFor="pitch-deck-founder-name" className="block text-xs font-medium text-[#89620B]  mb-1">Founder Name *</label>
@@ -376,6 +405,11 @@ export default function PitchDeckPage() {
           >
             {loading ? 'Generating pitch deck…' : `Generate pitch deck · ${user?.unlimited ? 'owner allowance' : usesPack ? '1 deck pack' : CREDIT_COSTS.PITCH_DECK + ' credits'}`}
           </button>
+          {runError && <p role="alert" className="mb-3 text-sm leading-relaxed text-[#991B1B]">{runError} Your inputs remain here. Use Generate pitch deck again to resume the same inputs.</p>}
+          {loading && <p role="status" aria-live="polite" className="text-sm leading-relaxed text-[#657081]">
+            {completedStages.length ? `${completedStages.length} of 4 writing stages saved. Completing the remaining sections…` : 'Writing slides and strategy, then scripts, review and twenty investor answers. This can take several minutes.'}
+            {' '}Credits are charged once, when the complete deck is saved.
+          </p>}
           <p className="text-xs leading-relaxed text-slate-500">{user?.unlimited ? 'Included with your unlimited owner allowance.' : usesPack ? 'Uses one of your purchased deck runs.' : `${balance.toLocaleString()} credits available. Charged only when the deck is saved.`} {!user?.unlimited && !usesPack && balance < CREDIT_COSTS.PITCH_DECK && <a href="/dashboard/credits" className="underline underline-offset-4">View credit options</a>}</p>
           </fieldset>
         </form>
@@ -402,6 +436,7 @@ export default function PitchDeckPage() {
 
   // 0D-3: Portfolio sections
   const portfolioSections = result.result.portfolioSections ?? ai?.portfolioSections ?? []
+  const fundingCurrency = pitchFundingCurrency((result.result.reportData?.inputs as { fundingAskAmount?: string } | undefined)?.fundingAskAmount)
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -469,7 +504,7 @@ export default function PitchDeckPage() {
 
       {/* 0D-2: Founder Readiness Note */}
       {ai?.founderReadinessNote && (
-        <div className="card-angular p-5 mb-6 border-l-4 border-[#E0A526] bg-[#FFFFFF]">
+        <div className="card-angular p-5 mb-6 border border-[#E5E7EB] bg-[#FFFFFF]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold text-[#141923] ">
               Founder Readiness Note &amp; Qualitative Assessment
@@ -488,16 +523,18 @@ export default function PitchDeckPage() {
       )}
 
       {/* Integrity note */}
-      <div className="card-angular p-4 border-l-4 border-[#E0A526] mb-6 bg-[#FFFFFF]">
+      <div className="card-angular p-4 border border-[#E5E7EB] mb-6 bg-[#FFFFFF]">
         <p className="text-xs font-semibold text-[#89620B] mb-1">Integrity Note</p>
         <p className="text-xs text-[#364152] leading-relaxed">{ai?.integrityNote || result.result.integrityNote || 'Review the assumptions and source references before presenting this deck.'}</p>
       </div>
 
+      <div className="mb-6"><SourceReportSummary value={result.result.reportData?.sourceReport} /><PlanningEvidence sources={result.result.reportData?.researchSources} gaps={result.result.reportData?.evidenceGaps} /></div>
       {/* Tab nav */}
       <div className="flex gap-1 mb-6 border-b border-[#E5E7EB] overflow-x-auto">
         {TABS.map(tab => (
           <button
             key={tab.key}
+            aria-pressed={activeTab === tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={`px-5 py-2.5 text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
               activeTab === tab.key
@@ -518,7 +555,7 @@ export default function PitchDeckPage() {
               <div className="bg-[#141923] p-4">
                 <div className="text-xs text-[#89620B] mb-1 font-medium">Slide {slide.slideNumber}</div>
                 <div className="text-sm font-medium text-[#F7F8FA] mb-2 leading-tight">{slide.title}</div>
-                <div className="text-xs text-[#F7F8FA] opacity-70 leading-relaxed line-clamp-4">
+                <div className="text-xs text-[#F7F8FA] opacity-90 leading-relaxed whitespace-pre-wrap">
                   {slide.content}
                 </div>
                 {slide.dataLabel && (
@@ -528,12 +565,17 @@ export default function PitchDeckPage() {
               <div className="bg-[#FFFFFF] p-3 border border-[#E5E7EB] border-t-0">
                 <p className="text-xs text-[#364152] opacity-60 font-medium mb-1">Key Points</p>
                 <ul className="space-y-0.5">
-                  {slide.keyPoints.slice(0, 3).map((p, i) => (
+                  {slide.keyPoints.map((p, i) => (
                     <li key={i} className="text-xs text-[#364152] opacity-70 flex gap-1.5">
                       <span className="text-[#89620B] flex-shrink-0">•</span>{p}
                     </li>
                   ))}
                 </ul>
+                <details className="mt-3 border-t border-[#E5E7EB] pt-3 text-xs">
+                  <summary className="cursor-pointer font-medium text-[#89620B]">Speaker notes and sources</summary>
+                  <p className="mt-3 whitespace-pre-wrap leading-relaxed text-[#364152]">{slide.speakerNotes || 'No speaker notes saved for this slide.'}</p>
+                  <ul className="mt-3 space-y-1">{slide.sourceUrls?.filter(url => /^https?:\/\//.test(url)).map(url => <li key={url}><a href={url} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-4">{new URL(url).hostname}</a></li>)}</ul>
+                </details>
               </div>
             </div>
           ))}
@@ -685,7 +727,7 @@ export default function PitchDeckPage() {
         <div className="space-y-6">
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">Value Proposition Canvas</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm leading-relaxed">
               <div className="border p-3"><b>Customer Jobs:</b> {ai?.valuePropositionCanvas?.customerJobs?.join(', ')}</div>
               <div className="border p-3"><b>Products:</b> {ai?.valuePropositionCanvas?.products?.join(', ')}</div>
               <div className="border p-3"><b>Pains:</b> {ai?.valuePropositionCanvas?.pains?.join(', ')}</div>
@@ -718,7 +760,7 @@ export default function PitchDeckPage() {
           )}
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">MoSCoW Features</h3>
-            <div className="grid grid-cols-4 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm leading-relaxed">
               <div className="border p-3"><b>Must:</b> {ai?.moscowFeatures?.must?.join(', ')}</div>
               <div className="border p-3"><b>Should:</b> {ai?.moscowFeatures?.should?.join(', ')}</div>
               <div className="border p-3"><b>Could:</b> {ai?.moscowFeatures?.could?.join(', ')}</div>
@@ -727,7 +769,7 @@ export default function PitchDeckPage() {
           </div>
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">SWOT Analysis</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm leading-relaxed">
               <div className="border p-3 bg-emerald-50"><b>Strengths:</b> {ai?.swot?.strengths?.join(', ')}</div>
               <div className="border p-3 bg-rose-50"><b>Weaknesses:</b> {ai?.swot?.weaknesses?.join(', ')}</div>
               <div className="border p-3 bg-blue-50"><b>Opportunities:</b> {ai?.swot?.opportunities?.join(', ')}</div>
@@ -736,7 +778,7 @@ export default function PitchDeckPage() {
           </div>
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">PESTLE Analysis</h3>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm leading-relaxed">
               <div className="border p-2"><b>Political:</b> {ai?.pestleAnalysis?.political?.join(', ')}</div>
               <div className="border p-2"><b>Economic:</b> {ai?.pestleAnalysis?.economic?.join(', ')}</div>
               <div className="border p-2"><b>Social:</b> {ai?.pestleAnalysis?.social?.join(', ')}</div>
@@ -789,7 +831,7 @@ export default function PitchDeckPage() {
           </div>
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">GTM Strategy</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm leading-relaxed">
               <div className="border p-3"><b>Phase 1: {ai?.gtmStrategy?.phase1?.name}</b><br/>Timeline: {ai?.gtmStrategy?.phase1?.timeline}<br/>Budget: {ai?.gtmStrategy?.phase1?.budget}<br/>Channels: {ai?.gtmStrategy?.phase1?.channels?.join(', ')}</div>
               <div className="border p-3"><b>Phase 2: {ai?.gtmStrategy?.phase2?.name}</b><br/>Timeline: {ai?.gtmStrategy?.phase2?.timeline}<br/>Budget: {ai?.gtmStrategy?.phase2?.budget}<br/>Channels: {ai?.gtmStrategy?.phase2?.channels?.join(', ')}</div>
             </div>
@@ -800,12 +842,13 @@ export default function PitchDeckPage() {
         <div className="space-y-6">
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-4">Use of Funds Breakdown</h3>
+            <p className="mb-3 text-sm leading-relaxed text-[#657081]">{fundingCurrency ? `Amounts in ${fundingCurrency}, as supplied in the funding ask.` : 'Funding currency was not supplied. Confirm the unit before using these allocations.'}</p>
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead><tr className="border-b"><th>Category</th><th>Amount</th><th>Percentage</th><th>Rationale</th></tr></thead>
                 <tbody>
                   {ai?.useOfFundsBreakdown?.map((u, i) => (
-                    <tr key={i} className="border-b"><td>{u.category}</td><td>${u.amount?.toLocaleString()}</td><td>{u.percentage}%</td><td>{u.rationale}</td></tr>
+                    <tr key={i} className="border-b"><td>{u.category}</td><td>{fundingCurrency ? `${fundingCurrency} ` : ''}{u.amount?.toLocaleString()}</td><td>{u.percentage}%</td><td>{u.rationale}</td></tr>
                   ))}
                 </tbody>
               </table>
@@ -847,7 +890,7 @@ export default function PitchDeckPage() {
           </div>
           <div className="card-angular p-6 bg-[#FFFFFF]">
             <h3 className="text-sm font-semibold mb-2">Brand Strategy</h3>
-            <div className="grid grid-cols-2 gap-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm leading-relaxed">
               <div className="border p-2"><b>Positioning:</b> {ai?.brandStrategy?.positioning}</div>
               <div className="border p-2"><b>Voice Tone:</b> {ai?.brandStrategy?.voiceTone}</div>
               <div className="border p-2"><b>Visual Identity:</b> {ai?.brandStrategy?.visualIdentity}</div>

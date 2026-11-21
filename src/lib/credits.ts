@@ -40,6 +40,19 @@ export async function deductCredits(userId: string, cost: number, action: string
     if (!lockedUser || !isActiveAccount(lockedUser)) return false
     if (isOwnerAccount(lockedUser)) return true
     const user = await applyDueCycleReset(tx, lockedUser)
+    return deductLockedCredits(tx, user, cost, action, entityId, validationLimit)
+  }
+  return transaction ? spend(transaction) : db.transaction(spend)
+}
+
+/** Caller must hold this account's update lock and reconcile its credit cycle.
+ * Admission can then choose the current entitlement and debit the same row. */
+export async function deductLockedCredits(tx: CreditTransaction, lockedUser: typeof users.$inferSelect, cost: number,
+  action: string, entityId?: string, validationLimit?: number, now = new Date()): Promise<boolean> {
+    assertAmount(cost)
+    if (!isActiveAccount(lockedUser)) return false
+    if (isOwnerAccount(lockedUser)) return true
+    const user = action === 'VALIDATION' ? await resetValidationWindow(tx, lockedUser, now) : lockedUser
     const beyondIncluded = action === 'VALIDATION' && validationLimit !== undefined && user.validationsThisMonth >= validationLimit
     if (beyondIncluded && (cost !== CREDIT_COSTS.LITE_VALIDATION || !canFundExtraLite(user))) return false
     const sources = allocateCredits(user, cost, beyondIncluded)
@@ -52,23 +65,31 @@ export async function deductCredits(userId: string, cost: number, action: string
       creditsUsedThisCycle: sql`${users.creditsUsedThisCycle} + ${cost}`,
       monthlyCreditsUsedThisCycle: sql`${users.monthlyCreditsUsedThisCycle} + ${monthly}`,
       ...(action === 'VALIDATION' ? { validationsThisMonth: sql`${users.validationsThisMonth} + 1` } : {}),
-    }).where(eq(users.id, userId))
+    }).where(eq(users.id, user.id))
     await tx.insert(creditLedger).values({
-      userId, amount: -cost, transactionType: action,
+      userId: user.id, amount: -cost, transactionType: action,
       description: JSON.stringify({ entityId: entityId ?? null, monthly, purchased, reward,
         cycleStartedAt: user.creditCycleStartedAt?.toISOString() ?? null,
-        cycleTier: user.tier, cycleSubscriptionId: user.subscriptionId }),
+        cycleTier: user.tier, cycleSubscriptionId: user.subscriptionId,
+        ...(action === 'VALIDATION' ? { validationWindowEndsAt: user.validationResetAt?.toISOString() ?? null } : {}) }),
     })
     return true
-  }
-  return transaction ? spend(transaction) : db.transaction(spend)
+}
+
+/** UTC calendar-month reset, performed under the same lock as count increments. */
+export async function resetValidationWindow(tx: CreditTransaction, user: typeof users.$inferSelect, now = new Date()) {
+  if (user.validationResetAt && user.validationResetAt > now) return user
+  // A legacy missing deadline is not evidence that recorded current usage expired.
+  const values = { validationsThisMonth: user.validationResetAt ? 0 : user.validationsThisMonth,
+    validationResetAt: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)) }
+  await tx.update(users).set(values).where(eq(users.id, user.id))
+  return { ...user, ...values }
 }
 
 /** Reset a due cycle once, using the current plan under the same user lock. */
-async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inferSelect) {
-  const now = new Date()
+export async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inferSelect, now = new Date()) {
   if (user.creditResetAt && user.creditResetAt > now && user.creditCycleStartedAt) return settlePendingMonthlyRefunds(tx, user)
-  if (user.tier !== 'free') {
+  if (user.tier !== 'free' && user.subscriptionStatus !== 'manual') {
     if (!user.stripeCustomerId || !user.subscriptionId?.startsWith('sub_')) {
       // Disabled legacy billing must not receive unconfirmed renewals.
       if (user.creditResetAt && user.creditResetAt > now) return user
@@ -85,7 +106,7 @@ async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inf
     await tx.update(users).set(values).where(eq(users.id, user.id))
     return { ...user, ...values }
   }
-  const allowance = (await getPlan('free', tx)).monthlyCredits
+  const allowance = (await getPlan(user.tier, tx)).monthlyCredits
   const values = {
     creditBalance: allowance, creditsUsedThisCycle: 0, monthlyCreditsUsedThisCycle: 0,
     creditCycleAllowance: allowance,
@@ -93,6 +114,10 @@ async function applyDueCycleReset(tx: CreditTransaction, user: typeof users.$inf
     creditResetAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
   }
   await tx.update(users).set(values).where(eq(users.id, user.id))
+  if (user.subscriptionStatus === 'manual') {
+    await tx.insert(creditLedger).values({ userId: user.id, amount: allowance - user.creditBalance,
+      transactionType: 'MANUAL_PLAN_RENEWAL', description: `Owner-assigned ${user.tier} plan · next 30-day cycle` })
+  }
   return { ...user, ...values }
 }
 
@@ -165,7 +190,7 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
     )).limit(1)
     if (!spend?.description) return
     const sources = JSON.parse(spend.description) as { monthly: number; purchased: number; reward?: number;
-      cycleStartedAt?: string | null; cycleTier?: string; cycleSubscriptionId?: string | null }
+      cycleStartedAt?: string | null; cycleTier?: string; cycleSubscriptionId?: string | null; validationWindowEndsAt?: string | null }
     const reward = sources.reward ?? 0 // Older ledger entries predate rewarded credits.
     assertAmount(sources.monthly, true)
     assertAmount(sources.purchased, true)
@@ -181,7 +206,9 @@ export async function refundValidationCredits(userId: string, jobId: string, tra
       ? sources.cycleStartedAt === cycleStart?.toISOString() &&
         (sources.cycleSubscriptionId === undefined || sources.cycleSubscriptionId === user.subscriptionId)
       : Boolean(spend.createdAt && cycleStart && spend.createdAt >= cycleStart))
-    const sameValidationMonth = !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+    const sameValidationMonth = sources.validationWindowEndsAt
+      ? sources.validationWindowEndsAt === new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString()
+      : !spend.createdAt || spend.createdAt >= new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
     const allowance = creditCycleAllowance(user)
     const consumedMonthly = Math.max(user.monthlyCreditsUsedThisCycle ?? 0,
       allowance - user.creditBalance, 0)

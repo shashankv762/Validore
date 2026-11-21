@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PgDialect } from 'drizzle-orm/pg-core'
 const mocks = vi.hoisted(() => ({ find: vi.fn(), insert: vi.fn(), values: vi.fn(), update: vi.fn(), returning: vi.fn() }))
-vi.mock('@/db', () => ({ db: { query: { users: { findFirst: mocks.find } }, insert: mocks.insert, update: mocks.update } }))
+vi.mock('@/db', () => {
+  const executor = { query: { users: { findFirst: mocks.find } }, insert: mocks.insert, update: mocks.update }
+  return { db: { ...executor, transaction: (run: (tx: typeof executor) => unknown) => run(executor) } }
+})
 import { getOrCreateDbUser, syncUserToDatabase } from '@/lib/auth-sync'
 const identity = { id: 'public-auth-identity', email: 'founder@example.com' }
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.find.mockResolvedValue(undefined)
   mocks.insert.mockReturnValue({ values: mocks.values })
-  mocks.values.mockReturnValue({ onConflictDoNothing: () => ({ returning: async () => [{ id: 'new-profile', creditBalance: 100 }] }) })
+  mocks.values.mockReturnValue({ onConflictDoNothing: () => ({ returning: async () => [{ id: 'new-profile', creditBalance: 0, purchasedCredits: 200 }] }) })
   mocks.update.mockReturnValue({ set: () => ({ where: () => ({ returning: mocks.returning }) }) })
 })
 describe('app profile creation boundary', () => {
@@ -49,8 +52,9 @@ describe('app profile creation boundary', () => {
     expect(mocks.insert).not.toHaveBeenCalled()
   })
   it('provisions the initial allowance only for a server-authorized registration caller', async () => {
-    expect(await syncUserToDatabase(identity, { createNew: true })).toEqual({ id: 'new-profile', creditBalance: 100 })
-    expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ supabaseId: identity.id, creditBalance: 100 }))
+    expect(await syncUserToDatabase(identity, { createNew: true })).toEqual({ id: 'new-profile', creditBalance: 0, purchasedCredits: 200 })
+    expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ supabaseId: identity.id, creditBalance: 0, purchasedCredits: 200 }))
+    expect(mocks.values).toHaveBeenCalledWith(expect.objectContaining({ userId: 'new-profile', amount: 200, transactionType: 'SIGNUP_GRANT' }))
   })
   it('cannot transfer a different app identity by matching email', async () => {
     mocks.find.mockResolvedValueOnce(undefined).mockResolvedValueOnce({ id: 'another-owner', supabaseId: 'different-auth-identity' })

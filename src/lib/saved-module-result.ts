@@ -1,4 +1,8 @@
 import { z } from 'zod'
+import { CrowdfundingInputSchema, PricingInputSchema, refinePricingCalculations } from '@/lib/planning/economics'
+import { SourceReportSnapshotSchema, SourceReportIdSchema } from '@/lib/planning/source-report-contract'
+import { PlanningContextSnapshotSchema, PlanningArtifactSelectionSchema } from '@/lib/planning/context-contract'
+import { PitchFundingSchema } from '@/lib/planning/pitch-funding'
 
 const strings = z.array(z.string())
 const optional = <T extends z.ZodType>(schema: T) => schema.nullish()
@@ -12,6 +16,30 @@ const roadmap = rows({ phase: z.string(), timeframe: z.string(), milestones: z.a
 const portfolio = rows({ sectionTitle: z.string(), content: z.string(), label: optional(z.string()) })
 const actions = rows({ action: z.string(), owner: optional(z.string()), deadline: optional(z.string()) })
 const risks = rows({ risk: z.string(), mitigation: z.string(), probability: optional(z.string()), impact: optional(z.string()), riskLevel: optional(z.string()), severity: optional(z.string()), likelihood: optional(z.string()) })
+const researchSources = optional(rows({ title: z.string(), url: z.string().url(), fetchedAt: z.string(), dataBundleVersion:optional(z.string()),retrievalKind: optional(z.string()), evidenceNote: optional(z.string()) }))
+const ideaSnapshot = optional(z.object(stringFields(['name','industry','product','targetCustomer','location','businessModel','coreProblem','proposedSolution','publicResearchFocus','briefFingerprint','capturedAt','preparedAt'])))
+const evidenceMetadata = { researchSources, evidenceGaps: optional(strings), warnings: optional(strings), ideaSnapshot, sourceReport: SourceReportSnapshotSchema.nullish(), planningContext: PlanningContextSnapshotSchema.nullish() }
+// Use the same bounds/enums as generation so a reopened result cannot silently
+// discard a fee, currency, billing cadence or demand assumption.
+const pricingInputs = z.object({ ...PricingInputSchema.shape,
+  ideaId: z.uuid().optional(),
+  conversionRatePercent: PricingInputSchema.shape.conversionRatePercent.default(3.5),
+}).superRefine((input, ctx) => refinePricingCalculations({ ...input, ideaId: input.ideaId ?? 'legacy' }, ctx))
+const campaignInputs = z.object(Object.fromEntries(Object.entries(CrowdfundingInputSchema.shape)
+  .map(([key, field]) => [key, optional(field)])))
+  .superRefine((input, ctx) => {
+    const { lowestReward, averageReward, highestReward } = input
+    if (typeof lowestReward === 'number' && typeof averageReward === 'number' && typeof highestReward === 'number' && (lowestReward > averageReward || averageReward > highestReward)) {
+      ctx.addIssue({ code: 'custom', path: ['averageReward'], message: 'Invalid saved reward ordering.' })
+    }
+  })
+const campaignScenario = z.object({ fundingPercent: z.number(), backers: z.number(), amountRaised: z.number(),
+  ...numberFields(['conversionRatePercent', 'collected', 'fees', 'fulfillmentCost', 'contingencyReserve', 'netProceeds']),
+  goalReached: optional(z.boolean()), label: optional(z.string()),
+})
+const campaignScenarios = optional(z.object(Object.fromEntries(['conservative', 'base', 'optimistic'].map(key => [key, campaignScenario]))))
+const pricingScenarios = optional(rows({ label: z.string(), price: z.number(), estimatedCustomers: z.number(), revenue: z.number(), contributionMargin: z.number(), profit: z.number(), breakEvenUnits: optional(z.number()), label2: optional(z.string()) }))
+const sensitivityMatrix = optional(z.array(rows({ priceChange: z.number(), volumeChange: z.number(), profit: z.number() })))
 
 const pitchAi = z.object({
   ...stringFields(['integrityNote', 'founderReadinessNote']),
@@ -41,7 +69,7 @@ const campaignAi = z.object({
   marketingChannels: optional(rows({ channel: z.string(), estimatedReach: z.string(), costEstimate: z.string(), priority: z.string(), label: optional(z.string()) })),
   thirtyDayPrelaunchPlan: optional(rows({ week: z.string(), activity: z.string(), owner: z.string(), kpi: z.string(), expectedOutput: z.string() })),
   riskRegister: optional(risks),
-  scenarios: optional(z.object(Object.fromEntries(['conservative', 'base', 'optimistic'].map(key => [key, z.object({ fundingPercent: z.number(), backers: z.number(), amountRaised: z.number() })])))),
+  scenarios: campaignScenarios,
   fundingBands: optional(rows({ range: z.string(), probability: z.number(), tips: strings })),
   goalBands: optional(rows({ goalMultiple: z.string(), successRate: z.number(), insight: z.string() })),
   backerSegments: optional(rows({ segment: z.string(), percentage: z.number(), avgPledge: z.number(), motivation: z.string() })),
@@ -79,21 +107,29 @@ const pricingAi = z.object({
 const base = { id: z.uuid(), ideaId: z.uuid() }
 const pitch = z.looseObject({ ...base, qualityScore: score, founderReadinessScore: score,
   integrityNote: optional(z.string()), ai: optional(pitchAi),
-  slides: rows({ slideNumber: z.number(), title: z.string(), content: z.string(), keyPoints: strings, speakerNotes: z.string(), dataLabel: optional(z.string()) }).min(1),
+  slides: rows({ slideNumber: z.number(), title: z.string(), content: z.string(), keyPoints: strings, speakerNotes: z.string(), dataLabel: optional(z.string()), sourceUrls: optional(strings) }).min(1),
   pitchScript3min: z.string().nullish().transform(value => value ?? ''), pitchScript60sec: z.string().nullish().transform(value => value ?? ''),
   investorQa: rows({ question: z.string(), answer: z.string(), label: optional(z.string()) }), roadmap, portfolioSections: optional(portfolio),
-  reportData: z.object({ ai: optional(pitchAi), inputs: optional(z.object({ ...stringFields(['founderName', 'founderBackground', 'fundingAskAmount', 'useOfFunds', 'currentTraction']), teamSize: optional(z.number()), milestones: optional(z.array(milestone)) })) }).nullish().transform(value => value ?? {}),
+  reportData: z.object({ ...evidenceMetadata, funding: PitchFundingSchema.extend({ provenance: z.string() }).nullish(), qualityScore: optional(score), ai: optional(pitchAi), generationTrace: optional(z.record(z.string(), z.unknown())), inputs: optional(z.object({ sourceReportId: SourceReportIdSchema, ...PlanningArtifactSelectionSchema.shape, fundingAsk: PitchFundingSchema.optional(), ...stringFields(['founderName', 'founderBackground', 'fundingAskAmount', 'useOfFunds', 'currentTraction']), teamSize: optional(z.number()), milestones: optional(z.array(milestone)) })) }).nullish().transform(value => value ?? {}),
 })
 const campaign = z.looseObject({ ...base, performanceScore: score, recommendation: z.string(), reportData: z.object({
-  ai: optional(campaignAi), aiAnalysis: optional(campaignAi), disclaimer: optional(z.string()),
-  computedMetrics: optional(z.object(numberFields(['requiredBackers', 'requiredVisitors', 'marketingCostPerBacker']))),
+  ...evidenceMetadata, ai: optional(campaignAi), aiAnalysis: optional(campaignAi), disclaimer: optional(z.string()),
+  computedMetrics: optional(z.object({ ...numberFields(['requiredBackers', 'requiredVisitors', 'marketingCostPerBacker', 'contributionPerBacker', 'goalNetSurplus', 'grossPledgesAtGoal', 'feesAtGoal', 'fulfillmentAtGoal', 'reserveAtGoal', 'minimumViableGoal', 'conversionRatePercent']), label: optional(z.string()) })),
+  scenarios: campaignScenarios,
+  calculationAssumptions: optional(z.object({ ...stringFields(['methodVersion', 'currency', 'fundingModel', 'feeBasis', 'scenarioBasis', 'goalBasis']), audienceDeduplicated: optional(z.boolean()), taxIncluded: optional(z.boolean()) })),
+  scoreReview: optional(z.object({ rawPerformanceScore: z.number(), scoreCap: z.number(), reason: z.string() })),
   benchmark: optional(z.object({ avgFundingPct: optional(z.union([z.string(), z.number()])), totalCount: optional(z.number()), dataLabel: optional(z.string()) })),
-  inputs: optional(z.object({ ...stringFields(['projectDescription', 'category', 'country']), ...numberFields(['fundingGoal', 'preLaunchCommunitySize', 'socialFollowers', 'emailListSize', 'campaignDurationDays', 'rewardTiers', 'lowestReward', 'averageReward', 'highestReward', 'marketingBudget']), hasVideo: optional(z.boolean()) })),
+  inputs: optional(campaignInputs),
 }) })
 const pricing = z.looseObject({ ...base, pricingScore: score, reportData: z.object({
-  aiAnalysis: optional(pricingAi), pricingScore: optional(score),
-  computedMetrics: optional(z.object(numberFields(['contributionMargin', 'contributionMarginPct', 'grossMarginPct', 'markupPct', 'breakEvenUnits', 'breakEvenRevenue', 'revenue', 'operatingProfit', 'ltv', 'ltvCacRatio', 'cacPayback', 'discountBreakEven']))),
-  inputs: optional(z.object(Object.fromEntries(['sellingPrice', 'expectedCustomers', 'variableCostPerUnit', 'fixedCostMonthly', 'discountPercent', 'estimatedCac', 'retentionMonths'].map(key => [key, z.number()])))),
+  ...evidenceMetadata, aiAnalysis: optional(pricingAi), pricingScore: optional(score),
+  // Calculated metrics are a flat scalar contract. Preserve future additions
+  // while rejecting nonfinite numbers and unexpected nested payloads.
+  computedMetrics: optional(z.object({ ...numberFields(['contributionMargin', 'contributionMarginPct', 'grossMarginPct', 'markupPct', 'breakEvenUnits', 'breakEvenRevenue', 'revenue', 'operatingProfit', 'ltv', 'ltvCacRatio', 'cacPayback', 'discountBreakEven', 'feePerUnit', 'discountedPrice', 'discountedMargin', 'discountedRevenue', 'discountedOperatingProfit', 'firstMonthProfitAfterAcquisition', 'discountVolumeLiftRequired', 'requiredVisitors']), ...stringFields(['markupNote', 'undefinedMetricsNote', 'label']) }).catchall(z.union([z.number().finite(), z.string().max(4000), z.boolean(), z.null()]))),
+  scenarios: pricingScenarios, sensitivityMatrix,
+  volumeScenarios: optional(rows({ label: z.string(), customers: z.number(), revenue: z.number(), profit: z.number() })),
+  calculationAssumptions: optional(z.object({ ...stringFields(['methodVersion', 'currency', 'period', 'billingModel', 'demandModel']), ...numberFields(['demandElasticity', 'paymentFeePercent']), taxAndAcquisitionSpendIncluded: optional(z.boolean()) })),
+  inputs: optional(pricingInputs),
 }) })
 
 /** Reject incomplete historical records before mutating a mounted page's state. */

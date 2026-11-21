@@ -1,4 +1,3 @@
-# Cloudflare Pages equivalent of ../vercel.json. Only public/ is deployed.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY

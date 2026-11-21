@@ -8,6 +8,10 @@ import { db } from '@/db'
 import { ideas, validationReports, pitchDecks } from '@/db/schema'
 import { eq, and, desc } from 'drizzle-orm'
 import { canUserAccess } from '@/lib/tier-gate'
+import { savedExportIdea } from '@/lib/exports/idea-context'
+
+const briefText = (brief: Record<string, unknown>, key: string, missing = 'Not recorded'): string =>
+  typeof brief[key] === 'string' && String(brief[key]).trim() ? String(brief[key]) : missing
 
 export async function GET(request: NextRequest) {
   try {
@@ -37,12 +41,16 @@ export async function GET(request: NextRequest) {
     const specificReportId = searchParams.get('reportId')
     const specificDeckId = searchParams.get('deckId')
     if ([specificIdeaId, specificReportId, specificDeckId].some(id => id && !z.uuid().safeParse(id).success)) return NextResponse.json({ error: 'Invalid export reference' }, { status: 400 })
+    if (specificDeckId && specificReportId) return NextResponse.json({ error: 'Select one saved report or pitch deck' }, { status: 400 })
 
     let userIdeas: Array<typeof ideas.$inferSelect> = []
+    let selectedReport: typeof validationReports.$inferSelect | undefined
+    let selectedDeck: typeof pitchDecks.$inferSelect | undefined
 
     if (specificDeckId) {
       const deck = await db.query.pitchDecks.findFirst({ where: and(eq(pitchDecks.id, specificDeckId), eq(pitchDecks.userId, dbUser.id)) })
-      if (deck) {
+      if (deck && deck.userId === dbUser.id && (!specificIdeaId || deck.ideaId === specificIdeaId)) {
+        selectedDeck = deck
         const idea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, deck.ideaId), eq(ideas.userId, dbUser.id)) })
         if (idea) userIdeas = [idea]
       }
@@ -50,8 +58,9 @@ export async function GET(request: NextRequest) {
       const rep = await db.query.validationReports.findFirst({
         where: and(eq(validationReports.id, specificReportId), eq(validationReports.userId, dbUser.id)),
       })
-      if (rep) {
-        const matchIdea = await db.query.ideas.findFirst({ where: eq(ideas.id, rep.ideaId) })
+      if (rep && rep.userId === dbUser.id && (!specificIdeaId || rep.ideaId === specificIdeaId)) {
+        selectedReport = rep
+        const matchIdea = await db.query.ideas.findFirst({ where: and(eq(ideas.id, rep.ideaId), eq(ideas.userId, dbUser.id)) })
         if (matchIdea) userIdeas = [matchIdea]
       }
     } else if (specificIdeaId) {
@@ -76,10 +85,17 @@ export async function GET(request: NextRequest) {
       where: eq(pitchDecks.userId, dbUser.id), orderBy: [desc(pitchDecks.createdAt)],
     })
 
-    const primaryIdea = userIdeas[0]
-    if (!primaryIdea) return NextResponse.json({ error: 'Create an idea before exporting a portfolio' }, { status: 404 })
-    const primaryReport = userReports.find(r => r.ideaId === primaryIdea.id && (!specificReportId || r.id === specificReportId))
-    const primaryDeck = userDecks.find(d => d.ideaId === primaryIdea.id && (!specificDeckId || d.id === specificDeckId))
+    const currentPrimaryIdea = userIdeas[0]
+    if (!currentPrimaryIdea) return NextResponse.json({ error: 'Create an idea before exporting a portfolio' }, { status: 404 })
+    // An explicit saved selection is authoritative. A newer sibling result for
+    // the same editable idea must not change its score, market or roadmap.
+    const primaryReport = specificDeckId ? undefined : selectedReport ?? userReports.find(r => r.ideaId === currentPrimaryIdea.id)
+    let primaryDeck = specificReportId ? undefined : selectedDeck ?? userDecks.find(d => d.ideaId === currentPrimaryIdea.id)
+    if (primaryReport && primaryDeck && JSON.stringify(savedExportIdea(primaryReport, currentPrimaryIdea)) !== JSON.stringify(savedExportIdea(primaryDeck, currentPrimaryIdea))) primaryDeck = undefined
+    const brief = savedExportIdea(primaryReport ?? primaryDeck ?? {}, currentPrimaryIdea) ?? {}
+    const primaryIdea = { name: briefText(brief, 'name', 'Your startup'), industry: briefText(brief, 'industry'),
+      product: briefText(brief, 'product'), targetCustomer: briefText(brief, 'targetCustomer'), location: briefText(brief, 'location'),
+      businessModel: briefText(brief, 'businessModel'), coreProblem: briefText(brief, 'coreProblem'), proposedSolution: briefText(brief, 'proposedSolution') }
 
     const overallScore = (specificDeckId ? primaryDeck?.qualityScore : primaryReport?.overallScore ?? primaryDeck?.qualityScore) ?? 'Not available'
     const decision = primaryReport?.decision ?? 'Not available'
@@ -131,15 +147,17 @@ export async function GET(request: NextRequest) {
               ${userIdeas
                 .map((idea) => {
                   const rep = userReports.find((r) => r.ideaId === idea.id)
+                  const deck = userDecks.find((d) => d.ideaId === idea.id)
+                  const savedBrief = savedExportIdea(rep ?? deck ?? {}, idea) ?? {}
                   const score = rep?.overallScore ?? 'Not available'
                   const dec = rep?.decision ?? 'Not available'
                   return `<div class="venture-card">
                     <div class="venture-card-header">
-                      <h3>${escapeHtml(idea.name)}</h3>
+                      <h3>${escapeHtml(briefText(savedBrief, 'name', 'Your startup'))}</h3>
                       <span class="score-pill">${score}/100</span>
                     </div>
-                    <p class="industry-tag">${escapeHtml(idea.industry)} • ${escapeHtml(idea.businessModel)}</p>
-                    <p class="venture-desc">${escapeHtml(idea.proposedSolution)}</p>
+                    <p class="industry-tag">${escapeHtml(briefText(savedBrief, 'industry'))} • ${escapeHtml(briefText(savedBrief, 'businessModel'))}</p>
+                    <p class="venture-desc">${escapeHtml(briefText(savedBrief, 'proposedSolution'))}</p>
                     <div class="venture-footer">
                       <span class="decision-tag ${escapeHtml(dec.toLowerCase())}">${escapeHtml(dec)}</span>
                     </div>
@@ -913,55 +931,7 @@ body {
 }
 `
 
-    const readmeMd = `# ${escapeHtml(primaryIdea.name)} — Startup Portfolio Showcase
-
-This repository contains a standalone, fully responsive static portfolio website showcasing the validated business model, market opportunity, and strategic milestones for **${escapeHtml(primaryIdea.name)}**.
-
-## Package Structure
-\`\`\`
-startup-portfolio/
-├── index.html     # Responsive single-page application portfolio
-├── styles.css     # Modern responsive design system & layout styles
-└── README.md      # Deployment and local preview instructions
-\`\`\`
-
-## Key Highlights
-- **Validation Score**: ${overallScore}/100 (${escapeHtml(decision)} Recommendation)
-- **Target Market (TAM)**: ${escapeHtml(tam)}
-- **Business Model**: ${escapeHtml(primaryIdea.businessModel)}
-- **Responsive Architecture**: Optimized for desktop, tablet, and mobile browsers
-
----
-
-## Deployment Instructions
-
-### 1. GitHub Pages (Free)
-1. Push this directory to a GitHub repository.
-2. In the repository settings, navigate to **Settings > Pages**.
-3. Under **Build and deployment**, select **Deploy from a branch** and pick \`main\` / \`/root\`.
-4. Click **Save**. Your portfolio site will be published at \`https://<your-username>.github.io/<repo-name>/\`.
-
-### 2. Cloudflare Pages
-1. Open Workers & Pages in the Cloudflare dashboard and create a Pages project using Direct Upload.
-2. Upload this folder containing index.html and styles.css; no build command is needed.
-3. Add your own domain in the project Custom domains settings and follow the displayed DNS instructions.
-
-### 3. Netlify
-1. Drag and drop this folder directly into the Netlify Drop dashboard at [app.netlify.com/drop](https://app.netlify.com/drop).
-2. Or run \`npx netlify-cli deploy --prod\` from this directory.
-
----
-
-## Local Testing
-To preview the website locally without any build step:
-\`\`\`bash
-# Option A: Open directly in your browser
-double-click index.html
-
-# Option B: Run a local static file server
-npx serve .
-\`\`\`
-`
+    const readmeMd = '# Startup portfolio\n\nUnzip this archive and open `index.html` in a browser. Keep `styles.css` in the same folder.\n'
 
     const zip = new JSZip()
     zip.file('index.html', indexHtml)

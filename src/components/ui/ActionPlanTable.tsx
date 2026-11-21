@@ -1,7 +1,5 @@
 'use client'
 
-import React from 'react'
-
 export interface ActionPlanRow {
   week?: string
   phase?: string
@@ -12,6 +10,11 @@ export interface ActionPlanRow {
   kpi?: string
   expectedOutput?: string
   timeframe?: string
+  hypothesis?: string
+  participantUnit?: string
+  denominator?: string
+  passCriterion?: string
+  decisionOnFailure?: string
 }
 
 export interface ActionPlanTableProps {
@@ -33,6 +36,16 @@ function resolveTimeline(row: ActionPlanRow, index: number): string {
 
 function resolveAction(row: ActionPlanRow): string {
   return row.action || row.activity || 'Action not provided'
+}
+
+function ExperimentCriteria({ row }: { row: ActionPlanRow }) {
+  const entries = [
+    ['Hypothesis', row.hypothesis], ['Participant unit', row.participantUnit], ['Sample denominator', row.denominator],
+    ['Pass criterion', row.passCriterion], ['If the test fails', row.decisionOnFailure],
+  ].filter((entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].trim().length > 0)
+  if (!entries.length) return null
+  return <dl className="mt-3 space-y-2 text-xs leading-relaxed text-[#536172]">{entries.map(([label, value]) =>
+    <div key={label}><dt className="font-medium text-[#141923]">{label}</dt><dd className="mt-0.5">{value}</dd></div>)}</dl>
 }
 
 export function ActionPlanTable({
@@ -80,6 +93,7 @@ export function ActionPlanTable({
         {rows.map((row, index) => <li key={index} className="rounded-lg border border-slate-200 p-4">
           <p className="text-xs font-semibold text-[#89620B] mb-2">{resolveTimeline(row, index)}</p>
           <p className="text-sm leading-relaxed text-[#141923]">{resolveAction(row)}</p>
+          <ExperimentCriteria row={row} />
           <dl className="mt-4 space-y-3 text-xs leading-relaxed">
             <div><dt className="font-medium text-slate-500">Owner</dt><dd className="mt-1 text-slate-700">{row.owner || 'Not assigned'}</dd></div>
             <div><dt className="font-medium text-slate-500">Target</dt><dd className="mt-1 text-slate-700">{row.kpi || 'To be defined'}</dd></div>
@@ -116,6 +130,7 @@ export function ActionPlanTable({
                   </td>
                   <td className="py-3 px-3 font-medium text-[#141923] leading-relaxed align-top">
                     {action}
+                    <ExperimentCriteria row={row} />
                   </td>
                   <td className="py-3 px-3 align-top whitespace-nowrap">
                     <span className="inline-block bg-[#F7F8FA] text-[#141923] text-[11px] px-2 py-0.5 rounded border border-[#E5E7EB]">

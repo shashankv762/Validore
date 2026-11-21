@@ -216,7 +216,7 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       expect(html).toContain('65')
       expect(html).toContain('PROCEED_WITH_CAUTION')
       // Missing data is shown explicitly without fabricated competitors or projections
-      expect(html).toContain('Competitor data is unavailable')
+      expect(html).toContain('No competitor could be confirmed from a retrieved page.')
       expect(html).not.toContain('>Competitor A<')
       expect(html).toContain('Financial Projections')
     })
@@ -279,7 +279,8 @@ describe('Milestone 0: Adversarial Empirical Stress Suite', () => {
       expect(html).toContain('SWOT Analysis Matrix')
       expect(html).toContain('Comprehensive Risk Register')
       expect(html).toContain('Regulatory delay')
-      expect(html).toContain('30-Day Validation &amp; Execution Plan')
+      expect(html).toContain('Experiment plan')
+      expect(html).not.toContain('30-Day Validation &amp; Execution Plan')
       expect(html).toContain('MVP Scope &amp; Minimum Viable Architecture')
       expect(html).toContain('Build Minimum Viable Product (MVP)')
       expect(html).toContain('BUILD_MVP')

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { actionAllowance, creditCycleStart, creditEntryDescription, creditOverview } from '@/lib/account-usage'
 
-const user = { tier: 'free' as const, creditBalance: 50, purchasedCredits: 2000, crowdfundingCredits: 1, pitchDeckCredits: 0, validationsThisMonth: 1 }
+const user = { tier: 'free' as const, creditCycleAllowance: 100, creditBalance: 50, purchasedCredits: 2000, crowdfundingCredits: 1, pitchDeckCredits: 0, validationsThisMonth: 1 }
 
 describe('workspace credit accounting', () => {
   it('separates remaining plan credits from purchased credits in the allowance meter', () => {

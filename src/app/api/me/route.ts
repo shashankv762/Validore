@@ -5,7 +5,7 @@ import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { syncUserToDatabase } from '@/lib/auth-sync'
 import { topUpMonthlyCredits } from '@/lib/credits'
-import { effectiveAiPreference, freeModelsOnly } from '@/lib/ai/model-policy'
+import { effectiveAiPreference, freeModelsOnly, workspaceModelPolicy } from '@/lib/ai/model-policy'
 import { creditCycleAllowance, getPlanBillingAvailability, getPlanCatalog, getPublicPlanCatalog } from '@/lib/plan-catalog'
 import { getPlatformSettings, toAdminSettings } from '@/lib/platform-settings'
 import { isOwnerAccount, isVerifiedOwnerIdentity } from '@/lib/admin-access'
@@ -41,8 +41,8 @@ export async function GET() {
   const plans = getPublicPlanCatalog(catalog)
   return NextResponse.json({
     billing: await getPlanBillingAvailability(catalog),
-    ai: { freeOnly: freeModelsOnly(), researchTools: true },
-    plan: isAdmin ? { ...plans.max_premium, name: 'Owner', monthlyPriceUsd: 0, unlimited: true } : plans[dbUser.tier],
+    ai: { freeOnly: freeModelsOnly(), researchTools: true, workspaceModelPolicy: workspaceModelPolicy() },
+    plan: isAdmin ? { ...plans.max_premium, name: 'Owner', monthlyPriceUsd: 0, monthlyPriceInr: 0, unlimited: true } : plans[dbUser.tier],
     plans,
     platform: toAdminSettings(settings),
     user: {
@@ -55,9 +55,10 @@ export async function GET() {
       isFoundingMember: dbUser.isFoundingMember,
       crowdfundingCredits: dbUser.crowdfundingCredits,
       pitchDeckCredits: dbUser.pitchDeckCredits,
-      validationsThisMonth: !dbUser.validationResetAt || dbUser.validationResetAt <= new Date() ? 0 : dbUser.validationsThisMonth,
+      validationsThisMonth: dbUser.validationResetAt && dbUser.validationResetAt <= new Date() ? 0 : dbUser.validationsThisMonth,
       currentPeriodEnd: dbUser.currentPeriodEnd,
       subscriptionStatus: dbUser.subscriptionStatus,
+      manualPlan: dbUser.subscriptionStatus === 'manual',
       cancelAtPeriodEnd: dbUser.cancelAtPeriodEnd,
       createdAt: dbUser.createdAt,
       emailVerified: Boolean(user.email_confirmed_at),

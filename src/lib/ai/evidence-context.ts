@@ -1,5 +1,6 @@
 import { deduplicateSources, type SearchResult } from './search'
 import type { AgentRole } from './roles'
+import { evidenceContentHash } from './evidence-requirements'
 
 const ROLE_TERMS: Record<AgentRole, string> = {
   market: 'market segment demand population economy industry growth', customer: 'customer problem interview need behaviour willingness pay',
@@ -26,11 +27,37 @@ export function compactEvidence(sources: SearchResult[], query: string, role: Ag
     const sentences = source.content.match(/[^.!?\n]+[.!?\n]?/g) ?? [source.content]
     const relevant = sentences.map((text, index) => ({ text, index, score: [...terms(text)].filter(term => keywords.has(term)).length }))
       .sort((a, b) => b.score - a.score || a.index - b.index).slice(0, 4).sort((a, b) => a.index - b.index)
-    const item = { ...source, content: source.retrievalKind === 'memory' ? source.content : relevant.map(part => part.text).join(' ').slice(0, 1200) }
+    const preserve = source.retrievalKind === 'memory' || source.retrievalKind === 'open-data' || Boolean(source.observations?.length)
+    const item = { ...source, content: preserve ? source.content : relevant.map(part => part.text).join(' ').slice(0, 1200) }
     // Omit a memory that will not fit rather than stripping its geographic or
     // historical limitations from an otherwise precise-looking statistic.
-    while (source.retrievalKind !== 'memory' && item.content.length > 80 && JSON.stringify([...output, item]).length > budget) item.content = item.content.slice(0, Math.floor(item.content.length * 0.7))
+    while (!preserve && item.content.length > 80 && JSON.stringify([...output, item]).length > budget) item.content = item.content.slice(0, Math.floor(item.content.length * 0.7))
+    if (item.content !== source.content) {
+      item.excerpted = true
+      item.originalContentHash = source.originalContentHash ?? evidenceContentHash(source.content)
+      item.contentHash = evidenceContentHash(item.content)
+    }
     if (JSON.stringify([...output, item]).length <= budget) output.push(item)
   }
   return JSON.stringify(output)
+}
+
+/** Keep the observations behind delivered citations auditable after persistence.
+ * Prompt compaction and the background-source limit must never erase cited text. */
+export function retainReportSources(sources: SearchResult[], report: unknown): SearchResult[] {
+  const known = new Set(sources.map(source => source.url))
+  const cited = new Set<string>()
+  const visit = (value: unknown, depth = 0) => {
+    if (depth > 16) return
+    if (typeof value === 'string') { if (known.has(value)) cited.add(value); return }
+    if (Array.isArray(value)) { value.forEach(item => visit(item, depth + 1)); return }
+    if (value && typeof value === 'object') Object.values(value).forEach(item => visit(item, depth + 1))
+  }
+  visit(report)
+  return sources.filter((source, index) => index < 40 || cited.has(source.url))
+    .map(source => {
+      const content = cited.has(source.url) ? source.content : source.content.slice(0, 1600)
+      return content === source.content ? { ...source } : { ...source, content, excerpted: true,
+        originalContentHash: source.originalContentHash ?? evidenceContentHash(source.content), contentHash: evidenceContentHash(content) }
+    })
 }

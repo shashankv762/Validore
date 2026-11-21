@@ -4,7 +4,7 @@ import { db } from '@/db'
 import { researchSources } from '@/db/schema'
 import { publicWebUrl } from './public-web'
 import type { SearchResult } from './search'
-import seedData from '@/data/market/seed-sources.json'
+import { bundledObservations as seedData, MARKET_BUNDLE_VERSION } from './bundled-market'
 
 // Only independently retrieved public sources from reviewed institutions may
 // enter the durable shared store. Model outputs, private answers, search queries,
@@ -59,6 +59,7 @@ export function preparePublicSource(value: unknown, now = Date.now()): SearchRes
     ['IT.NET.USER.ZS', 'SP.URB.TOTL.IN.ZS', 'SL.UEM.TOTL.ZS'].includes(item.indicator!) && item.value > 100)) return null
   return { title: clean(item.title, 250), url: url.href, source: url.hostname, content: clean(item.content, 1800),
     retrievalKind: item.retrievalKind, fetchedAt: new Date(fetched).toISOString(), expiresAt: new Date(expiry).toISOString(),
+    ...(item.observationScope === 'latest-available' || item.observationScope === 'historical' ? { observationScope: item.observationScope } : {}),
     ...(typeof item.dataPeriod === 'string' ? { dataPeriod: clean(item.dataPeriod, 150) } : {}),
     publishedAt: typeof item.publishedAt === 'string' && Number.isFinite(Date.parse(item.publishedAt)) ? item.publishedAt.slice(0, 40) : null,
     ...(typeof item.value === 'number' && Number.isFinite(item.value) && typeof item.observationYear === 'number' && Number.isInteger(item.observationYear) && item.observationYear >= 1900 && item.observationYear <= new Date(fetched).getUTCFullYear() &&
@@ -66,6 +67,7 @@ export function preparePublicSource(value: unknown, now = Date.now()): SearchRes
         value: item.value, observationYear: item.observationYear, indicator: clean(item.indicator, 80), unit: clean(item.unit, 160), country: clean(item.country, 3),
         countryName: optional(item.countryName, 100) || clean(item.country, 3), datasetId: optional(item.datasetId, 100),
         metadataUpdatedAt: optional(item.metadataUpdatedAt, 30),
+        ...(typeof item.dataBundleVersion === 'string' && /^[a-f0-9]{64}$/.test(item.dataBundleVersion) ? { dataBundleVersion: item.dataBundleVersion } : {}),
         ...(item.licenseUrl === 'https://data.worldbank.org/summary-terms-of-use' ? { licenseUrl: item.licenseUrl } : {}),
       } : {}) }
 }
@@ -79,7 +81,7 @@ export function seededResearch(query: string, limit = 6, now = Date.now()): Sear
     .filter(source => inRequestedGeography(source, countries))
     .map(source => ({ source, score: terms.reduce((score, term) => score + Number((source.title + ' ' + source.content).toLowerCase().includes(term)), 0) }))
     .filter(item => item.score > 0).sort((a, b) => b.score - a.score || b.source.fetchedAt.localeCompare(a.source.fetchedAt))
-    .slice(0, Math.max(0, Math.min(12, Math.floor(limit)))).map(item => item.source)
+    .slice(0, Math.max(0, Math.min(12, Math.floor(limit)))).map(item => ({ ...item.source, ...(MARKET_BUNDLE_VERSION ? { dataBundleVersion: MARKET_BUNDLE_VERSION } : {}) }))
 }
 
 export async function rememberPublicSources(sources: SearchResult[]): Promise<number> {
@@ -90,7 +92,9 @@ export async function rememberPublicSources(sources: SearchResult[]): Promise<nu
       const safe = preparePublicSource(source)
       if (!safe) continue
       const urlHash = hash(safe.url)
-      const id = hash(safe.url + '\n' + safe.content + '\n' + (safe.dataPeriod ?? '') + '\n' + (safe.publishedAt ?? ''))
+      // A later retrieval is a new immutable snapshot, including numerical
+      // metadata. Refreshing a URL must not rewrite an earlier report's source.
+      const id = hash(JSON.stringify(safe))
       await db.insert(researchSources).values({ id, urlHash, source: safe, searchText: safe.title + ' ' + safe.content,
         fetchedAt: new Date(safe.fetchedAt), expiresAt: new Date(safe.expiresAt!) })
         .onConflictDoUpdate({ target: researchSources.id, set: { source: safe, fetchedAt: new Date(safe.fetchedAt), expiresAt: new Date(safe.expiresAt!) }, setWhere: lte(researchSources.fetchedAt, new Date(safe.fetchedAt)) })
@@ -125,6 +129,7 @@ export async function retrievePublicResearch(query: string, limit = 6): Promise<
 export async function readStoredMarketIndicator(country: string, indicator: string): Promise<SearchResult | null> {
   if (!enabled()) return null
   const candidates: unknown[] = (seedData as SearchResult[]).filter(item => item.country === country && item.indicator === indicator)
+    .map(item => ({ ...item, ...(MARKET_BUNDLE_VERSION ? { dataBundleVersion: MARKET_BUNDLE_VERSION } : {}) }))
   if (storedDatabase()) {
     try {
       const rows = await db.select({ source: researchSources.source }).from(researchSources)

@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { NoObjectGeneratedError } from 'ai'
 
-const mocks = vi.hoisted(() => ({ text: vi.fn(), candidates: vi.fn(), failed: vi.fn(), canTry: vi.fn(), create: vi.fn() }))
+const mocks = vi.hoisted(() => ({ text: vi.fn(), candidates: vi.fn(), failed: vi.fn(), canTry: vi.fn(), create: vi.fn(), cooldownUntil: vi.fn() }))
 vi.mock('ai', async importOriginal => ({ ...await importOriginal<typeof import('ai')>(), generateText: mocks.text }))
 vi.mock('@ai-sdk/openai', () => ({ createOpenAI: mocks.create }))
 vi.mock('../src/lib/ai/providers', () => ({
@@ -10,11 +10,13 @@ vi.mock('../src/lib/ai/providers', () => ({
 }))
 vi.mock('../src/lib/ai/gateways', async () => ({
   ...await vi.importActual<typeof import('../src/lib/ai/gateways')>('../src/lib/ai/gateways'),
-  gatewayRouter: { candidates: mocks.candidates, failed: mocks.failed, canTry: mocks.canTry },
+  gatewayRouter: { candidates: mocks.candidates, failed: mocks.failed, canTry: mocks.canTry, retryableCooldownUntil: mocks.cooldownUntil },
 }))
 import { generateWithFallback } from '../src/lib/ai/generate'
 import { publicResearchBrief, publicResearchQuery } from '@/lib/ai/research-brief'
 import { CustomerAgentSchema } from '@/lib/validation/schemas'
+import { GenerationUnavailableError } from '@/lib/ai/generation-failure'
+import { createGatewayRouter } from '@/lib/ai/gateways'
 
 const first = { id: 'kios', modelId: 'flash', baseURL: 'https://kios.example/v1', apiKey: 'key-one', fingerprint: 'one' }
 const second = { id: 'seekai', modelId: 'reasoner', baseURL: 'https://seek.example/v1', apiKey: 'key-two', fingerprint: 'two' }
@@ -28,10 +30,76 @@ beforeEach(() => {
   mocks.create.mockImplementation(() => ({ chat: (modelId: string) => modelId }))
   mocks.candidates.mockResolvedValue([first, second])
   mocks.canTry.mockReturnValue(true)
+  mocks.cooldownUntil.mockImplementation((_scope, _candidates, recent?: ReadonlyMap<string, number>) => recent?.size ? Math.min(...recent.values()) : undefined)
 })
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks() })
 
 describe('gateway generation fallback', () => {
+  it('retains complete bounded private records only in explicitly tool-free analysis', async () => {
+    const privateContext = JSON.stringify({ records: Array.from({ length: 40 }, (_, id) => ({ id, content: 'Review detail '.repeat(200) + 'LAST-SENTENCE-' + id })) })
+    expect(privateContext.length).toBeGreaterThan(24000)
+    mocks.text.mockResolvedValue({ text: '{"score":7}', usage: {} })
+    await generateWithFallback({ prompt: 'Analyze every selected review', schema, privateContext, privateContextMaxChars: 384000, researchMode: 'reuse', maxResearchRounds: 0 })
+    expect(mocks.text).toHaveBeenCalledOnce()
+    expect(mocks.text.mock.calls[0][0].prompt).toContain(privateContext)
+    expect(mocks.text.mock.calls[0][0]).not.toHaveProperty('tools')
+  })
+  it.each([
+    { privateContextMaxChars: 384001, researchMode: 'reuse' as const, maxResearchRounds: 0 },
+    { privateContextMaxChars: 160000, researchMode: 'auto' as const, maxResearchRounds: 0 },
+    { privateContextMaxChars: 160000, researchMode: 'reuse' as const },
+  ])('rejects unsafe complete-private-context overrides before model access', async budget => {
+    await expect(generateWithFallback({ prompt: 'Analyze', schema, ...budget })).rejects.toThrow('Invalid complete private context budget')
+    expect(mocks.text).not.toHaveBeenCalled()
+    expect(mocks.candidates).not.toHaveBeenCalled()
+  })
+  it('rejects oversized complete records rather than silently truncating them', async () => {
+    await expect(generateWithFallback({ prompt: 'Analyze', schema, privateContext: 'x'.repeat(4001), privateContextMaxChars: 4000, researchMode: 'reuse', maxResearchRounds: 0 })).rejects.toThrow('Complete private context exceeds')
+    expect(mocks.text).not.toHaveBeenCalled()
+  })
+  it('preserves transient metadata after provider fallback while excluding raw provider responses', async () => {
+    mocks.text.mockRejectedValue(Object.assign(new Error('PRIVATE-PROVIDER-RESPONSE'), { statusCode: 429, responseHeaders: { 'retry-after': '900' } }))
+    const now = Date.now()
+    const error = await generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse' }).catch(error => error)
+    expect(error).toBeInstanceOf(GenerationUnavailableError)
+    expect(error.retryable).toBe(true)
+    expect(error.retryAt).toBeGreaterThanOrEqual(now + 900000)
+    expect(error.message).not.toContain('PRIVATE-PROVIDER-RESPONSE')
+    expect(JSON.stringify(error)).not.toContain('PRIVATE-PROVIDER-RESPONSE')
+  })
+  it('retains an applicable cooldown deadline when no candidates remain and avoids another model call', async () => {
+    const retryAt = Date.now() + 120000
+    mocks.candidates.mockResolvedValue([]); mocks.cooldownUntil.mockReturnValue(retryAt)
+    const error = await generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse' }).catch(error => error)
+    expect(error).toMatchObject({ retryable: true, retryAt })
+    expect(mocks.text).not.toHaveBeenCalled()
+    expect(mocks.cooldownUntil).toHaveBeenCalledWith({ role: undefined, freeOnly: true }, undefined, expect.any(Map))
+  })
+  it('keeps terminal provider billing failures nonretryable without a source-body cause', async () => {
+    mocks.text.mockRejectedValue(Object.assign(new Error('PRIVATE-BILLING-BODY'), { statusCode: 402, responseHeaders: { 'retry-after': '900' } }))
+    const error = await generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse' }).catch(error => error)
+    expect(error).toMatchObject({ retryable: false })
+    expect(error.retryAt).toBeUndefined(); expect(error.cause).toBeUndefined()
+    expect(JSON.stringify(error)).not.toContain('PRIVATE-BILLING-BODY')
+  })
+  it.each(['disabled', 'ineligible'])('does not let a %s gateway cooldown contaminate terminal failures on the current provider', async restriction => {
+    let enabled = 'freegg,utim'
+    const router = createGatewayRouter({ environment: () => ({ AI_GATEWAY_ENABLED: enabled, FREEGG_API_KEY: 'synthetic-key', FREEGG_MODELS: 'paid-model',
+      FREEGG_FREE_MODELS: 'free-model', UTIM_API_KEY: 'synthetic-utim', UTIM_MODELS: 'free-model', UTIM_FREE_MODELS: 'free-model' }),
+      fetcher: async () => new Response('{}', { status: 404 }) })
+    const previous = (await router.candidates()).find(candidate => candidate.id === 'freegg')!
+    router.failed(previous, { statusCode: 429, responseHeaders: { 'Retry-After': '900' } })
+    if (restriction === 'disabled') enabled = 'utim'
+    vi.stubEnv('AI_WORKSPACE_MODEL_POLICY', 'free_only')
+    mocks.candidates.mockImplementation(router.candidates)
+    mocks.cooldownUntil.mockImplementation(router.retryableCooldownUntil)
+    mocks.failed.mockImplementation(router.failed)
+    mocks.text.mockRejectedValue(Object.assign(new Error('Private billing response'), { statusCode: 402 }))
+    const error = await generateWithFallback({ prompt: 'Validate', schema, researchMode: 'reuse' }).catch(error => error)
+    expect(error).toMatchObject({ retryable: false })
+    expect(error.retryAt).toBeUndefined()
+    expect(mocks.text).toHaveBeenCalledOnce()
+  })
   it('applies a configured plan ceiling to both research and output calls across fallback and repair', async () => {
     mocks.text.mockResolvedValueOnce({ text: 'READY', usage: { totalTokens: 2 } })
       .mockResolvedValueOnce({ text: '{"score":100}', usage: { totalTokens: 10 } })
@@ -45,6 +113,11 @@ describe('gateway generation fallback', () => {
     mocks.text.mockResolvedValue({ text: '{"score":7}', usage: {} })
     await generateWithFallback({ prompt: 'Validate', schema, agentRole: 'finance', researchMode: 'reuse', maxTokensPerCall: 128000 })
     expect(mocks.text.mock.calls[0][0].maxOutputTokens).toBe(4000)
+  })
+  it('clamps a 6500-token preparation request to the configured plan ceiling within its 200-second stage',async()=>{
+    mocks.text.mockResolvedValue({text:'{"score":7}',usage:{}})
+    await generateWithFallback({prompt:'Complete preparation',schema,researchMode:'reuse',maxResearchRounds:0,maxModelCalls:2,timeoutMs:200000,maxOutputTokens:6500,maxTokensPerCall:1000})
+    expect(mocks.text).toHaveBeenCalledOnce();expect(mocks.text.mock.calls[0][0].maxOutputTokens).toBe(1000)
   })
   it.each([0, 255, 500.5, 128001])('rejects invalid plan token ceilings before model calls: %s', async maxTokensPerCall => {
     await expect(generateWithFallback({ prompt: 'Validate', schema, maxTokensPerCall })).rejects.toThrow('Invalid AI request budget')
@@ -194,7 +267,7 @@ describe('gateway generation fallback', () => {
     expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['model-0', 'model-0', 'model-1', 'model-2', 'model-3', 'model-4'])
     expect(mocks.text.mock.calls.filter(([options]) => options.instructions.includes('OUTPUT CORRECTION'))).toHaveLength(1)
   })
-  it('shares the original deadline across research, output repair and fallback', async () => {
+  it('shares the original deadline while reserving research and fallback windows', async () => {
     let now = 1000
     vi.spyOn(Date, 'now').mockImplementation(() => now)
     const timeouts = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => new AbortController().signal)
@@ -202,9 +275,10 @@ describe('gateway generation fallback', () => {
       .mockImplementationOnce(async () => { now = 1060; return { text: '{"score":100}', usage: {} } })
       .mockImplementationOnce(async () => { now = 1101; return { text: '{"score":100}', usage: {} } })
     await expect(generateWithFallback({ prompt: 'Validate', schema, timeoutMs: 100 })).rejects.toThrow('No AI provider completed')
-    expect(timeouts.mock.calls.map(([timeout]) => timeout)).toEqual([100, 80, 40])
-    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'flash', 'flash'])
-    expect(mocks.create).toHaveBeenCalledOnce()
+    expect(timeouts.mock.calls.map(([timeout]) => timeout)).toEqual([25, 47, 40])
+    expect(mocks.text.mock.calls.map(([options]) => options.model)).toEqual(['flash', 'flash', 'reasoner'])
+    expect(mocks.text.mock.calls.some(([options]) => options.instructions.includes('OUTPUT CORRECTION'))).toBe(false)
+    expect(mocks.create).toHaveBeenCalledTimes(2)
   })
   it('does not begin repair after the original deadline has already elapsed', async () => {
     let now = 1000
